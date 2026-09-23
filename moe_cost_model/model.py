@@ -109,6 +109,20 @@ class MegaMoeShape:
 
 
 @dataclass(frozen=True)
+class EngineQueueDepths:
+    """引擎 FIFO 队列深度 (每核). 1=串行(回归等价), >1=流水重叠.
+
+    深度出处:
+      aic:  AIC 核 tile 处理 — kernel in-order, L1 ping-pong 允许 2 tile 在飞
+      vec0: AIV0 向量引擎 — UB ping-pong 深度 2
+      aiv1: AIV1 (dispatch+combine) — in-order, 深度 1
+    """
+    aic: int = 1
+    vec0: int = 1
+    aiv1: int = 1
+
+
+@dataclass(frozen=True)
 class ModelOptions:
     combine_no_quant: bool = True
     topk_weights_prefetch: bool = False
@@ -134,6 +148,8 @@ class ModelOptions:
     pipeline: Optional[PipelineConstraints] = None
     # GMM2 K-窗 (kL1): None = kernel 自适应规则移植 (select_kl1), int = 显式覆盖
     gmm2_kl1: Optional[int] = None
+    # 引擎 FIFO 队列深度 (每核): 1=串行(回归等价), >1=流水重叠
+    engine_queue_depths: Optional[EngineQueueDepths] = None
 
     def __post_init__(self) -> None:
         if self.gmm1_activation_depth <= 0:
@@ -153,10 +169,12 @@ class A8W8WaveCostModel:
         self._order = 0
 
     def m_groups_per_wave(self, shape: MegaMoeShape) -> int:
+        km = shape.kernel if shape.kernel is not None else KernelConfig()
         p1 = shape.p1_override or resolve_gmm1_min_logical_tiles_per_core(shape.token_num)
         p2 = shape.p2_override or GMM2_MIN_LOGICAL_TILES_PER_CORE
         return calc_m_groups_per_wave(
-            hidden_dim=shape.hidden_dim, h=shape.h, aic_num=shape.aic_num, p1=p1, p2=p2
+            hidden_dim=shape.hidden_dim, h=shape.h, aic_num=shape.aic_num, p1=p1, p2=p2,
+            tile_n=km.tile_n
         )
 
     def waves(self, shape: MegaMoeShape) -> List[Wave]:
@@ -245,6 +263,8 @@ class A8W8WaveCostModel:
         deps: Iterable[str] = (),
         meta: Optional[Mapping[str, object]] = None,
         dep_latency_us: float = 0.0,
+        acquires: Sequence[Tuple[str, int]] = (),
+        releases: Sequence[Tuple[str, int]] = (),
     ) -> str:
         dep_tuple = tuple(dict.fromkeys(d for d in deps if d))
         events.append(
@@ -256,16 +276,45 @@ class A8W8WaveCostModel:
                 order=self._order,
                 meta=dict(meta or {}),
                 dep_latency_us=dep_latency_us,
+                acquires=tuple(acquires),
+                releases=tuple(releases),
             )
         )
         self._order += 1
         return name
+
+    def _validate_cost_callables(self, shape: MegaMoeShape, km: KernelConfig) -> None:
+        """公式容器与 KernelConfig/shape 的绑定一致性校验 (防静默漏配).
+
+        Analytical* 容器携带 tile_n/h 字段; 若用户覆盖 KernelConfig.tile_n
+        或使用非默认 h 却仍用默认容器, n_frac 换算与字节计数都会静默出错.
+        校验失败显式 raise, 指向 build_analytical_costs 重建.
+        """
+        checks = (
+            ("gmm1_tile", "tile_n", km.tile_n),
+            ("gmm2_tile", "tile_n", km.tile_n),
+            ("activation_tile", "tile_n", km.tile_n),
+            ("combine_tile", "h", shape.h),
+        )
+        for attr, field_name, expect in checks:
+            bound = getattr(self.costs, attr, None)
+            owner = getattr(bound, "__self__", None)
+            if owner is None:
+                continue  # 非绑定方法 (自定义 callable), 无法校验, 由调用方负责
+            have = getattr(owner, field_name, None)
+            if have is not None and have != expect:
+                raise ValueError(
+                    f"costs.{attr} 所属容器的 {field_name}={have} 与期望 {expect} "
+                    f"(KernelConfig/shape.h) 不一致; 请用 build_analytical_costs 或按 "
+                    f"KernelConfig/shape 重新构建公式容器"
+                )
 
     def build_events(self, shape: MegaMoeShape) -> Tuple[List[Event], List[CursorTrace]]:
         km = shape.kernel if shape.kernel is not None else KernelConfig()
         TILE_M = km.tile_m      # 局部遮蔽模块常数 (结构点全部走 km)
         TILE_N = km.tile_n
         ACT_HALF = km.activation_n_half
+        self._validate_cost_callables(shape, km)
         self._order = 0
         waves = self.waves(shape)
         p = shape.aic_num
@@ -274,7 +323,7 @@ class A8W8WaveCostModel:
         cursor = BlockCursor(p, 0)
         cursor_trace: List[CursorTrace] = []
 
-        # Kernel program-order tails for each physical role/core.
+        # (已移除程序序链, 队列令牌替代; 保留声明兼容旧引用)
         aic_prev: List[Optional[str]] = [None] * p
         aiv0_prev: List[Optional[str]] = [None] * p
         aiv1_prev: List[Optional[str]] = [None] * p
@@ -317,9 +366,8 @@ class A8W8WaveCostModel:
             meta={"stage": "count_table_prepare", "role": "gate"},
         )
         for core in range(p):
-            # 每核的串行链头指向同一个门控事件
-            aiv1_prev[core] = token_count_name
-            aic_prev[core] = token_count_name
+            # 队列令牌模型: 不再用 prev 链; 前导门控通过 deps 传递给首波事件
+            pass
 
         def add_dispatch_wave(w: Wave) -> None:
             # Source executes one DispatchTokenRange(w) call on every AIV1.
@@ -336,7 +384,8 @@ class A8W8WaveCostModel:
             for core in range(p):
                 call_ir = call_irs[core]
                 call_name = f"W{w.index}.dispatch_call.c{core}"
-                deps = [aiv1_prev[core]] if aiv1_prev[core] else []
+                deps = [token_count_name]  # 前导门控
+                q_aiv1_call = (f"Q:aiv1:c{core}", 1)
                 call_duration = c.dispatch_mechanistic.call_base_us()
                 call_meta = {"stage": "dispatch_call", "wave": w.index, "core": core}
                 call_meta.update({f"mech_{k}": v for k, v in call_ir.features().items()})
@@ -346,9 +395,11 @@ class A8W8WaveCostModel:
                     (f"AIV1:{core}",),
                     call_duration,
                     deps=deps,
+                    acquires=(q_aiv1_call,),
+                    releases=(q_aiv1_call,),
                     meta=call_meta,
                 )
-                aiv1_prev[core] = call_name
+                # aiv1_prev[core] = call_name  # 移除
 
                 rel_begin, count = self._rotated_balanced_range(w.rows, core, p, w.begin.global_row)
                 if count == 0:
@@ -369,7 +420,7 @@ class A8W8WaveCostModel:
                         f"r{local_begin}_{local_end}"
                     )
                     resources = [f"AIV1:{core}"]
-                    deps = [aiv1_prev[core]] if aiv1_prev[core] else []
+                    deps = [token_count_name]  # 前导门控
 
                     expert_ir = expert_ir_by_id[sl.expert]
                     ef = expert_ir.features()
@@ -391,7 +442,6 @@ class A8W8WaveCostModel:
                     }
 
                     self._event(events, name, resources, duration, deps=deps, meta=meta)
-                    aiv1_prev[core] = name
 
                     first_group = local_begin // TILE_M
                     last_group = (local_end - 1) // TILE_M
@@ -459,38 +509,65 @@ class A8W8WaveCostModel:
                 # 源码: SetWaveWeightL2CacheHint (gmm_common.h:395-423) 在
                 # 专家行数 > tileM 时保留 B 在 L2.
                 #
-                # 载入字节 = m_total*K + n_tiles*n_half*K*tileN  (GM 唯一字节)
-                # 计算量   = 2*m_total*schedulerN*K            (总 MACs)
-                # T_task   = max(载入/BW, 计算/R_cube) + T_fill
+                # 载入字节 = m_total*K + act_half*K*schedulerN  (GM 唯一字节,
+                #            Σ logical_n(nt) = schedulerN, 尾 N-tile 不再按整
+                #            tileN 计入; act_half = SwiGLU 双投影)
+                # 计算量   = 2*m_total*schedulerN*K            (总 MACs, R_cube
+                #            的标定约定吸收 act_half, 与 callable 路径一致)
+                # T_task   = max(载入/BW, 计算/R_cube) + T_fill  (b=2)
+                #          = 载入/BW + 计算/R_cube + restart*chunks*tiles  (b=1)
+                # 逐 tile 分配: 时长按每 tile 精确工作量加权 — 尾 M 组按实际
+                # 行数, 尾 N-tile 按实际列数, B 字节记在每个 N-tile 的首个
+                # M 组 tile. 均匀满 tile 时退化为旧的均摊 per_tile (逐字节
+                # 一致), 非均匀时总时长守恒、分布不再被平均.
                 m_total = sl.rows  # 该专家在本波的总行数
-                n_half = ACT_HALF
                 k = shape.h
+                act_half = km.activation_n_half
                 a_bytes = m_total * k
-                b_bytes = gmm1_n_tiles * 2 * k * TILE_N  # 2 = SwiGLU 双投影
+                b_bytes = act_half * k * gmm1_scheduler_n
                 compute_macs = 2 * m_total * gmm1_scheduler_n * k
                 # 解析 GMM1 模型: 需要带宽和计算速率都已标定
+                per_tile_durs = None
                 if c.gmm1_bw_bytes_per_us is not None and c.gmm1_mac_per_us is not None:
                     if km.weight_nz:
                         if c.gmm1_bw_b_nz_bytes_per_us is None:
                             raise ValueError(
                                 "KernelConfig.weight_nz=True 需要 PrimitiveCosts."
                                 "gmm1_bw_b_nz_bytes_per_us (NZ 路径实测带宽)")
-                        load_time = (a_bytes / c.gmm1_bw_bytes_per_us
-                                     + b_bytes / c.gmm1_bw_b_nz_bytes_per_us)
+                        bw_a = c.gmm1_bw_bytes_per_us
+                        bw_b = c.gmm1_bw_b_nz_bytes_per_us
                     else:
-                        load_time = (a_bytes + b_bytes) / c.gmm1_bw_bytes_per_us
-                    if km.l1_buf_num == 1:
-                        t_task = (load_time + compute_macs / c.gmm1_mac_per_us
-                                  + getattr(c, 'gmm1_tile_restart_us', 0.0) * tile_count)
-                    else:
-                        t_task = max(
-                            load_time,
-                            compute_macs / c.gmm1_mac_per_us,
-                        )
-                    t_task += c.gmm1_fill_us
-                    per_tile = t_task / tile_count if tile_count > 0 else 0.0
-                else:
-                    t_task = None  # 回退到逐 tile callable
+                        bw_a = c.gmm1_bw_bytes_per_us
+                        bw_b = c.gmm1_bw_bytes_per_us
+                    if tile_count > 0:
+                        # 逐 tile 精确工作量权重
+                        tile_w = []
+                        for ti in range(tile_count):
+                            mg_i, nt_i = divmod(ti, gmm1_n_tiles)
+                            m_i = self._tile_rows(sl, mg_i, tile_m=km.tile_m)
+                            n_i = min(TILE_N, gmm1_scheduler_n - nt_i * TILE_N)
+                            load_i = m_i * k / bw_a
+                            if mg_i == 0:
+                                load_i += act_half * k * n_i / bw_b
+                            comp_i = 2.0 * m_i * n_i * k / c.gmm1_mac_per_us
+                            tile_w.append((load_i + comp_i) if km.l1_buf_num == 1
+                                          else max(load_i, comp_i))
+                        load_total = a_bytes / bw_a + b_bytes / bw_b
+                        compute_total = compute_macs / c.gmm1_mac_per_us
+                        if km.l1_buf_num == 1:
+                            chunks = ceil_div(k, km.l1_tile_k)
+                            restart_total = (c.gmm1_tile_restart_us * chunks * tile_count
+                                             if c.gmm1_tile_restart_us else 0.0)
+                            base_task = load_total + compute_total + restart_total
+                        else:
+                            base_task = max(load_total, compute_total)
+                        w_sum = sum(tile_w)
+                        fill_share = c.gmm1_fill_us / tile_count
+                        if w_sum > 0:
+                            per_tile_durs = [base_task * wi / w_sum + fill_share
+                                             for wi in tile_w]
+                        else:
+                            per_tile_durs = [0.0] * tile_count
 
                 for tile_idx, core in enumerate(owners):
                     mg = tile_idx // gmm1_n_tiles
@@ -499,8 +576,8 @@ class A8W8WaveCostModel:
                     global_group = sl.row_begin // TILE_M + mg
 
                     deps: List[str] = []
-                    if aic_prev[core]:
-                        deps.append(aic_prev[core])
+                    # 引擎队列令牌替代程序序链 (FIFO, 深度由 simulate 设容量)
+                    q_aic = (f"Q:aic:c{core}", 1)
                     ready_name = dispatch_ready_event.get((sl.expert, global_group))
                     if ready_name is None:
                         raise ValueError(
@@ -515,12 +592,14 @@ class A8W8WaveCostModel:
                     if len(history) >= depth:
                         deps.append(history[-depth])
 
-                    # 逐 tile 时长: 优先用专家波内任务的解析模型 (含 B 复用),
-                    # 无则回退到逐 tile callable
-                    if t_task is not None:
-                        duration = per_tile
+                    # 逐 tile 时长: 优先用专家波内任务的解析模型 (含 B 复用,
+                    # 尾 M 组/尾 N-tile 按实际工作量加权), 无则回退到逐 tile callable
+                    logical_n = min(TILE_N, gmm1_scheduler_n - nt * TILE_N)
+                    if per_tile_durs is not None:
+                        duration = per_tile_durs[tile_idx]
                     else:
                         duration = c.gmm1_tile(m_rows, shape.h)
+                    _ = logical_n  # 保留给 ACT 事件使用
                     if first_owned_on_core[core]:
                         duration += c.gmm1_problem_startup_us
                         first_owned_on_core[core] = False
@@ -532,6 +611,8 @@ class A8W8WaveCostModel:
                         (f"AIC:{core}",),
                         duration,
                         deps=deps,
+                        acquires=(q_aic,),
+                        releases=(q_aic,),
                         meta={
                             "stage": "gmm1",
                             "wave": w.index,
@@ -539,25 +620,27 @@ class A8W8WaveCostModel:
                             "slice": si,
                             "mgroup": global_group,
                             "ntile": nt,
+                            "logical_n": logical_n,
                             "core": core,
                             "m_rows": m_rows,
                             "cursor_tile": tile_idx,
                             "dispatch_ready_event": ready_name,
                         },
                     )
-                    aic_prev[core] = gname
+                    # aic_prev[core] = gname  # 移除: 队列令牌替代
 
                     adeps = [gname]
-                    if aiv0_prev[core]:
-                        adeps.append(aiv0_prev[core])
+                    # 移除 aiv0_prev 程序序: ACT 队列令牌替代
+                    q_vec = (f"Q:vec0:c{core}", 1)
                     aname = f"W{w.index}.E{sl.expert}.S{si}.act.m{mg}.n{nt}.c{core}"
-                    logical_n = min(TILE_N, gmm1_scheduler_n - nt * TILE_N)
                     self._event(
                         events,
                         aname,
                         (f"AIV0:{core}",),
                         c.activation_tile(m_rows, logical_n / TILE_N) + c.activation_ready_publish_us,
                         deps=adeps,
+                        acquires=(q_vec,),
+                        releases=(q_vec,),
                         meta={
                             "stage": "activation",
                             "wave": w.index,
@@ -565,11 +648,12 @@ class A8W8WaveCostModel:
                             "slice": si,
                             "mgroup": global_group,
                             "ntile": nt,
+                            "logical_n": logical_n,
                             "core": core,
                             "m_rows": m_rows,
                         },
                     )
-                    aiv0_prev[core] = aname
+                    # aiv0_prev[core] = aname  # 移除
                     history.append(aname)
                     activation_ready.setdefault((sl.expert, global_group), []).append(aname)
 
@@ -596,8 +680,7 @@ class A8W8WaveCostModel:
                         )
 
                     deps: List[str] = []
-                    if aic_prev[core]:
-                        deps.append(aic_prev[core])
+                    q_aic2 = (f"Q:aic:c{core}", 1)
                     # k-window 粒度就绪: GMM2 的 K=intermediate=8个act tile拼接,
                     # k-window w 只消费 act(g,w)。head 只等 act(g,0) 即可启动,
                     # tail 等 act(g,7) (最后一个 k-window 的输入)。
@@ -609,14 +692,17 @@ class A8W8WaveCostModel:
 
                     # GMM2 输出宽 = H（回 hidden）；B 矩阵的 K = intermediate = hiddenDim / n_half
                     k_gmm2 = shape.hidden_dim // ACT_HALF
-                    # GMM2 解析路径 (参数已设) 或回退 callable
+                    # 尾 N-tile 精确: B 流字节按实际列数 logical_n, 不再按整 tileN
+                    gmm2_logical_n = min(TILE_N, shape.h - nt * TILE_N)
+                    # GMM2 解析路径 (参数已设) 或回退 callable (按 n_frac 缩放,
+                    # B 项/立方项精确, restart 项近似)
                     if c.gmm2_bw_bytes_per_us is not None:
-                        duration = k_gmm2 * TILE_N / c.gmm2_bw_bytes_per_us
+                        duration = k_gmm2 * gmm2_logical_n / c.gmm2_bw_bytes_per_us
                     else:
-                        duration = c.gmm2_tile(m_rows, k_gmm2)
+                        duration = c.gmm2_tile(m_rows, k_gmm2) * (gmm2_logical_n / TILE_N)
                     kl1 = select_kl1(sl.rows, k_gmm2, self.options.gmm2_kl1,
                                 tile_m=km.tile_m, tile_n=km.tile_n,
-                                l1_size=km.l1_size)
+                                l1_size=km.l1_size, k_l1_base=km.l1_tile_k)
                     head_frac, tail_frac = _gmm2_head_tail_fractions(k_gmm2, kl1)
                     if first_owned_on_core[core]:
                         duration += c.gmm2_problem_startup_us
@@ -631,6 +717,8 @@ class A8W8WaveCostModel:
                         (f"AIC:{core}",),
                         duration * head_frac,
                         deps=head_deps,
+                        acquires=(q_aic2,),
+                        releases=(q_aic2,),  # 自释放: 发射槽, 核串行由 AIC:core 承担
                         meta={
                             "stage": "gmm2",
                             "wave": w.index,
@@ -665,22 +753,21 @@ class A8W8WaveCostModel:
                             "part": "tail",
                         },
                     )
-                    aic_prev[core] = gname
+                    # aic_prev[core] = gname  # 移除
 
                     cdeps = [gname]
-                    # AIV1 source program order: Dispatch call for this outer iteration
-                    # precedes the GMM2/Combine call; previous Combine calls also precede
-                    # next iteration's Dispatch call.
-                    if aiv1_prev[core]:
-                        cdeps.append(aiv1_prev[core])
+                    # AIV1 队列令牌替代程序序
+                    q_aiv1 = (f"Q:aiv1:c{core}", 1)
                     cname = f"W{w.index}.E{sl.expert}.S{si}.combine.m{mg}.n{nt}.c{core}"
-                    logical_n = min(TILE_N, shape.h - nt * TILE_N)
+                    logical_n = gmm2_logical_n
                     self._event(
                         events,
                         cname,
                         (f"AIV1:{core}",),
                         c.combine_tile(m_rows, logical_n / TILE_N) + c.combine_ack_us,
                         deps=cdeps,
+                        acquires=(q_aiv1,),
+                        releases=(q_aiv1,),
                         meta={
                             "stage": "combine",
                             "wave": w.index,
@@ -689,11 +776,12 @@ class A8W8WaveCostModel:
                             "slice": si,
                             "mgroup": global_group,
                             "ntile": nt,
+                            "logical_n": logical_n,
                             "core": core,
                             "m_rows": m_rows,
                         },
                     )
-                    aiv1_prev[core] = cname
+                    # aiv1_prev[core] = cname  # 移除
                     combine_history.append(cname)
 
         if not waves:
@@ -813,8 +901,6 @@ class A8W8WaveCostModel:
         # from ProcessMoeExpertStages only after the GMM1 UB ping-pong is drained.
         for core in range(p):
             aic_deps: List[str] = []
-            if aic_prev[core]:
-                aic_deps.append(aic_prev[core])
             # EndSync waits the still-live ping-pong ACKs; depending on all of the
             # last two Activation events is equivalent and harmless if one already
             # completed much earlier.
@@ -825,23 +911,23 @@ class A8W8WaveCostModel:
                 events, done, (f"AIC:{core}",), 0.0, deps=aic_deps,
                 meta={"stage": "moe_stage_done", "role": "aic", "core": core},
             )
-            aic_prev[core] = done
+            # aic_prev[core] = done  # 移除
 
-            v0deps = [aiv0_prev[core]] if aiv0_prev[core] else []
+            v0deps = []
             done0 = f"moe_expert_stage_done.aiv0.c{core}"
             self._event(
                 events, done0, (f"AIV0:{core}",), 0.0, deps=v0deps,
                 meta={"stage": "moe_stage_done", "role": "aiv0", "core": core},
             )
-            aiv0_prev[core] = done0
+            # aiv0_prev[core] = done0  # 移除
 
-            v1deps = [aiv1_prev[core]] if aiv1_prev[core] else []
+            v1deps = []
             done1 = f"moe_expert_stage_done.aiv1.c{core}"
             self._event(
                 events, done1, (f"AIV1:{core}",), 0.0, deps=v1deps,
                 meta={"stage": "moe_stage_done", "role": "aiv1", "core": core},
             )
-            aiv1_prev[core] = done1
+            # aiv1_prev[core] = done1  # 移除
 
         # All wave groups used by GMM1 must have one explicit DispatchReady join.
         missing_dispatch: List[Tuple[int, int]] = []
@@ -861,13 +947,24 @@ class A8W8WaveCostModel:
         events, cursor_trace = self.build_events(shape)
         capacities: Dict[str, int] = {}
         channels: Dict[str, object] = {}
+        # 引擎 FIFO 队列容量 (kernel 源码深度; 默认=1 回归等价)
+        # Q:aic  = AIC 核 tile 队列 (GMM1+GMM2 共享)
+        # Q:vec0 = AIV0 核向量队列 (ACT)
+        # Q:aiv1 = AIV1 核队列 (dispatch+combine)
+        qd = self.options.engine_queue_depths or EngineQueueDepths()
+        for core in range(shape.aic_num):
+            capacities[f"Q:aic:c{core}"] = qd.aic
+            capacities[f"Q:vec0:c{core}"] = qd.vec0
+            capacities[f"Q:aiv1:c{core}"] = qd.aiv1
         if self.options.pipeline is not None:
-            events, capacities, channels = apply_pipeline(
+            events, pipe_caps, channels = apply_pipeline(
                 events, self.options.pipeline,
                 aic_num=shape.aic_num, h=shape.h,
                 gmm1_act_depth=self.options.gmm1_activation_depth,
                 kernel=shape.kernel,
             )
+            pipe_caps.update(capacities)  # 引擎队列容量优先保留
+            capacities = pipe_caps
         total_us, scheduled = MultiResourceScheduler().schedule(
             events, capacities=capacities or None, channels=channels or None
         )
@@ -999,8 +1096,9 @@ class A8W8WaveCostModel:
 
     def structural_summary(self, shape: MegaMoeShape) -> List[Dict[str, object]]:
         rows: List[Dict[str, object]] = []
-        g1n = ceil_div(self._gmm1_device_scheduler_n(shape), TILE_N)
-        g2n = ceil_div(shape.h, TILE_N)
+        km = shape.kernel if shape.kernel is not None else KernelConfig()
+        g1n = ceil_div(self._gmm1_device_scheduler_n(shape, km.activation_n_half), km.tile_n)
+        g2n = ceil_div(shape.h, km.tile_n)
         for w in self.waves(shape):
             rows.append(
                 {

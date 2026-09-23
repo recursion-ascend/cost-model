@@ -12,6 +12,7 @@ from .constants import (
     T_STARTUP_VEC, TILE_N, VEC_ELEM_FP32,
 )
 from .dispatch import DispatchMechanisticLatency
+from .constants import KernelConfig
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,12 @@ class PrimitiveCosts:
     activation_ready_publish_us: float = 0.0
     combine_ack_us: float = 0.0
 
+    # L1 无 ping-pong (b=1) 时每 K-chunk 边界的流水重启停顿, 仅供 model.py
+    # 解析路径使用 (旧实现经 getattr 取值恒为 0, 属死代码, 现转正为字段).
+    # callable 路径由 AnalyticalGmmCosts.tile_restart_us 承载, 二者标定方法一致
+    # (b1/b2 A/B 差分, 惩罚 ∝ K-chunk 数 × tile 数).
+    gmm1_tile_restart_us: float = 0.0
+
 
 class AnalyticalGmmCosts:
     """GMM1/GMM2 的纯物理公式工厂: tileN 用模块常量, SwiGLU 的 2 写死.
@@ -73,16 +80,20 @@ class AnalyticalGmmCosts:
     def __init__(self, bw_bytes_per_us: float = BW_L1_GM, tile_n: int = TILE_N,
                  weight_nz: bool = False, bw_b_nz_bytes_per_us: float = 0.0,
                  l1_buf_num: int = 2, cube_mac_per_us: float = 0.0,
-                 tile_restart_us: float = 0.0):
+                 tile_restart_us: float = 0.0, l1_tile_k: int = 256):
         """weight_nz=True 时 B 流 (权重 GM→L1) 用 NZ 分形路径带宽, A 流不变.
 
         NZ 带宽无标定数据时必须显式给出 (零猜测原则: Z 常数不通用,
         分形搬运的突发效率与线性流不同).
+        l1_tile_k: K-chunk 基线, 必须与 KernelConfig.l1_tile_k 一致
+        (串行路径的 chunk 重启次数由它决定).
         """
         if weight_nz and bw_b_nz_bytes_per_us <= 0:
             raise ValueError(
                 "weight_nz=True 需要 bw_b_nz_bytes_per_us (NZ 路径 GM→L1 实测带宽, "
                 "标定法: NZ run 的 GMM1 tile 时长差分, 同 H 扫描)")
+        if l1_tile_k <= 0:
+            raise ValueError("l1_tile_k must be positive")
         self.bw = bw_bytes_per_us
         self.tile_n = tile_n
         self.bw_b = bw_b_nz_bytes_per_us if weight_nz else bw_bytes_per_us
@@ -91,9 +102,11 @@ class AnalyticalGmmCosts:
         self.serial = (l1_buf_num == 1)
         self.cube_rate = cube_mac_per_us
         self.chunk_restart = tile_restart_us
+        self._k_l1 = int(l1_tile_k)
 
     def _chunks(self, k: int) -> int:
-        return -(-k // 256)   # kL1 基线 256; 自适应由 select_kl1 独立处理
+        # K-chunk 数 = ceil(k / kL1), kL1 来自 KernelConfig.l1_tile_k (不再硬编码)
+        return -(-k // self._k_l1)
 
     def gmm1_tile(self, m: int, k: int) -> float:
         t = (m * k) / self.bw + (2 * k * self.tile_n) / self.bw_b
@@ -165,3 +178,64 @@ class AnalyticalCombineCosts:
     def tile(self, m: int, n_frac: float = 1.0) -> float:
         data = m * (self.h * 4 + 16) * n_frac
         return data / self.bw
+
+
+def build_analytical_costs(
+    *,
+    h: int,
+    dispatch_mechanistic: DispatchMechanisticLatency,
+    kernel: KernelConfig = None,
+    bw_l1_gm: Optional[float] = None,
+    bw_l1_gm_b_nz: float = 0.0,
+    cube_mac_per_us: float = 0.0,
+    gmm1_fill_us: float = 0.0,
+    gmm1_tile_restart_us: float = 0.0,
+    gmm2_bw_bytes_per_us: Optional[float] = None,
+    bw_ub: Optional[float] = None,
+    t_startup_us: Optional[float] = None,
+    bw_scatter: Optional[float] = None,
+    count_table_prepare_us: float = T_COUNT_GATE,
+) -> PrimitiveCosts:
+    """按 (h, KernelConfig) 一致构建解析公式族, 消除 tile_n/l1_tile_k/h 漏配.
+
+    修复的漏配类: 手工构造 Analytical* 用默认 tile_n=256 / h=6144, 而
+    KernelConfig.tile_n / shape.h 被覆盖 → n_frac 换算与字节计数静默出错.
+    本工厂把 KernelConfig.tile_m/tile_n/l1_buf_num/l1_tile_k/weight_nz 与 h
+    一次性注入全部公式容器; A8W8WaveCostModel 侧另有绑定一致性校验兜底.
+
+    带宽缺省 = constants 实测值; NZ 布局必须显式给 bw_l1_gm_b_nz (零猜测).
+    """
+    km = kernel if kernel is not None else KernelConfig()
+    gmm = AnalyticalGmmCosts(
+        bw_bytes_per_us=bw_l1_gm if bw_l1_gm is not None else BW_L1_GM,
+        tile_n=km.tile_n,
+        weight_nz=km.weight_nz,
+        bw_b_nz_bytes_per_us=bw_l1_gm_b_nz,
+        l1_buf_num=km.l1_buf_num,
+        cube_mac_per_us=cube_mac_per_us,
+        tile_restart_us=gmm1_tile_restart_us,
+        l1_tile_k=km.l1_tile_k,
+    )
+    act = AnalyticalActCosts(
+        bw_ub_bytes_per_us=bw_ub if bw_ub is not None else BW_UB,
+        t_startup_us=t_startup_us if t_startup_us is not None else T_STARTUP_VEC,
+        tile_n=km.tile_n,
+    )
+    comb = AnalyticalCombineCosts(
+        h=h,
+        bw_scatter_bytes_per_us=bw_scatter if bw_scatter is not None else BW_SCATTER,
+    )
+    return PrimitiveCosts(
+        dispatch_mechanistic=dispatch_mechanistic,
+        gmm1_tile=gmm.gmm1_tile,
+        gmm2_tile=gmm.gmm2_tile,
+        activation_tile=act.tile,
+        combine_tile=comb.tile,
+        count_table_prepare_us=count_table_prepare_us,
+        gmm1_bw_bytes_per_us=bw_l1_gm,
+        gmm1_mac_per_us=(cube_mac_per_us if cube_mac_per_us > 0 else None),
+        gmm1_fill_us=gmm1_fill_us,
+        gmm2_bw_bytes_per_us=gmm2_bw_bytes_per_us,
+        gmm1_bw_b_nz_bytes_per_us=(bw_l1_gm_b_nz if (km.weight_nz and bw_l1_gm_b_nz > 0) else None),
+        gmm1_tile_restart_us=gmm1_tile_restart_us,
+    )

@@ -80,28 +80,34 @@ SCALE_TRANSFER_BYTES = SourcedInt(64 * 1024, 'kernel:gmm_common.h:179')
 
 
 def select_kl1(m_rows: int, k: int, override=None, tile_m: int = TILE_M,
-               tile_n: int = TILE_N, l1_size: int = TOTAL_L1_SIZE) -> int:
+               tile_n: int = TILE_N, l1_size: int = TOTAL_L1_SIZE,
+               k_l1_base: int = L1_TILE_K) -> int:
     """SelectBlockMmadTilingConfig 的 kL1 选择移植 (gmm_common.h:225).
 
-    正向规则: 整 tile (m>=TILE_M) 或 K<=kL1 基线 → 256;
-    部分 tile: blockM=align16(m), 2 个 256K 数据窗 + scale 窗能放进半片 L1
-    且单侧 scale ≤ 64KiB → kL1=512. (kL1 不变仅放大 scale 窗的分支
-    不影响 K 窗结构, 未移植.)
+    正向规则: 整 tile (m>=tile_m) 或 K<=基线 → k_l1_base;
+    部分 tile: blockM=align16(m), 2 个数据窗 + scale 窗能放进半片 L1
+    且单侧 scale ≤ 64KiB → kL1 = 2×k_l1_base. (kL1 不变仅放大 scale 窗的
+    分支不影响 K 窗结构, 未移植.)
+
+    k_l1_base: K-chunk 基线, KernelConfig.l1_tile_k 可设; 缺省 = 源码 256.
     """
     if override is not None:
         return override
-    if m_rows == 0 or m_rows >= tile_m or k <= L1_TILE_K:
-        return L1_TILE_K
+    base = int(k_l1_base)
+    if base <= 0:
+        raise ValueError("k_l1_base must be positive")
+    if m_rows == 0 or m_rows >= tile_m or k <= base:
+        return base
     block_m = ((m_rows + 15) // 16) * 16
-    data_per_unit = block_m * L1_TILE_K + tile_n * L1_TILE_K   # A+B, FP8 1B/元素
-    scale_k_per_unit = ((L1_TILE_K + MXFP_DIVISOR_SIZE - 1)
+    data_per_unit = block_m * base + tile_n * base             # A+B, FP8 1B/元素
+    scale_k_per_unit = ((base + MXFP_DIVISOR_SIZE - 1)
                         // MXFP_DIVISOR_SIZE) * MXFP_MULTI_BASE_SIZE
     scale_a = block_m * scale_k_per_unit
     scale_b = tile_n * scale_k_per_unit
     can_double = (2 * data_per_unit + 2 * (scale_a + scale_b) <= l1_size // 2
                   and 2 * scale_a <= SCALE_TRANSFER_BYTES
                   and 2 * scale_b <= SCALE_TRANSFER_BYTES)
-    return L1_TILE_K * 2 if can_double else L1_TILE_K
+    return base * 2 if can_double else base
 
 
 # ---- 前导/尾段段常数 (arch35.h:660-775 AIV 序列, 2026-09 span 实测) ----

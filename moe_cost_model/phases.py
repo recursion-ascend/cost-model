@@ -109,8 +109,16 @@ def apply_pipeline(
             capacities[res] = cons.queues.vec
         elif res.startswith("QUEUE:mte_aiv:"):
             capacities[res] = cons.queues.mte_aiv
+        elif res.startswith("Q:aic:"):
+            pass  # model.py 的引擎队列, 容量由 simulate() 设置
+        elif res.startswith("Q:vec0:"):
+            pass
+        elif res.startswith("Q:aiv1:"):
+            pass
+        elif res.startswith("BUF:gmm1act:"):
+            pass  # 已移除令牌机制, 距离依赖替代
         else:
-            raise ValueError(f"unknown capacity resource {res}")
+            pass  # 未识别的引擎队列 — 容量由调用方 (simulate) 设置
     return new_events, capacities, channels
 
 
@@ -180,10 +188,12 @@ def _expand_gmm1(
         )]
 
     cube_rate = cons.phases.cube_mac_per_us
-    macs = 2.0 * m_rows * km.tile_n * h   # SwiGLU 双投影
+    # 尾 N-tile 精确: MAC 与写回按实际列数, 不按整 tileN (缺省 meta 时退回整 tile)
+    logical_n = int(ev.meta.get("logical_n", km.tile_n))
+    macs = 2.0 * m_rows * logical_n * h   # SwiGLU 双投影 (R_cube 约定吸收 act_half)
     cube_dur = (macs / cube_rate) if cube_rate else 0.0
     fix_bw = cons.phases.fix_bw_bytes_per_us
-    fix_dur = (m_rows * km.tile_n * 2 / fix_bw) if fix_bw else 0.0
+    fix_dur = (m_rows * logical_n * 2 / fix_bw) if fix_bw else 0.0
     load_dur = max(0.0, base_dur - cube_dur - fix_dur)
 
     ld = Event(
@@ -193,7 +203,7 @@ def _expand_gmm1(
         dep_latency_us=ev.dep_latency_us,
         dep_latency_overrides=ev.dep_latency_overrides,
         acquires=ev.acquires + ((f"QUEUE:mte_aic:c{core}", 1),),
-        releases=((f"QUEUE:mte_aic:c{core}", 1),),
+        releases=ev.acquires + ((f"QUEUE:mte_aic:c{core}", 1),),
         channel_bytes=ch,
     )
     cb = Event(
@@ -251,7 +261,9 @@ def _expand_aiv(
         )]
 
     m_rows = int(ev.meta.get("m_rows", 0))
-    load_bytes = m_rows * km.tile_n * 2   # BF16 GM 读
+    # 尾 N-tile 精确: GM 读字节按实际列数 (缺省 meta 时退回整 tile)
+    logical_n = int(ev.meta.get("logical_n", km.tile_n))
+    load_bytes = m_rows * logical_n * 2   # BF16 GM 读
     load_dur = load_bytes / load_bw
     ld = Event(
         name=ev.name + ".ld", resources=(), duration_us=load_dur,

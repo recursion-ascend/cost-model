@@ -50,6 +50,7 @@ Intentional abstractions
 
 from .constants import *  # noqa: F401,F403
 from .constants import KernelConfig
+from .model import EngineQueueDepths
 from .provenance import SourcedInt, SourcedValue, collect_provenance, provenance_report
 from .dag import Channel, Event, MultiResourceScheduler, ScheduledEvent
 from .dispatch import (
@@ -58,7 +59,7 @@ from .dispatch import (
 )
 from .primitives import (
     AnalyticalActCosts, AnalyticalCombineCosts, AnalyticalGmmCosts,
-    PrimitiveCosts,
+    PrimitiveCosts, build_analytical_costs,
 )
 from .waves import (
     ExpertSlice, Position, Wave, calc_m_groups_per_wave, plan_waves,
