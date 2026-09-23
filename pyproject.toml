@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mega-moe-cost-model"
+version = "0.1.0"
+description = "MegaMoE A8W8 物理公式 cost model (零拟合): wave 规划 + DAG 调度 + L0/L1/L2 流水线约束"
+requires-python = ">=3.8"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools]
+packages = ["moe_cost_model"]
