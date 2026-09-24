@@ -6,6 +6,7 @@ from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, 
 
 from .constants import (
     InstancePolicy,
+    BW_WINDOW,
     DAV3510_NONINTERLEAVED_GMM1_ACTIVATION_DEPTH, GMM2_KL1,
     GMM2_LAG_MIN_TOKEN_NUM,
     GMM1_MIN_LOGICAL_TILES_PER_CORE, GMM1_MIN_LOGICAL_TILES_PER_CORE_SMALL,
@@ -14,7 +15,7 @@ from .constants import (
     LEGACY_GMM_MAX_PENDING_TILES, ACTIVATION_N_HALF, L1_TILE_K,
     TILE_M, TILE_N, _gmm2_head_tail_fractions, ceil_div,
 )
-from .dag import Event, MultiResourceScheduler, ScheduledEvent
+from .dag import Event, MultiResourceScheduler, ScheduledEvent, Channel
 from .dispatch import (
     DispatchCallIR, DispatchDataLayout, DispatchMechanisticLatency,
     build_dispatch_expert_ir,
@@ -161,6 +162,8 @@ class A8W8WaveCostModel:
         self.costs = costs
         self.options = options
         self._order = 0
+        self._rank = 0
+        self.cursor_traces: Dict[int, List[CursorTrace]] = {}
 
     def m_groups_per_wave(self, shape: MegaMoeShape) -> int:
         km = shape.kernel if shape.kernel is not None else KernelConfig()
@@ -262,8 +265,13 @@ class A8W8WaveCostModel:
         dep_latency_us: float = 0.0,
         acquires: Sequence[Tuple[str, int]] = (),
         releases: Sequence[Tuple[str, int]] = (),
+        channel_bytes: Sequence[Tuple[str, float, float]] = (),
     ) -> str:
-        dep_tuple = tuple(dict.fromkeys(d for d in deps if d))
+        # dep 幂等前缀: 调用点可能传入已前缀名 (本函数返回值) 或本地未前缀名
+        _rp = f"R{self._rank}."
+        dep_tuple = tuple(
+            dict.fromkeys(d if d.startswith(_rp) else _rp + d for d in deps if d))
+        name = f"R{self._rank}.{name}"   # 多 rank 单调度器: 事件名按 rank 限定
         events.append(
             Event(
                 name=name,
@@ -271,10 +279,11 @@ class A8W8WaveCostModel:
                 duration_us=max(0.0, float(duration_us)),
                 deps=dep_tuple,
                 order=self._order,
-                meta=dict(meta or {}),
+                meta=dict(meta or {}, rank=self._rank),
                 dep_latency_us=dep_latency_us,
                 acquires=tuple(acquires),
                 releases=tuple(releases),
+                channel_bytes=tuple(channel_bytes),
             )
         )
         self._order += 1
@@ -287,6 +296,7 @@ class A8W8WaveCostModel:
         ACT_HALF = km.activation_n_half
         policy = shape.policy if shape.policy is not None else InstancePolicy()
         self._order = 0
+        self._rank = shape.rank_id
         waves = self.waves(shape)
         p = shape.aic_num
         c = self.costs
@@ -328,27 +338,18 @@ class A8W8WaveCostModel:
             # Mechanistic FCFS window queueing: durations depend on the whole
             # wave's stream set, so build all call IRs first, then simulate.
             call_irs = [self._dispatch_call_ir(shape, w, core) for core in range(p)]
-            slice_durs = c.dispatch_mechanistic.simulate_wave(
-                call_irs, shape.dispatch_layout or DispatchDataLayout.from_hidden(shape.h)
-            )
+            layout0 = shape.dispatch_layout or DispatchDataLayout.from_hidden(shape.h)
             for core in range(p):
                 call_ir = call_irs[core]
                 call_name = f"W{w.index}.dispatch_call.c{core}"
+                first_remote_seg = True
                 deps = []  # 前导已移除 (2026-09): 模型从首条 dispatch 起算
                 q_aiv1_call = (f"Q:aiv1:c{core}", 1)
                 call_duration = c.dispatch_mechanistic.call_base_us()
                 call_meta = {"stage": "dispatch_call", "wave": w.index, "core": core}
-                call_meta.update({f"mech_{k}": v for k, v in call_ir.features().items()})
-                self._event(
-                    events,
-                    call_name,
-                    (f"AIV1:{core}",),
-                    call_duration,
-                    deps=deps,
-                    acquires=(q_aiv1_call,),
-                    releases=(q_aiv1_call,),
-                    meta=call_meta,
-                )
+                call_name = self._event(
+                    events, call_name, (f"AIV1:{core}",), call_duration, deps=deps,
+                    acquires=(q_aiv1_call,), releases=(q_aiv1_call,), meta=call_meta)
                 # aiv1_prev[core] = call_name  # 移除
 
                 rel_begin, count = self._rotated_balanced_range(w.rows, core, p, w.begin.global_row)
@@ -358,6 +359,7 @@ class A8W8WaveCostModel:
                 core_global_end = core_global_begin + count
 
                 expert_ir_by_id = {e.expert: e for e in call_ir.experts}
+                b_row = layout0.bytes_read_per_row()
                 for sl in w.slices:
                     overlap_begin = max(core_global_begin, sl.global_row_begin)
                     overlap_end = min(core_global_end, sl.global_row_end)
@@ -365,44 +367,53 @@ class A8W8WaveCostModel:
                         continue
                     local_begin = sl.row_begin + (overlap_begin - sl.global_row_begin)
                     local_end = sl.row_begin + (overlap_end - sl.global_row_begin)
-                    name = (
-                        f"W{w.index}.dispatch.c{core}.e{sl.expert}."
-                        f"r{local_begin}_{local_end}"
-                    )
-                    resources = [f"AIV1:{core}"]
-                    deps = []  # 前导已移除 (2026-09): 模型从首条 dispatch 起算
 
+                    # 按源段拆分事件 (每段独立占 AIV1, 远端段声明片间信道):
+                    # 片间互连 = 共享聚合带宽的并行链路, 多读并发 outstanding,
+                    # 争用由 Channel 速率服务器按聚合带宽共享/降速 (非串行服务).
                     expert_ir = expert_ir_by_id[sl.expert]
-                    ef = expert_ir.features()
-                    if ef["remote_segments"] and self.options.serialize_dispatch_comm:
-                        resources.append("DISPATCH_COMM")
-                    # FCFS-simulated slice duration (base service + window wait)
-                    duration = slice_durs[core][sl.expert] + c.dispatch_ready_publish_us
-                    meta = {
-                        "stage": "dispatch", "wave": w.index, "core": core,
-                        "expert": sl.expert, "row_begin": local_begin, "row_end": local_end,
-                        **{f"mech_{k}": v for k, v in ef.items()},
-                        # Keep legacy aliases for diagnostics.
-                        "rows": ef["rows"],
-                        "local_segments": ef["local_segments"],
-                        "remote_segments": ef["remote_segments"],
-                        "local_rows": ef["local_source_row_fetch_ops"],
-                        "remote_rows": ef["remote_source_row_fetch_ops"],
-                        "source_segments": ef["local_segments"] + ef["remote_segments"],
-                    }
-
-                    self._event(events, name, resources, duration, deps=deps, meta=meta)
-
-                    first_group = local_begin // TILE_M
-                    last_group = (local_end - 1) // TILE_M
-                    for group in range(first_group, last_group + 1):
-                        group_begin = group * TILE_M
-                        group_end = min(group_begin + TILE_M, shape.expert_tokens[sl.expert])
-                        contributed_rows = max(0, min(local_end, group_end) - max(local_begin, group_begin))
-                        if contributed_rows:
-                            wave_contrib.setdefault((sl.expert, group), []).append(
-                                (name, contributed_rows, core, call_name)
+                    seg_start = local_begin
+                    for si, (src, rows) in enumerate(expert_ir.segments):
+                        seg_end = seg_start + rows
+                        if rows <= 0:
+                            continue
+                        name = (f"W{w.index}.dispatch.c{core}.e{sl.expert}"
+                                f".s{si}.r{seg_start}_{seg_end}")
+                        resources = [f"AIV1:{core}"]
+                        if self.options.serialize_dispatch_comm and src != shape.rank_id:
+                            resources.append("DISPATCH_COMM")
+                        duration = c.dispatch_mechanistic.segment_us(
+                            src, shape.rank_id, rows, layout0) \
+                            + c.dispatch_ready_publish_us
+                        channel_bytes = ()
+                        if src != shape.rank_id:
+                            if first_remote_seg:
+                                duration += c.dispatch_mechanistic.gmm1_overlap_us_per_call
+                                first_remote_seg = False
+                            bytes_x = rows * b_row
+                            channel_bytes = (
+                                (f"fab_src:{src}", bytes_x, c.dispatch_mechanistic.bw_remote_bytes_per_us),
+                                (f"fab_dst:{shape.rank_id}", bytes_x, c.dispatch_mechanistic.bw_remote_bytes_per_us),
                             )
+                        meta = {
+                            "stage": "dispatch", "wave": w.index, "core": core,
+                            "expert": sl.expert, "src_rank": src,
+                            "row_begin": seg_start, "row_end": seg_end, "rows": rows,
+                        }
+                        ev_name = self._event(events, name, resources, duration, deps=deps,
+                                    meta=meta, channel_bytes=channel_bytes)
+
+                        first_group = seg_start // TILE_M
+                        last_group = (seg_end - 1) // TILE_M
+                        for group in range(first_group, last_group + 1):
+                            group_begin = group * TILE_M
+                            group_end = min(group_begin + TILE_M, shape.expert_tokens[sl.expert])
+                            contributed_rows = max(0, min(seg_end, group_end) - max(seg_start, group_begin))
+                            if contributed_rows:
+                                wave_contrib.setdefault((sl.expert, group), []).append(
+                                    (ev_name, contributed_rows, core, call_name)
+                                )
+                        seg_start = seg_end
 
             # Materialize one readiness join for every GMM1 M-tile in this wave.
             # PublishGmm1TileReady increments the counter only after one AIV1 has
@@ -897,33 +908,70 @@ class A8W8WaveCostModel:
         return events, cursor_trace
 
     def simulate(self, shape: MegaMoeShape, restructure=None) -> Dict[str, object]:
-        events, cursor_trace = self.build_events(shape)
-        capacities: Dict[str, int] = {}
-        channels: Dict[str, object] = {}
-        # 引擎 FIFO 队列容量 (kernel 源码深度; 默认=1 回归等价)
-        # Q:aic  = AIC 核 tile 队列 (GMM1+GMM2 共享)
-        # Q:vec0 = AIV0 核向量队列 (ACT)
-        # Q:aiv1 = AIV1 核队列 (dispatch+combine)
-        qd = self.options.engine_queue_depths or EngineQueueDepths()
-        for core in range(shape.aic_num):
-            capacities[f"Q:aic:c{core}"] = qd.aic
-            capacities[f"Q:vec0:c{core}"] = qd.vec0
-            capacities[f"Q:aiv1:c{core}"] = qd.aiv1
-        if self.options.pipeline is not None:
-            events, pipe_caps, channels = apply_pipeline(
-                events, self.options.pipeline,
-                aic_num=shape.aic_num, h=shape.h,
-                gmm1_act_depth=shape.policy.gmm1_activation_depth,
-                kernel=shape.kernel,
-            )
-            pipe_caps.update(capacities)  # 引擎队列容量优先保留
-            capacities = pipe_caps
-        total_us, scheduled = MultiResourceScheduler().schedule(
-            events, capacities=capacities or None, channels=channels or None,
-            restructure=restructure
-        )
-        waves = self.waves(shape)
+        return self.simulate_multi([shape], restructure=restructure)[shape.rank_id]
 
+    def simulate_multi(self, shapes: Sequence[MegaMoeShape],
+                       restructure=None) -> Dict[int, Dict[str, object]]:
+        """多 rank 单调度器: 片间信道 (fab_src/fab_dst) 跨 rank 共享,
+        多目的卡对同一源卡的争用由此进入模型; 核/队列资源按 rank 前缀隔离."""
+        all_events: List[Event] = []
+        per: List[Tuple[MegaMoeShape, List[Event], Dict, Dict, List[CursorTrace]]] = []
+        world = max((len(sh.expert_source_tokens[0]) for sh in shapes), default=0)
+        for shape in shapes:
+            events, trace = self.build_events(shape)
+            caps: Dict = {}
+            chans: Dict = {}
+            if self.options.pipeline is not None:
+                events, caps, chans = apply_pipeline(
+                    events, self.options.pipeline,
+                    aic_num=shape.aic_num, h=shape.h,
+                    gmm1_act_depth=shape.policy.gmm1_activation_depth, kernel=shape.kernel)
+            per.append((shape, events, caps, chans, trace))
+
+        # 片间信道 (跨 rank 共享, 不加前缀): 聚合带宽 = 窗排空实测 (×4 并发流解释)
+        channels: Dict[str, Channel] = {}
+        for s_ in range(world):
+            channels[f"fab_src:{s_}"] = Channel(f"fab_src:{s_}",
+                                                bw_total=BW_WINDOW, max_rate_per_event=BW_WINDOW)
+            channels[f"fab_dst:{s_}"] = Channel(f"fab_dst:{s_}",
+                                                bw_total=BW_WINDOW, max_rate_per_event=BW_WINDOW)
+        capacities: Dict[str, int] = {}
+        for shape, events, caps, chans, trace in per:
+            pre = f"R{shape.rank_id}."
+            for ev in events:
+                ev.resources = tuple(pre + r for r in ev.resources)
+                ev.acquires = tuple((pre + a, k) for a, k in ev.acquires)
+                ev.releases = tuple((pre + r, k) for r, k in ev.releases)
+                ev.channel_bytes = tuple(
+                    (c, b, rt) if c.startswith("fab_") else (pre + c, b, rt)
+                    for c, b, rt in ev.channel_bytes)
+                all_events.append(ev)
+            # 引擎 FIFO 队列容量 (Q:aic/Q:vec0/Q:aiv1, 按 rank 前缀; 深度默认 1)
+            qd = self.options.engine_queue_depths or EngineQueueDepths()
+            for core in range(shape.aic_num):
+                capacities[pre + f"Q:aic:c{core}"] = qd.aic
+                capacities[pre + f"Q:vec0:c{core}"] = qd.vec0
+                capacities[pre + f"Q:aiv1:c{core}"] = qd.aiv1
+            for k, v in caps.items():
+                capacities[pre + k] = v
+            for ch_name, ch in chans.items():
+                channels[pre + ch_name] = Channel(pre + ch_name,
+                                                  bw_total=ch.bw_total,
+                                                  max_rate_per_event=ch.max_rate_per_event)
+        total, scheduled = MultiResourceScheduler().schedule(
+            all_events, capacities=capacities or None, channels=channels or None,
+            restructure=restructure)
+
+        results: Dict[int, Dict[str, object]] = {}
+        for shape in shapes:
+            rank = shape.rank_id
+            evs = [e for e in scheduled if e.meta.get("rank") == rank]
+            results[rank] = self._postprocess(shape, evs)
+        return results
+
+    def _postprocess(self, shape: MegaMoeShape,
+                     scheduled: List[ScheduledEvent]) -> Dict[str, object]:
+        waves = self.waves(shape)
         resource_busy: Dict[str, float] = {}
         resource_first: Dict[str, float] = {}
         resource_last: Dict[str, float] = {}
@@ -1005,8 +1053,6 @@ class A8W8WaveCostModel:
             })
         dispatch_ready_tiles.sort(key=lambda x: (x["t_dispatchReady_us"], x["expert"], x["mgroup"]))
 
-        # Reconstruct one realized critical chain through explicit dependencies and
-        # serial resource order.  This is schedule-specific, not a hardware theorem.
         critical_path: List[Dict[str, object]] = []
         if scheduled:
             tail = max(scheduled, key=lambda x: (x.end_us, x.order))
@@ -1027,12 +1073,13 @@ class A8W8WaveCostModel:
                 cur = scheduled_by_name.get(cur.critical_parent) if cur.critical_parent else None
             critical_path.reverse()
 
+        total_us = max((e.end_us for e in scheduled), default=0.0)
         return {
             "total_us": total_us,
             "m_groups_per_wave": self.m_groups_per_wave(shape),
             "wave_count": len(waves),
             "waves": waves,
-            "cursor_trace": cursor_trace,
+            "cursor_trace": self.cursor_traces.get(shape.rank_id, []),
             "events": scheduled,
             "resource_busy_us": resource_busy,
             "resource_span_us": resource_span,

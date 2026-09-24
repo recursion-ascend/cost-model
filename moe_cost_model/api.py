@@ -55,12 +55,11 @@ def simulate_routing_counts(
                 raise ValueError("routing counts must be non-negative")
 
     model = A8W8WaveCostModel(costs, options)
-    rank_results: Dict[int, Dict[str, object]] = {}
-    all_ready: List[Dict[str, object]] = []
+    shapes: List[MegaMoeShape] = []
     for dst in range(world):
         source_rows = tuple(tuple(int(x) for x in row) for row in routing_counts[dst])
         expert_tokens = tuple(sum(row) for row in source_rows)
-        shape = MegaMoeShape(
+        shapes.append(MegaMoeShape(
             expert_tokens=expert_tokens,
             token_num=token_num_per_rank,
             h=h,
@@ -75,10 +74,11 @@ def simulate_routing_counts(
             shared_expert_num=shared_expert_num,
             kernel=kernel,
             policy=policy if policy is not None else InstancePolicy(),
-        )
-        result = model.simulate(shape, restructure=restructure)
-        rank_results[dst] = result
-        all_ready.extend(result["dispatch_ready_tiles"])
+        ))
+    rank_results = model.simulate_multi(shapes, restructure=restructure)
+    all_ready: List[Dict[str, object]] = []
+    for dst in range(world):
+        all_ready.extend(rank_results[dst]["dispatch_ready_tiles"])
 
     slowest_rank = max(rank_results, key=lambda r: float(rank_results[r]["total_us"]))
     import moe_cost_model.constants as _const

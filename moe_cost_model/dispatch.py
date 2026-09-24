@@ -157,14 +157,19 @@ class DispatchMechanisticLatency:
     def call_base_us(self) -> float:
         return self.t_call_oh_us
 
-    def _bytes_row(self, layout: DispatchDataLayout) -> int:
-        return layout.bytes_read_per_row()
-
-    def _base_remote_us(self, rows: int, layout) -> float:
+    def segment_us(self, src: int, dst: int, rows: int,
+                   layout: DispatchDataLayout = None) -> float:
+        """单段基础服务 (无争用): λ_src + rows·b_row/BW_src.
+        争用不在此计费 —— 远端段声明片间信道 (fab_src/fab_dst),
+        由调度器 Channel 速率服务器按聚合带宽共享/降速 (带宽共享物理模型)."""
+        if layout is None:
+            layout = DispatchDataLayout()
+        if src == dst:
+            return self.t_lat_local_us + rows * self._bytes_row(layout) / self.bw_local_bytes_per_us
         return self.t_lat_remote_us + rows * self._bytes_row(layout) / self.bw_remote_bytes_per_us
 
-    def _base_local_us(self, rows: int, layout) -> float:
-        return self.t_lat_local_us + rows * self._bytes_row(layout) / self.bw_local_bytes_per_us
+    def _bytes_row(self, layout: DispatchDataLayout) -> int:
+        return layout.bytes_read_per_row()
 
     def expert_us(self, ir: DispatchExpertIR, layout: DispatchDataLayout = None) -> float:
         """Uncontended base service of one expert slice (no window wait)."""
@@ -178,72 +183,3 @@ class DispatchMechanisticLatency:
                 t += self._base_remote_us(rows, layout)
         return t
 
-    def simulate_wave(self, call_irs: List[DispatchCallIR],
-                      layout: DispatchDataLayout = None) -> Dict[int, Dict[int, float]]:
-        """FCFS window queueing for one wave.
-
-        Returns {aiv1: {expert: slice_duration}} where slice_duration includes
-        base service AND effective contention wait.
-
-        Fixpoint: arrival times include waits from the previous iteration,
-        so a core delayed on segment k arrives later at segment k+1's window.
-        Converges in ~2 iterations (most cores have 1-2 remote segments).
-
-        GMM1 overlap: charged once per call (on the first remote segment),
-        not per segment — the memory-path contention persists for the call
-        duration, it is not re-incurred per segment.
-        """
-        if layout is None:
-            layout = DispatchDataLayout()
-        bytes_row = self._bytes_row(layout)
-        prev_waits: Dict[Tuple[int, int, int], float] = {}  # (aiv1, expert, si) -> wait
-        out: Dict[int, Dict[int, float]] = {}
-        for _ in range(3):
-            # ---- pass 1: arrival computation (uses prev_waits for fixpoint) ----
-            requests = []  # (arrival, aiv1, expert, src, rows, si)
-            for ir in sorted(call_irs, key=lambda r: (self._offset(r.aiv1), r.aiv1)):
-                t = self._offset(ir.aiv1)
-                for e in ir.experts:
-                    for si, (src, rows) in enumerate(e.segments):
-                        if src == ir.dst_rank:
-                            t += self._base_local_us(rows, layout)
-                        else:
-                            arrival = t + self.t_lat_remote_us
-                            requests.append((arrival, ir.aiv1, e.expert, src, rows, si))
-                            # advance includes previous iteration's wait (fixpoint)
-                            w_prev = prev_waits.get((ir.aiv1, e.expert, si), 0.0)
-                            t += self._base_remote_us(rows, layout) + w_prev
-            # ---- pass 2: FCFS per window ----
-            requests.sort(key=lambda x: (x[0], x[1]))
-            seg_wait: Dict[Tuple[int, int, int], float] = {}
-            free: Dict[int, float] = {}
-            for arrival, aiv1, expert, src, rows, si in requests:
-                service = rows * bytes_row / self.window_bw_bytes_per_us
-                start = max(arrival, free.get(src, float("-inf")))
-                free[src] = start + service
-                seg_wait[(aiv1, expert, si)] = start - arrival
-            # ---- pass 3: per-slice durations ----
-            out = {}
-            for ir in call_irs:
-                d = out.setdefault(ir.aiv1, {})
-                has_remote = any(s != ir.dst_rank for e in ir.experts for s, _ in e.segments)
-                # GMM1 争用与窗口排队作用于同一条数据通路: 取 max 而非相加;
-                # 每次 CALL 只收一次 (在首个远端段上), 不逐段重复收费
-                overlap = self.gmm1_overlap_us_per_call if (ir.wave >= 1 and has_remote) else 0.0
-                overlap_charged = False
-                for e in ir.experts:
-                    slice_dur = 0.0
-                    for si, (src, rows) in enumerate(e.segments):
-                        if src == ir.dst_rank:
-                            slice_dur += self._base_local_us(rows, layout)
-                        else:
-                            w = seg_wait.get((ir.aiv1, e.expert, si), 0.0)
-                            if not overlap_charged:
-                                slice_dur += self._base_remote_us(rows, layout) + max(w, overlap)
-                                overlap_charged = True
-                            else:
-                                slice_dur += self._base_remote_us(rows, layout) + w
-                    d[e.expert] = slice_dur
-            # update for next fixpoint iteration
-            prev_waits = seg_wait
-        return out
