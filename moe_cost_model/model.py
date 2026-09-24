@@ -329,6 +329,36 @@ class A8W8WaveCostModel:
         # 保留在 constants.py 作 provenance 记录, 不再进入 DAG.
         token_count_name = None  # 前导已移除; dispatch 不再有门控依赖
 
+        # ---- 共享专家 (独立 dense 路径, mega_moe_arch35.h 阶段2/4) ----
+        # 阶段2: 共享 GMM1_s + ACT_s (m=token_num, 全 token), 完成后 routed dispatch 才开始
+        # 阶段4: 共享 GMM2_s (routed combine+core_sync 之后), 输出写 sharedExpertResult,
+        #        UNPERMUTE 输出聚合时读回合并 (unpermute 字节式含 shared 读项)
+        shared_gates = None
+        if shape.shared_expert_num > 0:
+            m_tot_s = shape.token_num
+            k2_s = shape.hidden_dim // ACT_HALF
+            sched_n_s = self._gmm1_device_scheduler_n(shape, ACT_HALF)
+            nt1_s = ceil_div(sched_n_s, TILE_N)
+            mg_s = ceil_div(m_tot_s, TILE_M)
+            g1s_events, as_events = [], []
+            sc1 = BlockCursor(p, 0)
+            for ti in range(mg_s * nt1_s):
+                mg, nt = swizzle_coord(ti, mg_s, nt1_s, km.swizzle_offset, km.swizzle_direction)
+                m_rows = min(TILE_M, m_tot_s - mg * TILE_M)
+                logical_n = min(TILE_N, sched_n_s - nt * TILE_N)
+                core = sc1.owners(1)[0]
+                g1s_events.append(self._event(
+                    events, f"shared.gmm1.m{mg}.n{nt}",
+                    (f"AIC:{core}",), c.gmm1_tile(m_rows, shape.h, logical_n),
+                    meta={"stage": "shared_gmm1", "m_rows": m_rows}))
+                as_events.append(self._event(
+                    events, f"shared.act.m{mg}.n{nt}",
+                    (f"AIV0:{core}",), c.activation_tile(m_rows, logical_n),
+                    deps=(g1s_events[-1],), meta={"stage": "shared_act", "m_rows": m_rows}))
+            shared_gates = self._event(events, "shared.head_done", (), 0.0,
+                                       deps=tuple(as_events),
+                                       meta={"stage": "shared_head_done"})
+
         def add_dispatch_wave(w: Wave) -> None:
             # Source executes one DispatchTokenRange(w) call on every AIV1.
             # Low-level service-time calibration remains per AIV1/expert work, but
@@ -343,7 +373,7 @@ class A8W8WaveCostModel:
                 call_ir = call_irs[core]
                 call_name = f"W{w.index}.dispatch_call.c{core}"
                 first_remote_seg = True
-                deps = []  # 前导已移除 (2026-09): 模型从首条 dispatch 起算
+                deps = [shared_gates] if shared_gates else []
                 q_aiv1_call = (f"Q:aiv1:c{core}", 1)
                 call_duration = c.dispatch_mechanistic.call_base_us()
                 call_meta = {"stage": "dispatch_call", "wave": w.index, "core": core}
@@ -782,6 +812,8 @@ class A8W8WaveCostModel:
                     meta={"stage": "epilogue", "part": "output_buffer_init"})
         # UNPERMUTE: 读 topk×h×BF16 + 写 h×BF16 (peermem 流式, 聚合带宽)
         unpermute_bytes = shape.token_num * (shape.topk * shape.h * 2 + shape.h * 2)
+        if getattr(shape, "shared_expert_num", 0):
+            unpermute_bytes += shape.shared_expert_num * shape.token_num * shape.h * 2   # 读回共享结果合并
         unpermute = "epilogue.unpermute"
         self._event(events, unpermute, (), unpermute_bytes / BW_UNPERMUTE_AGG,
                     deps=(out_init,), meta={"stage": "epilogue", "part": "unpermute"})
