@@ -1,7 +1,7 @@
 # mega_moe_cost_model
 
-MegaMoE A8W8 (Ascend 950 / DAV_3510) 算子物理公式 cost model。
-对应 kernel: `mc2/mega_moe/op_kernel/arch35/mega_moe_wave_a8w8.h`。
+MegaMoE(Ascend 950 / DAV_3510) 算子物理公式 cost model。
+
 
 ## 理论框架
 
