@@ -289,6 +289,7 @@ class MultiResourceScheduler:
         channels: Optional[Dict[str, Channel]] = None,
         restructure=None,
         restructure_limit: Optional[int] = None,
+        policy=None,
     ) -> Tuple[float, List[ScheduledEvent]]:
         """restructure: 每次事件提交后调用的重构钩子
         hook(RestructureContext) -> RestructureAction.
@@ -297,6 +298,9 @@ class MultiResourceScheduler:
         """
         capacities = dict(capacities or {})
         channels = dict(channels or {})
+        if policy is None:
+            from .policies import EarliestStart
+            policy = EarliestStart()
         chan_state = {name: _ChannelState(ch) for name, ch in channels.items()}
 
         by_name: Dict[str, Event] = {}
@@ -490,7 +494,7 @@ class MultiResourceScheduler:
                     if start == float("inf"):
                         return
                     payload = (ch_w, cap_w, rates)
-                key = (start, ev.order, ev.name)
+                key = policy.event_key(ev, start, tbase, end_by_name)
                 if best_key is None or key < best_key:
                     best_key = key
                     best = (name, start, dur, payload[0], payload[1], payload[2])

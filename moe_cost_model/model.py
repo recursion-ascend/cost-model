@@ -85,6 +85,10 @@ class MegaMoeShape:
     shared_expert_num: int = 0
     # kernel 编译期参数 (CMake cost-sweep knobs), 默认 = 源码值
     kernel: object = None   # KernelConfig; None → 模块默认
+    # 调度策略 (默认 = source-faithful; 可替换做 what-if)
+    core_assignment: object = None  # CoreAssignment; None → StaticRoundRobin
+    wave_packing: object = None     # WavePacking; None → SequentialGreedy
+    scheduling_policy: object = None # SchedulingPolicy; None → EarliestStart
     # 实例层运行时策略绑定 (lookahead/lag/深度/credit/共振) — 单一入口见 InstancePolicy
     policy: object = None   # InstancePolicy; None → 默认实例
 
@@ -167,6 +171,7 @@ class A8W8WaveCostModel:
 
     def m_groups_per_wave(self, shape: MegaMoeShape) -> int:
         km = shape.kernel if shape.kernel is not None else KernelConfig()
+        core_assign = getattr(shape, "core_assignment", None)  # None = source-faithful
         # p1/p2 = 场景超参 (每 AIC 核在 GMM1/GMM2 至少分到的逻辑 tile 数),
         # 由调用方或 tiling 真值给出; 未给时取理论负载均衡下限 (1, 1).
         # kernel 的 token_num 分层策略 (2/4/6) 是实现决策, 不属于模型 —— 已移出.
@@ -291,6 +296,7 @@ class A8W8WaveCostModel:
 
     def build_events(self, shape: MegaMoeShape) -> Tuple[List[Event], List[CursorTrace]]:
         km = shape.kernel if shape.kernel is not None else KernelConfig()
+        core_assign = getattr(shape, "core_assignment", None)  # None = source-faithful
         TILE_M = km.tile_m      # 局部遮蔽模块常数 (结构点全部走 km)
         TILE_N = km.tile_n
         ACT_HALF = km.activation_n_half
@@ -374,6 +380,9 @@ class A8W8WaveCostModel:
                 call_name = f"W{w.index}.dispatch_call.c{core}"
                 first_remote_seg = True
                 deps = [shared_gates] if shared_gates else []
+                pacing_wave = w.index - la
+                if pacing_wave >= 0 and core in last_combine_by_core:
+                    deps.append(last_combine_by_core[core])   # 波循环节拍边
                 q_aiv1_call = (f"Q:aiv1:c{core}", 1)
                 call_duration = c.dispatch_mechanistic.call_base_us()
                 call_meta = {"stage": "dispatch_call", "wave": w.index, "core": core}
@@ -491,7 +500,11 @@ class A8W8WaveCostModel:
             gmm1_n_tiles = ceil_div(gmm1_scheduler_n, TILE_N)
             for si, sl in enumerate(w.slices):
                 tile_count = sl.m_groups * gmm1_n_tiles
-                owners = cursor.owners(tile_count)
+                if core_assign is not None:
+                    owners = core_assign.assign(tile_count, p, cursor.start)
+                    cursor.set(cursor.start + tile_count)
+                else:
+                    owners = cursor.owners(tile_count)
                 first_owned_on_core = [True] * p
 
                 # B 矩阵 L2 复用: 同一专家在同一波内的矩阵乘任务中,
@@ -658,7 +671,11 @@ class A8W8WaveCostModel:
 
             for si, sl in enumerate(w.slices):
                 tile_count = sl.m_groups * gmm2_n_tiles
-                owners = cursor.owners(tile_count)
+                if core_assign is not None:
+                    owners = core_assign.assign(tile_count, p, cursor.start)
+                    cursor.set(cursor.start + tile_count)
+                else:
+                    owners = cursor.owners(tile_count)
                 first_owned_on_core = [True] * p
 
                 for tile_idx, core in enumerate(owners):
@@ -777,6 +794,7 @@ class A8W8WaveCostModel:
                     )
                     # aiv1_prev[core] = cname  # 移除
                     combine_history.append(cname)
+                    last_combine_by_core[core] = cname
 
         if not waves:
             return events, cursor_trace
@@ -823,6 +841,8 @@ class A8W8WaveCostModel:
 
         lag = shape.token_num >= policy.gmm2_lag_threshold
         dispatched: set[int] = set()
+        la = policy.dispatch_lookahead          # 预取深度 (实例绑定)
+        last_combine_by_core: Dict[int, str] = {}   # 波循环节拍: 每核最近 combine 事件
 
         for iteration, w in enumerate(waves):
             # AIV1 dispatch call order from PrepareDispatchWave:
@@ -949,6 +969,7 @@ class A8W8WaveCostModel:
         all_events: List[Event] = []
         per: List[Tuple[MegaMoeShape, List[Event], Dict, Dict, List[CursorTrace]]] = []
         world = max((len(sh.expert_source_tokens[0]) for sh in shapes), default=0)
+        self._sched_policy = getattr(shapes[0], 'scheduling_policy', None) if shapes else None
         for shape in shapes:
             events, trace = self.build_events(shape)
             caps: Dict = {}
@@ -990,9 +1011,10 @@ class A8W8WaveCostModel:
                 channels[pre + ch_name] = Channel(pre + ch_name,
                                                   bw_total=ch.bw_total,
                                                   max_rate_per_event=ch.max_rate_per_event)
+        sched_pol = getattr(self, '_sched_policy', None)
         total, scheduled = MultiResourceScheduler().schedule(
             all_events, capacities=capacities or None, channels=channels or None,
-            restructure=restructure)
+            restructure=restructure, policy=sched_pol)
 
         results: Dict[int, Dict[str, object]] = {}
         for shape in shapes:
@@ -1130,6 +1152,7 @@ class A8W8WaveCostModel:
     def structural_summary(self, shape: MegaMoeShape) -> List[Dict[str, object]]:
         rows: List[Dict[str, object]] = []
         km = shape.kernel if shape.kernel is not None else KernelConfig()
+        core_assign = getattr(shape, "core_assignment", None)  # None = source-faithful
         g1n = ceil_div(self._gmm1_device_scheduler_n(shape, km.activation_n_half), km.tile_n)
         g2n = ceil_div(shape.h, km.tile_n)
         for w in self.waves(shape):

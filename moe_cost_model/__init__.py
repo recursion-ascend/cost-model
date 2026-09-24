@@ -73,6 +73,13 @@ from .pipeline import (
     default_channels, parse_tiling,
 )
 from .api import simulate_routing_counts
-from .policies import idle_core_stealing
+
 
 __all__ = [n for n in dir() if not n.startswith('_')]
+
+from .policies import (
+    SchedulingPolicy, EarliestStart, CriticalPathFirst, PriorityByStage,
+    CoreAssignment, StaticRoundRobin, GreedyLeastBusy, ContiguousBlock,
+    WavePacking, SequentialGreedy, LongestExpertFirst, BalancedWaves,
+    idle_core_stealing,
+)

@@ -1,9 +1,4 @@
-"""硬件实测参数 + kernel 源码结构常数 (零拟合).
 
-每项常数必须带出处注释:
-  - 结构常数: 源自 mc2/mega_moe/op_kernel/arch35/ 源文件
-  - 硬件参数: 单点实测, 注明测量方法
-"""
 from dataclasses import dataclass
 
 from .provenance import SourcedInt, SourcedValue
@@ -110,7 +105,7 @@ def select_kl1(m_rows: int, k: int, override=None, tile_m: int = TILE_M,
     return base * 2 if can_double else base
 
 
-# ---- 前导/尾段段常数 (arch35.h:660-775 AIV 序列, 2026-09 span 实测) ----
+# ---- 前导/尾段段常数 ----
 # INPUT_QUANT: 每核向量化 MX 量化, per-token ~0.64µs + 固定 0.35µs
 # (B=64: 1.1 token/核→1.03µs; B=1024: 18.3 token/核→12.2µs, 两尺度线性一致)
 T_INPUT_QUANT_FIXED_US = SourcedValue(0.35, 'measured:INPUT_QUANT span 两尺度截距')
