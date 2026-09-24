@@ -118,7 +118,7 @@ act = AnalyticalActCosts()
 
 
 def mk_costs(h):
-    comb = AnalyticalCombineCosts(h=h)
+    comb = AnalyticalCombineCosts()
     return PrimitiveCosts(
         dispatch_mechanistic=DispatchMechanisticLatency(begin_offset_us=BO),
         gmm1_tile=agc.gmm1_tile,

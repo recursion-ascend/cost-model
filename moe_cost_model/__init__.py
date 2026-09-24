@@ -49,7 +49,7 @@ Intentional abstractions
 """
 
 from .constants import *  # noqa: F401,F403
-from .constants import KernelConfig
+from .constants import KernelConfig, InstancePolicy
 from .model import EngineQueueDepths
 from .provenance import SourcedInt, SourcedValue, collect_provenance, provenance_report
 from .dag import Channel, Event, MultiResourceScheduler, ScheduledEvent
@@ -73,5 +73,6 @@ from .pipeline import (
     default_channels, parse_tiling,
 )
 from .api import simulate_routing_counts
+from .policies import idle_core_stealing
 
 __all__ = [n for n in dir() if not n.startswith('_')]

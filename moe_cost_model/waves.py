@@ -20,7 +20,9 @@ from .constants import (
 
 
 def resolve_gmm1_min_logical_tiles_per_core(token_num: int) -> int:
-    """Source tier used when MEGAMOE_P1_OVERRIDE is not set."""
+    """kernel 默认波策略参考 (mega_moe_constants.h:99-103 分层), 仅供复现
+    kernel 现行为的工具使用; cost model 不再使用 —— p1/p2 是场景超参,
+    由调用方或 tiling 真值给出, 未给时模型取理论下限 (1, 1)."""
     if token_num < GMM1_SMALL_BATCH_TOKEN_THRESHOLD:
         return GMM1_MIN_LOGICAL_TILES_PER_CORE_SMALL
     if token_num >= GMM1_LARGE_BATCH_TOKEN_THRESHOLD:

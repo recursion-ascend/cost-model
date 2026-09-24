@@ -28,13 +28,13 @@ def _run(options=None, kernel=None):
         gmm1_tile=m.AnalyticalGmmCosts().gmm1_tile,
         gmm2_tile=m.AnalyticalGmmCosts().gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
-        combine_tile=m.AnalyticalCombineCosts(h=6144).tile,
+        combine_tile=m.AnalyticalCombineCosts().tile,
         count_table_prepare_us=m.T_COUNT_GATE,
     )
     return m.simulate_routing_counts(
         routing_counts=_deterministic_case(), token_num_per_rank=64, h=6144,
         hidden_dim=4096, aic_num=28, costs=costs, options=options or m.ModelOptions(),
-        kernel=kernel,
+        kernel=kernel, p1_override=2, p2_override=1,   # kernel 默认策略 @bs64 (tiling 真值)
     )
 
 
@@ -45,9 +45,11 @@ def test_default_pin():
     """
     res = _run()
     # 引擎排队模型后的锚点: 程序序 deps 链 → FIFO 队列令牌 (Q:aic/Q:vec0/Q:aiv1)
-    # 深度=1 时与旧 deps 链差 -3.58µs (调度器 tie-break 差异, 非建模错误)
-    assert abs(res["kernel_total_us"] - 421.119) < 0.01
-    assert len(res["rank_results"][0]["events"]) == 651
+    # 2026-09 COMBINE 公式修正: m×(4×logical_n+8)/BW (旧 m×(4h+16) 列数误用全 H
+    # ×24 高估, meta 16B→8B 按源码 metaInfo/probs 修正) → 锚点 -113.29µs
+    # 2026-09 前导移除: INIT/QUANT/gate 不再入模, 总时长从首条 dispatch 起算 → -77.53µs
+    assert abs(res["kernel_total_us"] - 230.299) < 0.01
+    assert len(res["rank_results"][0]["events"]) == 648
     # 排队模型生效标志: 资源争用出现 (旧模型恒为 0)
     rq = sum(1 for e in res["rank_results"][0]["events"] if e.resource_queue_us > 0)
     assert rq > 100, f"resource_queue>0 仅 {rq} 次, 排队模型未生效"
@@ -57,7 +59,7 @@ def test_kl1_override_restores_legacy():
     """kL1=256 显式覆盖应恢复 402.335 (结构等价性自检)."""
     res = _run(options=m.ModelOptions(gmm2_kl1=256))
     # kL1=256 与 auto 在此确定性用例上同值 (部分 tile 行数≥tile_m → 退化为 256)
-    assert abs(res["kernel_total_us"] - 421.119) < 0.5
+    assert abs(res["kernel_total_us"] - 230.299) < 0.5
 
 
 def test_primitive_costs_requires_all():

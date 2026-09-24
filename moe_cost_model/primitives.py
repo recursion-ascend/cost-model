@@ -9,7 +9,7 @@ from typing import Callable, Optional
 
 from .constants import (
     ACT_BYTES_PER_VEC, BW_L1_GM, BW_SCATTER, BW_UB, T_COUNT_GATE,
-    T_STARTUP_VEC, TILE_N, VEC_ELEM_FP32,
+    T_STARTUP_VEC, VEC_ELEM_FP32,
 )
 from .dispatch import DispatchMechanisticLatency
 from .constants import KernelConfig
@@ -69,15 +69,15 @@ class AnalyticalGmmCosts:
     GMM1 每 tile:
         T = (m*K + 2*K*tileN) / BW
         A: m 行 × K 列 (FP8 1B/元素)
-        B: 2 × tileN 列 × K 行 (2 = SwiGLU gate+up 双投影, 算法结构常数)
-        tileN: v6 模块常量 TILE_N = 256
+        B: 2 × cols 列 × K 行 (2 = SwiGLU gate+up 双投影, 算法结构常数)
+        cols: 每窗实际列数, 调用期传入 (= KernelConfig.tile_n, 尾 N-tile 时更小)
 
     GMM2 每 tile:
-        T = K2 * tileN / BW
-        B: tileN 列 × K2 行 (K2 = intermediate, 单投影无双半)
+        T = K2 * cols / BW
+        B: cols 列 × K2 行 (K2 = intermediate, 单投影无双半)
     """
 
-    def __init__(self, bw_bytes_per_us: float = BW_L1_GM, tile_n: int = TILE_N,
+    def __init__(self, bw_bytes_per_us: float = BW_L1_GM,
                  weight_nz: bool = False, bw_b_nz_bytes_per_us: float = 0.0,
                  l1_buf_num: int = 2, cube_mac_per_us: float = 0.0,
                  tile_restart_us: float = 0.0, l1_tile_k: int = 256):
@@ -95,7 +95,6 @@ class AnalyticalGmmCosts:
         if l1_tile_k <= 0:
             raise ValueError("l1_tile_k must be positive")
         self.bw = bw_bytes_per_us
-        self.tile_n = tile_n
         self.bw_b = bw_b_nz_bytes_per_us if weight_nz else bw_bytes_per_us
         # b=1 (L1 无 ping-pong): 每 K-chunk 边界流水重启停顿 (chunk 级常数,
         # b1/b2 A/B 差分标定: 惩罚 ∝ tile 数, 计算串行项不显著)
@@ -108,21 +107,22 @@ class AnalyticalGmmCosts:
         # K-chunk 数 = ceil(k / kL1), kL1 来自 KernelConfig.l1_tile_k (不再硬编码)
         return -(-k // self._k_l1)
 
-    def gmm1_tile(self, m: int, k: int) -> float:
-        t = (m * k) / self.bw + (2 * k * self.tile_n) / self.bw_b
+    def gmm1_tile(self, m: int, k: int, cols: int) -> float:
+        """m 行 × cols 列输出 tile: A 流 m·k (FP8) + B 流 2·k·cols (SwiGLU 双投影)."""
+        t = (m * k) / self.bw + (2 * k * cols) / self.bw_b
         if self.serial:
             t += self._chunks(k) * self.chunk_restart
             if self.cube_rate > 0:
-                t += 2.0 * m * self.tile_n * k / self.cube_rate
+                t += 2.0 * m * cols * k / self.cube_rate
         return t
 
-    def gmm2_tile(self, m: int, k2: int) -> float:
-        # B 流主导 (k2×tile_n, 源码注释与标定域一致); NZ 时 B 流走分形带宽
-        t = k2 * self.tile_n / self.bw_b
+    def gmm2_tile(self, m: int, k2: int, cols: int) -> float:
+        """B 流主导 (k2×cols, 源码注释与标定域一致); NZ 时 B 流走分形带宽."""
+        t = k2 * cols / self.bw_b
         if self.serial:
             t += self._chunks(k2) * self.chunk_restart
             if self.cube_rate > 0:
-                t += m * self.tile_n * k2 / self.cube_rate
+                t += m * cols * k2 / self.cube_rate
         return t
 
 
@@ -150,33 +150,63 @@ class AnalyticalActCosts:
     VEC_ELEM = VEC_ELEM_FP32
     BYTES_PER_VEC = ACT_BYTES_PER_VEC
 
-    def __init__(self, bw_ub_bytes_per_us=BW_UB, t_startup_us=T_STARTUP_VEC,
-                 tile_n: int = TILE_N):
+    def __init__(self, bw_ub_bytes_per_us=BW_UB, t_startup_us=T_STARTUP_VEC):
+        # 几何量 (每窗列数) 调用期传入 — 同 GMM, 消除 tile_n 双份来源
         self.bw_ub = bw_ub_bytes_per_us
         self.t_startup = t_startup_us
-        self.tile_n = tile_n
 
-    def tile(self, m: int, n_frac: float = 1.0) -> float:
-        n_vec = m * self.tile_n * n_frac / self.VEC_ELEM
+    def tile(self, m: int, cols: int) -> float:
+        n_vec = m * cols / self.VEC_ELEM
         return self.t_startup + n_vec * self.BYTES_PER_VEC / self.bw_ub
 
 
+COMBINE_NO_QUANT = 0
+COMBINE_QUANT = 1
+
+
 class AnalyticalCombineCosts:
-    """COMBINE 物理公式: 接口匹配combine_tile(m_rows, n_frac).
+    """COMBINE (AIV1 配对消费 GMM2 tile) 物理公式, 按量化模式参数化.
 
-    每 event (m 行 × n_frac×tileN 列, H 归约) 的数据流量:
-        读 GMM2 输出: m × H × 2B (BF16, 顺序读)
-        写回 token 位置: m × H × 2B (BF16, 散射写)
-        元数据: m × 16B (token 位置 + topk weight)
-
-    公式: T = (m × h × 4 + m × 16) × n_frac / BW_scatter
+    每 (m-group, N-tile) 窗 (m 行 × logical_n 列) 的 GM 流量 = m×(e·logical_n + meta):
+      读侧 e_in: GMM2 输出 tile 经 workspace 读回 — 两种模式均 BF16 = 2B/元素
+        (配对握手 gmmToEpilogueFlag, mega_moe_arch35.h RunGmm2CombineForExpert)
+      写侧 e_out: per-slot 部分和 (topk 归约在 UNPERMUTE, 非累加 rmw):
+        NO_QUANT: BF16 = 2B/元素
+        QUANT:    FP8 = 1B/元素 + MX scale 1B/32元素 = 1/32 B/元素
+      meta: 8B/行 = token 位置 int32 4B (metaInfo, constants.h INT32_PER_256B=8)
+                 + topk 权重 fp32 4B (probsGm)
+    → e = e_in + e_out + scale: NO_QUANT 推导值 4 (= 2读+2写); QUANT 推导值 3.03125
+    公式: T = m × (e×logical_n + meta) / BW_scatter
+    (旧公式 m×(4h+16) 的两处错误: 列数误用全 H ×24; meta 16B 无源码依据 → 8B)
+    待声明未建模: 散射写凸型 m 依赖 (超线性, 见 2026-09 对比记录)。
     """
-    def __init__(self, h: int = 6144, bw_scatter_bytes_per_us: float = BW_SCATTER):
-        self.h = h
-        self.bw = bw_scatter_bytes_per_us
+    META_BYTES_PER_ROW = 8
 
-    def tile(self, m: int, n_frac: float = 1.0) -> float:
-        data = m * (self.h * 4 + 16) * n_frac
+    def __init__(self, combine_quant_mode: int = COMBINE_NO_QUANT,
+                 bw_scatter_bytes_per_us: float = BW_SCATTER,
+                 meta_bytes_per_row: int = META_BYTES_PER_ROW):
+        if combine_quant_mode == COMBINE_NO_QUANT:
+            self.in_elem_bytes = 2.0        # GMM2 输出 BF16
+            self.out_elem_bytes = 2.0       # 部分和 BF16
+            self.scale_bytes_per_elem = 0.0
+        elif combine_quant_mode == COMBINE_QUANT:
+            self.in_elem_bytes = 2.0        # GMM2 输出 BF16 (UB 内量化)
+            self.out_elem_bytes = 1.0       # 部分和 FP8
+            self.scale_bytes_per_elem = 1.0 / 32.0   # MX scale 每 32 元素 1B
+        else:
+            raise ValueError(f"未知 combine_quant_mode: {combine_quant_mode}")
+        self.combine_quant_mode = combine_quant_mode
+        self.bw = bw_scatter_bytes_per_us
+        self.meta_bytes = meta_bytes_per_row
+
+    @property
+    def per_elem_bytes(self) -> float:
+        """推导的每元素流量系数: NO_QUANT=4 (2读+2写); QUANT=3.03125 (2读+1写+1/32 scale)."""
+        return self.in_elem_bytes + self.out_elem_bytes + self.scale_bytes_per_elem
+
+    def tile(self, m: int, logical_n: int = 256) -> float:
+        # logical_n = 本窗实际列数 (尾 N-tile 时 < 256), 调用期传入
+        data = m * (self.per_elem_bytes * logical_n + self.meta_bytes)
         return data / self.bw
 
 
@@ -200,15 +230,16 @@ def build_analytical_costs(
 
     修复的漏配类: 手工构造 Analytical* 用默认 tile_n=256 / h=6144, 而
     KernelConfig.tile_n / shape.h 被覆盖 → n_frac 换算与字节计数静默出错.
-    本工厂把 KernelConfig.tile_m/tile_n/l1_buf_num/l1_tile_k/weight_nz 与 h
-    一次性注入全部公式容器; A8W8WaveCostModel 侧另有绑定一致性校验兜底.
+    几何量 (tile_m/tile_n/每窗列数) 属于 KernelConfig, 调用期由模型传入公式,
+    容器只承载硬件常数与 L1 组织参数 — 结构上消除 tile_n/h 双份来源的漏配.
 
     带宽缺省 = constants 实测值; NZ 布局必须显式给 bw_l1_gm_b_nz (零猜测).
     """
+    # 几何量 (tile_n/列数) 不进容器: 调用方按 KernelConfig 调用期传入.
+    # 容器只承载硬件常数; kernel 参数中仅 L1 组织 (l1_buf_num/l1_tile_k/weight_nz) 影响公式形态.
     km = kernel if kernel is not None else KernelConfig()
     gmm = AnalyticalGmmCosts(
         bw_bytes_per_us=bw_l1_gm if bw_l1_gm is not None else BW_L1_GM,
-        tile_n=km.tile_n,
         weight_nz=km.weight_nz,
         bw_b_nz_bytes_per_us=bw_l1_gm_b_nz,
         l1_buf_num=km.l1_buf_num,
@@ -219,10 +250,9 @@ def build_analytical_costs(
     act = AnalyticalActCosts(
         bw_ub_bytes_per_us=bw_ub if bw_ub is not None else BW_UB,
         t_startup_us=t_startup_us if t_startup_us is not None else T_STARTUP_VEC,
-        tile_n=km.tile_n,
     )
     comb = AnalyticalCombineCosts(
-        h=h,
+        combine_quant_mode=km.combine_quant_mode,
         bw_scatter_bytes_per_us=bw_scatter if bw_scatter is not None else BW_SCATTER,
     )
     return PrimitiveCosts(

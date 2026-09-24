@@ -24,18 +24,20 @@ def _deterministic_case():
     return tuple(tuple(tuple(r) for r in c) for c in counts)
 
 
-def _run(options=None):
+def _run(options=None, policy=None):
     costs = m.PrimitiveCosts(
         dispatch_mechanistic=m.DispatchMechanisticLatency(begin_offset_us=tuple([0.0] * 28)),
         gmm1_tile=m.AnalyticalGmmCosts().gmm1_tile,
         gmm2_tile=m.AnalyticalGmmCosts().gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
-        combine_tile=m.AnalyticalCombineCosts(h=6144).tile,
+        combine_tile=m.AnalyticalCombineCosts().tile,
         count_table_prepare_us=m.T_COUNT_GATE,
     )
     return m.simulate_routing_counts(
         routing_counts=_deterministic_case(), token_num_per_rank=64, h=6144,
         hidden_dim=4096, aic_num=28, costs=costs, options=options or m.ModelOptions(),
+        p1_override=2, p2_override=1,   # kernel 默认策略 @bs64 (tiling 真值)
+        policy=policy,
     )
 
 
@@ -88,8 +90,8 @@ def test_l1_capacity_deadlock_detected():
 def test_l1_buffer_depth_sweep():
     """生产者/消费者距离: ModelOptions.gmm1_activation_depth 参数化, 距离越大越快."""
     base = _run(options=m.ModelOptions(pipeline=P()))
-    deeper = _run(options=m.ModelOptions(
-        gmm1_activation_depth=2, pipeline=P()))
+    deeper = _run(options=m.ModelOptions(pipeline=P()),
+                  policy=m.InstancePolicy(gmm1_activation_depth=2))
     assert deeper["kernel_total_us"] <= base["kernel_total_us"]
 
 
@@ -126,7 +128,7 @@ def test_split_no_deadlock_large_dag():
         gmm1_tile=m.AnalyticalGmmCosts().gmm1_tile,
         gmm2_tile=m.AnalyticalGmmCosts().gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
-        combine_tile=m.AnalyticalCombineCosts(h=6144).tile,
+        combine_tile=m.AnalyticalCombineCosts().tile,
         count_table_prepare_us=m.T_COUNT_GATE,
     )
     res = m.simulate_routing_counts(
@@ -228,3 +230,34 @@ def test_parse_tiling_real_bin():
     assert t["bs"] == 64 and t["h"] == 6144 and t["topk"] == 8
     assert t["dispatchBufferCount"] == 6
     assert t["mGroupsPerWave"] == 4
+
+
+# ---- 运行时图重构: 空核偷活 ----
+
+def test_restructure_idle_core_stealing():
+    """图结构随资源竞争运行时重构: 空闲核偷走繁忙核尾部 tile,
+    makespan 收敛, busy 守恒, 消费者语义 (同名注入) 保持."""
+    from moe_cost_model.dag import Event, MultiResourceScheduler
+    from moe_cost_model.policies import idle_core_stealing
+
+    evs = []
+    for i in range(5):
+        evs.append(Event(f"W0.gmm1.m0.n{i}.c0", ("AIC:0",), 10.0, order=i,
+                         meta={"stage": "gmm1"},
+                         acquires=(("Q:aic:0", 1),), releases=(("Q:aic:0", 1),)))
+    evs.append(Event("W0.gmm1.m0.n5.c1", ("AIC:1",), 10.0, order=5,
+                     meta={"stage": "gmm1"},
+                     acquires=(("Q:aic:1", 1),), releases=(("Q:aic:1", 1),)))
+    caps = {"Q:aic:0": 1, "Q:aic:1": 1}
+    total_static, sched_static = MultiResourceScheduler().schedule(evs, capacities=caps)
+    total_steal, sched_steal = MultiResourceScheduler().schedule(
+        evs, capacities=caps, restructure=idle_core_stealing(min_pending=2))
+    assert abs(total_static - 50.0) < 1e-9          # 静态: 5+1 → 50
+    assert abs(total_steal - 30.0) < 1e-9           # 偷活后 3+3 → 30
+    busy_s = sum(e.end_us - e.start_us for e in sched_static)
+    busy_d = sum(e.end_us - e.start_us for e in sched_steal)
+    assert abs(busy_s - busy_d) < 1e-9              # busy 守恒
+    # 同名注入: 事件集合不变 (偷走的事件以同名换核复活)
+    assert {e.name for e in sched_steal} == {e.name for e in evs}
+    stolen = [e for e in sched_steal if e.meta.get("stolen_from")]
+    assert len(stolen) >= 1 and stolen[0].resources[0] == "AIC:1"

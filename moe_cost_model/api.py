@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Sequence
 
 from .dispatch import DispatchDataLayout
 from .model import A8W8WaveCostModel, MegaMoeShape, ModelOptions
+from .constants import InstancePolicy
 from .primitives import PrimitiveCosts
 from .provenance import collect_provenance, provenance_report
 
@@ -21,6 +22,8 @@ def simulate_routing_counts(
     shared_expert_num: int = 0,
     kernel=None,
     options: ModelOptions = ModelOptions(),
+    policy: InstancePolicy = None,
+    restructure=None,
     p1_override: int = 0,
     p2_override: int = 0,
     dispatch_layout: Optional[DispatchDataLayout] = None,
@@ -71,8 +74,9 @@ def simulate_routing_counts(
             topk=topk,
             shared_expert_num=shared_expert_num,
             kernel=kernel,
+            policy=policy if policy is not None else InstancePolicy(),
         )
-        result = model.simulate(shape)
+        result = model.simulate(shape, restructure=restructure)
         rank_results[dst] = result
         all_ready.extend(result["dispatch_ready_tiles"])
 

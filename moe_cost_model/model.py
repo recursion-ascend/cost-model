@@ -5,8 +5,9 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from .constants import (
+    InstancePolicy,
     DAV3510_NONINTERLEAVED_GMM1_ACTIVATION_DEPTH, GMM2_KL1,
-    GMM2_LAG_MIN_TOKEN_NUM, GMM2_MIN_LOGICAL_TILES_PER_CORE,
+    GMM2_LAG_MIN_TOKEN_NUM,
     GMM1_MIN_LOGICAL_TILES_PER_CORE, GMM1_MIN_LOGICAL_TILES_PER_CORE_SMALL,
     GMM1_MIN_LOGICAL_TILES_PER_CORE_LARGE,
     GMM1_SMALL_BATCH_TOKEN_THRESHOLD, GMM1_LARGE_BATCH_TOKEN_THRESHOLD,
@@ -29,7 +30,7 @@ from .constants import (
 )
 from .waves import (
     ExpertSlice, Wave, calc_m_groups_per_wave, plan_waves,
-    resolve_gmm1_min_logical_tiles_per_core, swizzle_coord,
+    swizzle_coord,
 )
 
 
@@ -83,6 +84,8 @@ class MegaMoeShape:
     shared_expert_num: int = 0
     # kernel 编译期参数 (CMake cost-sweep knobs), 默认 = 源码值
     kernel: object = None   # KernelConfig; None → 模块默认
+    # 实例层运行时策略绑定 (lookahead/lag/深度/credit/共振) — 单一入口见 InstancePolicy
+    policy: object = None   # InstancePolicy; None → 默认实例
 
     def __post_init__(self) -> None:
         if self.h <= 0 or self.hidden_dim <= 0 or self.aic_num <= 0:
@@ -95,6 +98,8 @@ class MegaMoeShape:
             raise ValueError("p1/p2 overrides must be non-negative; zero means default")
         if any(x < 0 for x in self.expert_tokens):
             raise ValueError("expert token counts must be non-negative")
+        if self.policy is None:
+            object.__setattr__(self, "policy", InstancePolicy())
         if self.expert_source_tokens:
             if len(self.expert_source_tokens) != len(self.expert_tokens):
                 raise ValueError("expert_source_tokens must have one row per expert")
@@ -126,13 +131,9 @@ class EngineQueueDepths:
 class ModelOptions:
     combine_no_quant: bool = True
     topk_weights_prefetch: bool = False
-    gmm2_lag_threshold: int = GMM2_LAG_MIN_TOKEN_NUM
+
     serialize_dispatch_comm: bool = False
 
-    # Execution-regime parameters. These are intentionally configurable: the
-    # DAV_3510 values below describe the validated non-interleaved path, not a
-    # universal hardware constant.
-    gmm1_activation_depth: int = DAV3510_NONINTERLEAVED_GMM1_ACTIVATION_DEPTH
 
     # Evidence chain for the current default:
     # gmm1_activation.h non-interleaved/non-prefetch path profiles
@@ -142,7 +143,6 @@ class ModelOptions:
     # IMPORTANT: event incidence is not time fraction.  In the B64 capture,
     # 1936/2080 instances carry the marker because each participating AIC's
     # first GMM1 tile is unmarked; this count is structurally invariant to mgw.
-    gmm2_combine_credit: Optional[int] = None
 
     # L0/L1/L2 流水线约束 (None = 全关闭, 现行为)
     pipeline: Optional[PipelineConstraints] = None
@@ -150,12 +150,6 @@ class ModelOptions:
     gmm2_kl1: Optional[int] = None
     # 引擎 FIFO 队列深度 (每核): 1=串行(回归等价), >1=流水重叠
     engine_queue_depths: Optional[EngineQueueDepths] = None
-
-    def __post_init__(self) -> None:
-        if self.gmm1_activation_depth <= 0:
-            raise ValueError("gmm1_activation_depth must be positive")
-        if self.gmm2_combine_credit is not None and self.gmm2_combine_credit <= 0:
-            raise ValueError("gmm2_combine_credit must be positive or None")
 
 
 class A8W8WaveCostModel:
@@ -170,8 +164,11 @@ class A8W8WaveCostModel:
 
     def m_groups_per_wave(self, shape: MegaMoeShape) -> int:
         km = shape.kernel if shape.kernel is not None else KernelConfig()
-        p1 = shape.p1_override or resolve_gmm1_min_logical_tiles_per_core(shape.token_num)
-        p2 = shape.p2_override or GMM2_MIN_LOGICAL_TILES_PER_CORE
+        # p1/p2 = 场景超参 (每 AIC 核在 GMM1/GMM2 至少分到的逻辑 tile 数),
+        # 由调用方或 tiling 真值给出; 未给时取理论负载均衡下限 (1, 1).
+        # kernel 的 token_num 分层策略 (2/4/6) 是实现决策, 不属于模型 —— 已移出.
+        p1 = shape.p1_override if shape.p1_override > 0 else 1
+        p2 = shape.p2_override if shape.p2_override > 0 else 1
         return calc_m_groups_per_wave(
             hidden_dim=shape.hidden_dim, h=shape.h, aic_num=shape.aic_num, p1=p1, p2=p2,
             tile_n=km.tile_n
@@ -283,38 +280,12 @@ class A8W8WaveCostModel:
         self._order += 1
         return name
 
-    def _validate_cost_callables(self, shape: MegaMoeShape, km: KernelConfig) -> None:
-        """公式容器与 KernelConfig/shape 的绑定一致性校验 (防静默漏配).
-
-        Analytical* 容器携带 tile_n/h 字段; 若用户覆盖 KernelConfig.tile_n
-        或使用非默认 h 却仍用默认容器, n_frac 换算与字节计数都会静默出错.
-        校验失败显式 raise, 指向 build_analytical_costs 重建.
-        """
-        checks = (
-            ("gmm1_tile", "tile_n", km.tile_n),
-            ("gmm2_tile", "tile_n", km.tile_n),
-            ("activation_tile", "tile_n", km.tile_n),
-            ("combine_tile", "h", shape.h),
-        )
-        for attr, field_name, expect in checks:
-            bound = getattr(self.costs, attr, None)
-            owner = getattr(bound, "__self__", None)
-            if owner is None:
-                continue  # 非绑定方法 (自定义 callable), 无法校验, 由调用方负责
-            have = getattr(owner, field_name, None)
-            if have is not None and have != expect:
-                raise ValueError(
-                    f"costs.{attr} 所属容器的 {field_name}={have} 与期望 {expect} "
-                    f"(KernelConfig/shape.h) 不一致; 请用 build_analytical_costs 或按 "
-                    f"KernelConfig/shape 重新构建公式容器"
-                )
-
     def build_events(self, shape: MegaMoeShape) -> Tuple[List[Event], List[CursorTrace]]:
         km = shape.kernel if shape.kernel is not None else KernelConfig()
         TILE_M = km.tile_m      # 局部遮蔽模块常数 (结构点全部走 km)
         TILE_N = km.tile_n
         ACT_HALF = km.activation_n_half
-        self._validate_cost_callables(shape, km)
+        policy = shape.policy if shape.policy is not None else InstancePolicy()
         self._order = 0
         waves = self.waves(shape)
         p = shape.aic_num
@@ -338,36 +309,15 @@ class A8W8WaveCostModel:
         dispatch_ready_event: Dict[Tuple[int, int], str] = {}
         activation_ready: Dict[Tuple[int, int], List[str]] = {}
 
-        # TOKEN_COUNT_PREPARE: 跨卡专家计数表的准备, 是一次性的启动门控.
-        # 物理执行: 仅 block 0 的 AIV1 做实际 cumsum; 其余核只是等待同一就绪信号.
-        # 实测: 84 个事件各 ~1.3µs (非 AIV1 核的函数进出开销), 总 busy ~112µs.
-        # 53.9µs 是首个事件 begin 到最后事件 end 的 span (含跨卡等待), 是墙钟门控,
-        # 不是每核 busy. 模型应表示为: 单事件阻塞所有后续 dispatch (时长 = span).
-        # 每核另加 ~1.3µs 的进入/退出开销 (分派给 dispatch_call 的 T_call_oh 已覆盖).
-        # ---- 前导链 (arch35.h:660-676): INIT → INPUT_QUANT → COUNT_GATE → 调度准备 ----
-        init_name = "preamble.init"
-        self._event(events, init_name, (), T_INIT_US, deps=(),
-                    meta={"stage": "input_quant", "part": "init"})
-        aiv_n = km.aiv_num or (2 * shape.aic_num)
-        aiv_per_core = -(-shape.token_num // aiv_n) if shape.token_num else 1
-        quant_name = "preamble.input_quant"
-        self._event(
-            events, quant_name, (),
-            T_INPUT_QUANT_FIXED_US + aiv_per_core * T_INPUT_QUANT_PER_TOKEN_US,
-            deps=(init_name,),
-            meta={"stage": "input_quant", "part": "quant"})
-        token_count_name = "token_count_prepare.gate"
-        self._event(
-            events,
-            token_count_name,
-            (),  # 无资源占用 (纯等待)
-            c.count_table_prepare_us + T_DISPATCH_PREPARE_US,  # 跨卡门控 + 调度准备
-            deps=(quant_name,),
-            meta={"stage": "count_table_prepare", "role": "gate"},
-        )
-        for core in range(p):
-            # 队列令牌模型: 不再用 prev 链; 前导门控通过 deps 传递给首波事件
-            pass
+        # ---- 前导链 (INIT → INPUT_QUANT → COUNT_GATE) 不计入模型总时长 ----
+        # 2026-09 决定: 模型总时长从首条 dispatch 起算, 与实测对比口径一致
+        # (实测侧同样扣除 kernel begin → 首条 0x6011 的前导段).
+        # 前导实测包络 @bs128 ≈ 61µs (INIT/BUFFER_INIT/QUANT/ROUTE_SEND/SYNC_RESET/
+        # CORE_SYNC/RANK_SYNC/DISPATCH_BUFFER_INIT/TOKEN_COUNT_PREPARE), 其中
+        # ROUTE_SEND ∝ tokens×topk、RANK_SYNC 随 rank 拓扑 —— 均不再用常数包络表达.
+        # 相关常数 (T_INIT_US/T_INPUT_QUANT_*/T_COUNT_GATE/T_DISPATCH_PREPARE)
+        # 保留在 constants.py 作 provenance 记录, 不再进入 DAG.
+        token_count_name = None  # 前导已移除; dispatch 不再有门控依赖
 
         def add_dispatch_wave(w: Wave) -> None:
             # Source executes one DispatchTokenRange(w) call on every AIV1.
@@ -384,7 +334,7 @@ class A8W8WaveCostModel:
             for core in range(p):
                 call_ir = call_irs[core]
                 call_name = f"W{w.index}.dispatch_call.c{core}"
-                deps = [token_count_name]  # 前导门控
+                deps = []  # 前导已移除 (2026-09): 模型从首条 dispatch 起算
                 q_aiv1_call = (f"Q:aiv1:c{core}", 1)
                 call_duration = c.dispatch_mechanistic.call_base_us()
                 call_meta = {"stage": "dispatch_call", "wave": w.index, "core": core}
@@ -420,7 +370,7 @@ class A8W8WaveCostModel:
                         f"r{local_begin}_{local_end}"
                     )
                     resources = [f"AIV1:{core}"]
-                    deps = [token_count_name]  # 前导门控
+                    deps = []  # 前导已移除 (2026-09): 模型从首条 dispatch 起算
 
                     expert_ir = expert_ir_by_id[sl.expert]
                     ef = expert_ir.features()
@@ -543,7 +493,8 @@ class A8W8WaveCostModel:
                         # 逐 tile 精确工作量权重
                         tile_w = []
                         for ti in range(tile_count):
-                            mg_i, nt_i = divmod(ti, gmm1_n_tiles)
+                            mg_i, nt_i = swizzle_coord(ti, sl.m_groups, gmm1_n_tiles,
+                                                       km.swizzle_offset, km.swizzle_direction)
                             m_i = self._tile_rows(sl, mg_i, tile_m=km.tile_m)
                             n_i = min(TILE_N, gmm1_scheduler_n - nt_i * TILE_N)
                             load_i = m_i * k / bw_a
@@ -570,8 +521,10 @@ class A8W8WaveCostModel:
                             per_tile_durs = [0.0] * tile_count
 
                 for tile_idx, core in enumerate(owners):
-                    mg = tile_idx // gmm1_n_tiles
-                    nt = tile_idx % gmm1_n_tiles
+                    # GMM1 与 GMM2 共用 BlockSchedulerSwizzle<3,0> (gmm_common.h:33),
+                    # 坐标映射不再区分 —— 旧 M 主序分解是历史抽象, 已修正
+                    mg, nt = swizzle_coord(tile_idx, sl.m_groups, gmm1_n_tiles,
+                                           km.swizzle_offset, km.swizzle_direction)
                     m_rows = self._tile_rows(sl, mg, tile_m=km.tile_m)
                     global_group = sl.row_begin // TILE_M + mg
 
@@ -588,7 +541,7 @@ class A8W8WaveCostModel:
                     # GMM1->Activation backpressure. Current DAV_3510
                     # non-interleaved measurements give effective depth=1.
                     history = gmm1_activation_history[core]
-                    depth = self.options.gmm1_activation_depth
+                    depth = policy.gmm1_activation_depth
                     if len(history) >= depth:
                         deps.append(history[-depth])
 
@@ -598,7 +551,7 @@ class A8W8WaveCostModel:
                     if per_tile_durs is not None:
                         duration = per_tile_durs[tile_idx]
                     else:
-                        duration = c.gmm1_tile(m_rows, shape.h)
+                        duration = c.gmm1_tile(m_rows, shape.h, logical_n)
                     _ = logical_n  # 保留给 ACT 事件使用
                     if first_owned_on_core[core]:
                         duration += c.gmm1_problem_startup_us
@@ -637,7 +590,7 @@ class A8W8WaveCostModel:
                         events,
                         aname,
                         (f"AIV0:{core}",),
-                        c.activation_tile(m_rows, logical_n / TILE_N) + c.activation_ready_publish_us,
+                        c.activation_tile(m_rows, logical_n) + c.activation_ready_publish_us,
                         deps=adeps,
                         acquires=(q_vec,),
                         releases=(q_vec,),
@@ -686,7 +639,7 @@ class A8W8WaveCostModel:
                     # tail 等 act(g,7) (最后一个 k-window 的输入)。
                     # 旧组屏障(等全部8个)过保守, 实测 WAIT_GMM2_INPUT 高估 1.6x。
                     combine_history = gmm2_combine_history[core]
-                    credit = self.options.gmm2_combine_credit
+                    credit = policy.gmm2_combine_credit
                     if credit is not None and len(combine_history) >= credit:
                         deps.append(combine_history[-credit])
 
@@ -699,7 +652,7 @@ class A8W8WaveCostModel:
                     if c.gmm2_bw_bytes_per_us is not None:
                         duration = k_gmm2 * gmm2_logical_n / c.gmm2_bw_bytes_per_us
                     else:
-                        duration = c.gmm2_tile(m_rows, k_gmm2) * (gmm2_logical_n / TILE_N)
+                        duration = c.gmm2_tile(m_rows, k_gmm2, gmm2_logical_n)
                     kl1 = select_kl1(sl.rows, k_gmm2, self.options.gmm2_kl1,
                                 tile_m=km.tile_m, tile_n=km.tile_n,
                                 l1_size=km.l1_size, k_l1_base=km.l1_tile_k)
@@ -764,7 +717,7 @@ class A8W8WaveCostModel:
                         events,
                         cname,
                         (f"AIV1:{core}",),
-                        c.combine_tile(m_rows, logical_n / TILE_N) + c.combine_ack_us,
+                        c.combine_tile(m_rows, logical_n) + c.combine_ack_us,
                         deps=cdeps,
                         acquires=(q_aiv1,),
                         releases=(q_aiv1,),
@@ -825,7 +778,7 @@ class A8W8WaveCostModel:
         self._event(events, fin, (), T_FINALIZE_US, deps=(unpermute,),
                     meta={"stage": "epilogue", "part": "finalize"})
 
-        lag = shape.token_num >= self.options.gmm2_lag_threshold
+        lag = shape.token_num >= policy.gmm2_lag_threshold
         dispatched: set[int] = set()
 
         for iteration, w in enumerate(waves):
@@ -863,7 +816,7 @@ class A8W8WaveCostModel:
                 and cursor_after_gmm2 == cursor_before
                 and cursor_after_gmm1 != cursor_before
             )
-            if fixed_role_resonance:
+            if fixed_role_resonance and policy.cursor_resonance_fix:
                 cursor.set(cursor_after_gmm1)
 
             cursor_trace.append(
@@ -904,7 +857,7 @@ class A8W8WaveCostModel:
             # EndSync waits the still-live ping-pong ACKs; depending on all of the
             # last two Activation events is equivalent and harmless if one already
             # completed much earlier.
-            depth = self.options.gmm1_activation_depth
+            depth = policy.gmm1_activation_depth
             aic_deps.extend(gmm1_activation_history[core][-depth:])
             done = f"moe_expert_stage_done.aic.c{core}"
             self._event(
@@ -943,7 +896,7 @@ class A8W8WaveCostModel:
 
         return events, cursor_trace
 
-    def simulate(self, shape: MegaMoeShape) -> Dict[str, object]:
+    def simulate(self, shape: MegaMoeShape, restructure=None) -> Dict[str, object]:
         events, cursor_trace = self.build_events(shape)
         capacities: Dict[str, int] = {}
         channels: Dict[str, object] = {}
@@ -960,13 +913,14 @@ class A8W8WaveCostModel:
             events, pipe_caps, channels = apply_pipeline(
                 events, self.options.pipeline,
                 aic_num=shape.aic_num, h=shape.h,
-                gmm1_act_depth=self.options.gmm1_activation_depth,
+                gmm1_act_depth=shape.policy.gmm1_activation_depth,
                 kernel=shape.kernel,
             )
             pipe_caps.update(capacities)  # 引擎队列容量优先保留
             capacities = pipe_caps
         total_us, scheduled = MultiResourceScheduler().schedule(
-            events, capacities=capacities or None, channels=channels or None
+            events, capacities=capacities or None, channels=channels or None,
+            restructure=restructure
         )
         waves = self.waves(shape)
 
@@ -1091,7 +1045,7 @@ class A8W8WaveCostModel:
             "stage_last_end_us": stage_last,
             "stage_dependency_wait_us": stage_dependency_wait,
             "stage_resource_queue_us": stage_resource_queue,
-            "gmm2_lag_active": shape.token_num >= self.options.gmm2_lag_threshold,
+            "gmm2_lag_active": shape.token_num >= shape.policy.gmm2_lag_threshold,
         }
 
     def structural_summary(self, shape: MegaMoeShape) -> List[Dict[str, object]]:

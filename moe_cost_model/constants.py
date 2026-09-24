@@ -159,5 +159,31 @@ class KernelConfig:
     swizzle_direction: int = 0
     activation_n_half: int = 2        # SwiGLU 双投影
     l1_tile_k: int = 256              # K-chunk 基线 (select_kl1 自适应)
+    combine_quant_mode: int = 0       # CombineQuantMode 模板参数: 0=NO_QUANT, 1=QUANT(FP8+scale)
     l1_size: int = 512 * 1024         # arch 3510 (kernel_utils_constants.h)
     aiv_num: int = 0                  # 0 = 2×aic_num
+
+
+@dataclass(frozen=True)
+class InstancePolicy:
+    """实例层绑定 (运行时策略): 一个具体 kernel 实现的策略取值.
+
+    三层定位: 理论层 (物理公式/依赖图, 不引用此处) → 策略层 (参数化函数)
+    → 实例层 = 本绑定 + KernelConfig (编译期). 换 kernel 实现 = 换此绑定.
+    全部取值来自当前实例 (mega_moe_wave_a8w8.h / mega_moe_constants.h).
+    """
+    dispatch_lookahead: int = 2            # 迭代0预取 W0..W(la-1); 迭代 i 预取 W(i+la-1)
+    gmm2_lag_threshold: int = 4096         # tokenNum ≥ 阈值 → GMM2 lag 一波
+    gmm1_activation_depth: int = 1         # 非交织路径 GMM1→ACT UB 握手深度
+    gmm2_combine_credit: object = None     # 反事实旋钮 (None=关), 本实例未启用
+    cursor_resonance_fix: bool = True      # cursor 共振修正启用
+    wave_policy_p1: int = 2                # kernel 默认波策略 @bs<2048 (constants.h:99)
+    wave_policy_p2: int = 1                # (constants.h:104; 中/大档 4/6 详见分层参考)
+
+    def default_p1(self, token_num: int) -> int:
+        """kernel 默认分层策略参考 (非模型结构): <2048→2, ≥16384→6, 其余→4."""
+        if token_num < GMM1_SMALL_BATCH_TOKEN_THRESHOLD:
+            return GMM1_MIN_LOGICAL_TILES_PER_CORE_SMALL
+        if token_num >= GMM1_LARGE_BATCH_TOKEN_THRESHOLD:
+            return GMM1_MIN_LOGICAL_TILES_PER_CORE_LARGE
+        return GMM1_MIN_LOGICAL_TILES_PER_CORE

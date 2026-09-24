@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import heapq
 from bisect import bisect_right, insort
+from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -72,6 +73,27 @@ class Channel:
             raise ValueError(
                 f"channel {self.name}: max_rate_per_event {cap} > bw_total {self.bw_total}"
             )
+
+
+@dataclass(frozen=True)
+class RestructureContext:
+    """重构钩子的只读上下文 (策略函数不得修改返回的容器)."""
+    time_us: float
+    resource_free: Dict[str, float]      # 每资源当前空闲时刻
+    resource_pending: Dict[str, int]     # 每资源未发射事件数
+    pending: Dict[str, "Event"]          # 未发射事件视图 (name -> Event)
+    committed_tail: Dict[str, str]       # 每资源最后提交的事件名
+    channel_inflight: Dict[str, float]   # 每信道在飞速率和
+
+
+@dataclass
+class RestructureAction:
+    """钩子返回的重构动作: inject/cancel/add_dep.
+    契约: cancel 的每个事件必须以同名重新 inject (消费者依赖才能最终满足),
+    否则调度以死图错误终止."""
+    inject: List["Event"] = field(default_factory=list)
+    cancel: List[str] = field(default_factory=list)
+    add_dep: List[Tuple[str, str]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -265,7 +287,14 @@ class MultiResourceScheduler:
         events: Sequence[Event],
         capacities: Optional[Dict[str, int]] = None,
         channels: Optional[Dict[str, Channel]] = None,
+        restructure=None,
+        restructure_limit: Optional[int] = None,
     ) -> Tuple[float, List[ScheduledEvent]]:
+        """restructure: 每次事件提交后调用的重构钩子
+        hook(RestructureContext) -> RestructureAction.
+        cancel 的事件必须同名 reinject (见 RestructureAction 契约);
+        注入事件数上限 restructure_limit (默认 4×初始事件数, 防策略失控).
+        """
         capacities = dict(capacities or {})
         channels = dict(channels or {})
         chan_state = {name: _ChannelState(ch) for name, ch in channels.items()}
@@ -307,6 +336,70 @@ class MultiResourceScheduler:
         rel_ctr: Dict[str, _TimeCounter] = {}
         rel_times: Dict[str, List[float]] = {}   # 有序归还时刻 (供容量推进枚举)
         scheduled: List[ScheduledEvent] = []
+        pending_names: set = set(by_name.keys())
+        canceled: set = set()
+        injected_count = [0]
+        limit = restructure_limit if restructure_limit is not None else 4 * len(events)
+
+        def _register(ev: Event) -> None:
+            by_name[ev.name] = ev
+            indegree[ev.name] = sum(1 for d in ev.deps if d not in end_by_name)
+            for d in ev.deps:
+                if d not in by_name:
+                    raise ValueError(f"event {ev.name} depends on missing {d}")
+                children[d].append(ev.name)
+            if indegree[ev.name] == 0:
+                ready.add(ev.name)
+            pending_names.add(ev.name)
+
+        def _apply_restructure(t_now: float, last_ev: Optional[Event]) -> None:
+            if restructure is None:
+                return
+            res_free = dict(resource_free)
+            pend_cnt = defaultdict(int)
+            pend_view = {n: by_name[n] for n in pending_names if n not in end_by_name and n not in canceled}
+            for n, e in pend_view.items():
+                for r in e.resources:
+                    pend_cnt[r] += 1
+            ctx = RestructureContext(
+                time_us=t_now, resource_free=res_free, resource_pending=dict(pend_cnt),
+                pending=pend_view,
+                committed_tail=dict(resource_last_event),
+                channel_inflight={name: sum(r for _, r, _ in st_.active)
+                                  for name, st_ in chan_state.items()})
+            act = restructure(ctx)
+            for nm in act.cancel:
+                if nm in end_by_name:
+                    raise ValueError(f"restructure: 不能取消已提交事件 {nm}")
+                if nm in ready:
+                    ready.discard(nm)
+                pending_names.discard(nm)
+                canceled.add(nm)
+            for d_pair in act.add_dep:
+                tgt, dep = d_pair
+                if tgt in end_by_name:
+                    raise ValueError(f"restructure: 不能给已提交事件 {tgt} 追加依赖")
+                if dep not in by_name:
+                    raise ValueError(f"restructure: add_dep 引用未知事件 {dep}")
+                by_name[tgt].deps = tuple(dict.fromkeys(by_name[tgt].deps + (dep,)))
+                if tgt in pending_names:
+                    indegree[tgt] += 1
+                    children[dep].append(tgt)
+                    if tgt in ready:
+                        ready.discard(tgt)
+            for ev in act.inject:
+                if injected_count[0] >= limit:
+                    raise ValueError("restructure: 注入事件数超上限 (策略失控保护)")
+                if ev.name in by_name and ev.name not in canceled:
+                    raise ValueError(f"restructure: 注入与现存事件重名 {ev.name}")
+                was_canceled = ev.name in canceled
+                if was_canceled:
+                    canceled.discard(ev.name)
+                    for d in by_name[ev.name].deps:
+                        if ev.name in children[d]:
+                            children[d].remove(ev.name)
+                injected_count[0] += 1
+                _register(ev)
 
         def outstanding(res: str, t: float) -> int:
             a = acq_ctr.get(res)
@@ -483,10 +576,16 @@ class MultiResourceScheduler:
 
             for child in children[name]:
                 indegree[child] -= 1
-                if indegree[child] == 0:
+                if indegree[child] == 0 and child not in canceled:
                     ready.add(child)
+            pending_names.discard(name)
+            _apply_restructure(start, ev)
 
-        if len(scheduled) != len(events):
+        # 重构契约: cancel 的一切必须同名 reinject (canceled 集合最终必须为空)
+        if canceled:
+            raise ValueError(f"restructure: cancel 后未同名 reinject: {sorted(canceled)[:8]}")
+        # 事件守恒: 所有入图事件 (含注入) 必须全部提交
+        if len(scheduled) != len(by_name):
             remaining = [name for name, deg in indegree.items() if deg > 0]
             raise ValueError(f"event DAG contains a cycle; unresolved={remaining[:12]}")
 
