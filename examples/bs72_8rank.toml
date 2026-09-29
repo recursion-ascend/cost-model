@@ -1,0 +1,27 @@
+# 8 卡, 每卡 72 token, topk=6, 均匀路由, MTE 路径.
+# 运行: python examples/run_bs72_8rank.py
+#
+# 路由矩阵由 routing = "uniform" 生成, 同一份矩阵另存在 bs72_8rank_routing.json:
+#   每个源 rank 发 72 × 6 = 432 行, 均分到 8 × 3 = 24 个专家 → C[dst][expert][src] = 18
+#   每个专家共收 18 × 8 = 144 行, 每张卡共收 432 行
+
+name = "bs72-8rank-topk6"
+h = 5120
+hidden_dim = 4608            # intermediate
+aic_num = 28
+p1_override = 2              # 小 batch 档 (token < 2048) 的 kernel 取值
+p2_override = 1
+
+[workload]
+tokens = 72
+topk = 6
+world = 8
+local_experts = 3
+routing = "uniform"
+
+[calibration]
+# 必填, 无缺省. 占位值, 没有实测依据; run_bs72_8rank.py 会扫三档.
+cube_mac_per_us = 2.7e7
+
+[kernel]
+topo_urma = false            # MTE 波循环

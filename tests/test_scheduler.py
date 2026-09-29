@@ -24,11 +24,11 @@ def _deterministic_case():
     return tuple(tuple(tuple(r) for r in c) for c in counts)
 
 
-def _run(options=None, policy=None):
+def _run(options=None, policy=None, cube_rate=CUBE_RATE, kernel=None):
     costs = m.PrimitiveCosts(
         dispatch_mechanistic=m.DispatchMechanisticLatency(),
-        gmm1_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm1_tile,
-        gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm2_tile,
+        gmm1_tile=m.AnalyticalGmmCosts(cube_mac_per_us=cube_rate).gmm1_tile,
+        gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=cube_rate).gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
         count_table_prepare_us=m.T_COUNT_GATE,
@@ -37,7 +37,7 @@ def _run(options=None, policy=None):
         routing_counts=_deterministic_case(), token_num_per_rank=64, h=6144,
         hidden_dim=4096, aic_num=28, costs=costs, options=options or m.ModelOptions(),
         p1_override=2, p2_override=1,   # kernel 默认策略 @bs64 (tiling 真值)
-        policy=policy,
+        policy=policy, kernel=kernel,
     )
 
 
@@ -136,7 +136,6 @@ def test_split_no_deadlock_large_dag():
         hidden_dim=4096, aic_num=28, costs=costs,
         options=m.ModelOptions(pipeline=m.PipelineConstraints(
             queues=m.QueueDepths(mte_aic=2, cube=2, fix=2),
-            phases=m.PhaseRates(cube_mac_per_us=2.7e7),
             channels=m.default_channels(28, bw_l1_gm=m.BW_L1_GM,
                                         bw_scatter=m.BW_SCATTER))),
     )
@@ -144,42 +143,114 @@ def test_split_no_deadlock_large_dag():
 
 
 def test_l1_queue_depth_monotone():
+    """L1 缓冲槽越多越不慢: 深度 2 允许预取下一个 tile 的 A 流."""
     base = _run(options=m.ModelOptions(pipeline=P()))
     deep = _run(options=m.ModelOptions(pipeline=P(
         queues=m.QueueDepths(mte_aic=2))))
-    # mte_aic=2 允许 2 载入在飞, 但 Q:aic 深度=1 限制提交 → 差异 < 15µs
-    assert deep["kernel_total_us"] <= base["kernel_total_us"] + 15.0
+    deeper = _run(options=m.ModelOptions(pipeline=P(
+        queues=m.QueueDepths(mte_aic=3))))
+    assert deeper["kernel_total_us"] <= deep["kernel_total_us"] <= base["kernel_total_us"]
 
 
 # ---- L1: 相位拆分 (生产者/消费者距离, 跨 tile 流水) ----
 
-def test_phase_split_self_consistency():
-    """计算子临界时稳态周期 = max(load, cube) = load → 与闭式一致.
+def _split(**kw):
+    return m.ModelOptions(pipeline=P(queues=m.QueueDepths(mte_aic=2), **kw))
 
-    缓冲占用语义 (ld 取信号量, cb 归还) 生效后, 深度 2 允许双载入并发;
-    必须开 L2 信道让聚合上限把并发载入切速, 否则带宽超订、结果偏快.
+
+def test_phase_split_self_consistency():
+    """拆相位与闭式同口径: tile 内 load 与 cube 并行, 单 tile 时长 = max(A流, 计算).
+
+    A 流绑定与计算绑定两种情形都要对得上; stage 忙碌时长不因拆相位而重复计.
     """
-    base = _run()
-    split = _run(options=m.ModelOptions(pipeline=P(
-        queues=m.QueueDepths(mte_aic=2),
-        phases=m.PhaseRates(cube_mac_per_us=2.7e7),
-        channels=m.default_channels(28, bw_l1_gm=m.BW_L1_GM,
-                                    bw_scatter=m.BW_SCATTER))))
-    # 计算子临界: 与闭式差 < 30µs (提交时序差异 + 信道切速保守性)
-    assert abs(split["kernel_total_us"] - base["kernel_total_us"]) < 30.0
-    stages = {str(e.meta.get("phase")) for e in split["rank_results"][0]["events"]}
-    assert "load" in stages and "cube" in stages and "fix" in stages
+    channels = m.default_channels(28, bw_l1_gm=m.BW_L1_GM, bw_scatter=m.BW_SCATTER)
+    for rate in (1.0e9, CUBE_RATE, 6.75e6):      # A 流绑定 / 接近交点 / 计算绑定
+        base = _run(cube_rate=rate)
+        split = _run(cube_rate=rate, options=_split(channels=channels))
+        assert abs(split["kernel_total_us"] - base["kernel_total_us"]) < 1.0
+        for stage in ("gmm1", "gmm2"):
+            assert abs(split["rank_results"][0]["stage_busy_us"][stage]
+                       - base["rank_results"][0]["stage_busy_us"][stage]) < 1e-6
+    phases = {str(e.meta.get("phase")) for e in split["rank_results"][0]["events"]}
+    assert {"grant", "load", "cube", "fix"} <= phases
 
 
 def test_phase_split_compute_bound():
     """计算主导 (cube > load) 时必须变慢."""
-    sub = _run(options=m.ModelOptions(pipeline=P(
-        queues=m.QueueDepths(mte_aic=2),
-        phases=m.PhaseRates(cube_mac_per_us=2.7e7))))
-    over = _run(options=m.ModelOptions(pipeline=P(
-        queues=m.QueueDepths(mte_aic=2),
-        phases=m.PhaseRates(cube_mac_per_us=6.75e6))))  # cube≈120µs > load
+    sub = _run(options=_split())
+    over = _run(cube_rate=6.75e6, options=_split())
     assert over["kernel_total_us"] > sub["kernel_total_us"] + 20.0
+
+
+def test_gm_channel_carries_only_gmm1_a_flow():
+    """gm_to_l1 信道只承载 GMM1 的 A 流. GMM2 不占信道, 但 B 权重仍占 L1 缓冲槽."""
+    channels = m.default_channels(28, bw_l1_gm=m.BW_L1_GM, bw_scatter=m.BW_SCATTER)
+    for options in (m.ModelOptions(pipeline=P(channels=channels)), _split(channels=channels)):
+        events = _run(options=options)["rank_results"][0]["events"]
+        on_channel = {(str(e.meta.get("stage")), str(e.meta.get("phase")))
+                      for e in events if any("gm_to_l1" in c for c in e.channel_rate)}
+        assert {s for s, _ in on_channel} == {"gmm1"}
+        assert {p for _, p in on_channel} <= {"load", "None"}
+    # 信道字节 = A 流字节: 速率 = 字节/时长, A 流绑定的 tile 上等于应得速率
+    import moe_cost_model.builders.pipeline_expand as pe
+    from moe_cost_model.model import A8W8WaveCostModel
+    from moe_cost_model.shape import MegaMoeShape
+    costs = m.build_analytical_costs(
+        h=6144, dispatch_mechanistic=m.DispatchMechanisticLatency(), cube_mac_per_us=CUBE_RATE)
+    shape = MegaMoeShape(expert_tokens=(256,), token_num=32, h=6144, hidden_dim=4096,
+                         aic_num=4, expert_source_tokens=((256,),), p1_override=2,
+                         p2_override=1, kernel=m.KernelConfig())
+    built, _ = A8W8WaveCostModel(costs, m.ModelOptions()).build_events(shape)
+    expanded, _, _ = pe.apply_pipeline(built, P(channels=channels), aic_num=4, h=6144)
+    for ev in expanded:
+        stage = ev.meta.get("stage")
+        if stage == "gmm1":
+            (name, nbytes, _), = ev.channel_bytes
+            assert abs(nbytes - ev.meta["m_rows"] * 6144) < 1e-6    # A 流 = m·K 字节
+            assert any(q.startswith("QUEUE:mte_aic") for q, _ in ev.acquires)
+        elif stage == "gmm2":
+            assert ev.channel_bytes == ()
+            queues = sorted(q.rsplit(":", 1)[0] for q, _ in ev.acquires
+                            if q.startswith("QUEUE:"))
+            assert queues == ["QUEUE:cube", "QUEUE:mte_aic"]
+            assert sorted(ev.acquires) == sorted(ev.releases)
+
+
+def test_gm_channel_contention_only_hurts_when_a_flow_binds():
+    """聚合带宽不足: A 流绑定时 tile 变慢; 计算绑定且 A 流有余量时不变."""
+    tight = (m.Channel("gm_to_l1", bw_total=m.BW_L1_GM * 8, max_rate_per_event=m.BW_L1_GM),
+             m.Channel("hbm_write", bw_total=m.BW_SCATTER * 28,
+                       max_rate_per_event=m.BW_SCATTER))
+    a_bound = _run(cube_rate=1.0e9)
+    a_bound_tight = _run(cube_rate=1.0e9, options=m.ModelOptions(pipeline=P(channels=tight)))
+    assert a_bound_tight["kernel_total_us"] > a_bound["kernel_total_us"] + 10.0
+    c_bound = _run(cube_rate=6.75e6)
+    c_bound_tight = _run(cube_rate=6.75e6, options=m.ModelOptions(pipeline=P(channels=tight)))
+    assert c_bound_tight["kernel_total_us"] == c_bound["kernel_total_us"]
+
+
+def test_single_l1_buffer_conflicts_with_deep_mte_queue():
+    import pytest
+    with pytest.raises(ValueError, match="l1_buf_num=1"):
+        _run(kernel=m.KernelConfig(l1_buf_num=1), options=_split())
+
+
+def test_custom_gmm1_callable_cannot_be_split():
+    """自定义 gmm1_tile 没有 A流/计算 分解: 拆相位或开 gm_to_l1 信道时报错, 不静默."""
+    import pytest
+    analytical = m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE)
+    costs = m.PrimitiveCosts(
+        dispatch_mechanistic=m.DispatchMechanisticLatency(),
+        gmm1_tile=lambda rows, k, cols: 5.0,
+        gmm2_tile=analytical.gmm2_tile,
+        activation_tile=m.AnalyticalActCosts().tile,
+        combine_tile=m.AnalyticalCombineCosts().tile,
+        count_table_prepare_us=m.T_COUNT_GATE)
+    kw = dict(routing_counts=_deterministic_case(), token_num_per_rank=64, h=6144,
+              hidden_dim=4096, aic_num=28, costs=costs, p1_override=2, p2_override=1)
+    assert m.simulate_routing_counts(options=m.ModelOptions(pipeline=P()), **kw)
+    with pytest.raises(ValueError, match="自定义 callable"):
+        m.simulate_routing_counts(options=_split(), **kw)
 
 
 # ---- L2: 共享带宽信道 (HBM/L1/片间) ----

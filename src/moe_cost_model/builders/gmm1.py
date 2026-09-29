@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import List
 
 from ..config.hardware import ceil_div
+from ..costs import gmm1_phase_split
 from ..planning.waves import swizzle_coord
 from .activation import add_activation_tile
 from .context import BuildContext
@@ -31,7 +32,8 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             logical_n = min(TILE_N, gmm1_sched_n - nt * TILE_N)
             dur = c.gmm1_tile(m_rows, shape.h, logical_n)
             dur += fill_share
-            tile_info.append((mg, nt, m_rows, logical_n, dur))
+            tile_info.append((mg, nt, m_rows, logical_n, dur,
+                              gmm1_phase_split(c, m_rows, shape.h, logical_n)))
             tile_costs.append(dur)
         if core_assign is not None:
             owners = core_assign.assign(tile_count, p, cursor.start,
@@ -42,7 +44,7 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
         first_owned = [True] * p
 
         for tile_idx, core in enumerate(owners):
-            mg, nt, m_rows, logical_n, duration = tile_info[tile_idx]
+            mg, nt, m_rows, logical_n, duration, phases = tile_info[tile_idx]
             global_group = sl.row_begin // TILE_M + mg
 
             deps: List[str] = []
@@ -61,14 +63,17 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                 duration += c.gmm1_problem_startup_us
                 first_owned[core] = False
 
+            meta = {"stage": "gmm1", "wave": w.index, "expert": sl.expert,
+                    "slice": si, "mgroup": global_group, "ntile": nt,
+                    "logical_n": logical_n, "core": core, "m_rows": m_rows,
+                    "cursor_tile": tile_idx,
+                    "dispatch_ready_event": ready_name}
+            if phases is not None:
+                # 相位流水按这组数拆 load/cube 相位并折算 GM→L1 信道字节
+                meta["load_us"], meta["compute_us"] = phases
             gname = f"W{w.index}.E{sl.expert}.S{si}.gmm1.m{mg}.n{nt}.c{core}"
             builder._event(gname, (f"AIC:{core}",), duration, deps=deps,
-                           acquires=(q_aic,), releases=(q_aic,),
-                           meta={"stage": "gmm1", "wave": w.index, "expert": sl.expert,
-                                 "slice": si, "mgroup": global_group, "ntile": nt,
-                                 "logical_n": logical_n, "core": core, "m_rows": m_rows,
-                                 "cursor_tile": tile_idx,
-                                 "dispatch_ready_event": ready_name})
+                           acquires=(q_aic,), releases=(q_aic,), meta=meta)
 
             add_activation_tile(builder, ctx, w, si, sl, mg, nt, core,
                                 m_rows, logical_n, global_group, gname)

@@ -171,6 +171,51 @@ def test_idle_core_stealing_active_and_effective():
     assert stolen > 0, "rank 前缀不匹配时任务转移静默失效 (旧 bug)"
     assert r_steal["kernel_total_us"] != r_plain["kernel_total_us"]
 
+def test_shared_expert_gmm2_is_per_tile_pure_compute():
+    """共享 GMM2: 按 tile 建事件, 占 AIC 核, 时长 = 计算量 / R_cube, 依赖齐全."""
+    shape = _shape(shared_expert_num=1, token_num=600)      # 600 行 → 3 个 m-group
+    events, _ = A8W8WaveCostModel(_costs(), m.ModelOptions()).build_events(shape)
+    by_name = {e.name: e for e in events}
+    tiles = [e for e in events if e.meta.get("stage") == "shared_gmm2"]
+    n_tiles = 6144 // 256
+    assert len(tiles) == 3 * n_tiles
+    assert {e.meta["m_rows"] for e in tiles} == {256, 600 - 512}
+    k2 = 4096 // 2
+    for e in tiles:
+        assert e.resources[0].startswith("AIC:")
+        assert e.duration_us == e.meta["m_rows"] * e.meta["logical_n"] * k2 / CUBE_RATE
+        stages = [str(by_name[d].meta.get("stage")) for d in e.deps]
+        parts = [by_name[d].meta.get("part") for d in e.deps]
+        assert "output_core_sync" in parts                     # 位置: 尾段 core_sync 之后
+        acts = [by_name[d] for d in e.deps if by_name[d].meta.get("stage") == "shared_act"]
+        assert len(acts) == stages.count("shared_act") == 4096 // 2 // 256   # 本组全部 ACT
+        assert all(f".m{e.meta['mgroup']}." in a.name for a in acts)
+    # 核轮转: 同核上的 tile 数相差不超过 1
+    per_core = {}
+    for e in tiles:
+        per_core[e.resources[0]] = per_core.get(e.resources[0], 0) + 1
+    assert max(per_core.values()) - min(per_core.values()) <= 1
+    # 尾段经汇合事件接到 rank_sync
+    done = by_name["R0.epilogue.shared_gmm2_done"]
+    assert set(done.deps) == {e.name for e in tiles}
+    assert by_name["R0.epilogue.output_rank_sync"].deps == (done.name,)
+
+
+def test_shared_gmm2_follows_cube_rate():
+    """共享 GMM2 随 Cube 速率变 (旧实现是权重字节/带宽, 与速率无关)."""
+    def shared_span(rate):
+        costs = m.build_analytical_costs(
+            h=6144, dispatch_mechanistic=m.DispatchMechanisticLatency(), cube_mac_per_us=rate)
+        res = m.simulate_routing_counts(
+            routing_counts=[[[64] * 2 for _ in range(4)] for _ in range(2)],
+            token_num_per_rank=64, h=6144, hidden_dim=4096, aic_num=28, costs=costs,
+            topk=8, shared_expert_num=1, p1_override=2, p2_override=1)
+        rank = res["rank_results"][0]
+        return (rank["stage_last_end_us"]["shared_gmm2"]
+                - rank["stage_first_start_us"]["shared_gmm2"])
+    assert shared_span(1.0e7) > 2.0 * shared_span(2.7e7)
+
+
 def test_wave_offsets_parameterized():
     """stage 波偏移参数化: 显式 StageWaveOffsets 覆盖 la/lag, 缺省推导等价.
 

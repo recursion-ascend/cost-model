@@ -45,8 +45,7 @@ def _w3(**kw):
     ("pipeline_split_channels", _skewed(
         default_channels=True,
         options=m.ModelOptions(pipeline=m.PipelineConstraints(
-            queues=m.QueueDepths(mte_aic=2, cube=2, fix=2),
-            phases=m.PhaseRates(cube_mac_per_us=2.7e7))))),
+            queues=m.QueueDepths(mte_aic=2, cube=2, fix=2))))),
     ("fabric_channels_on", _skewed(options=m.ModelOptions(fabric_channels=True))),
 ])
 def test_scenario_matches_golden(case, scenario):
@@ -82,6 +81,16 @@ def test_generated_routing_conserves_rows(routing):
         assert sent == 50 * 8
     if routing == "random":
         assert counts == wl.routing_counts(), "同种子必须可复现"
+
+
+def test_uniform_remainder_is_spread():
+    """除不尽时余数行不堆在前几个 rank: 72×6=432 行撒到 8×64=512 个专家."""
+    wl = m.Workload(tokens=72, topk=6, world=8, local_experts=64, routing="uniform")
+    counts = wl.routing_counts()
+    per_dst = [sum(sum(row) for row in counts[dst]) for dst in range(8)]
+    assert sum(per_dst) == 8 * 432 and max(per_dst) - min(per_dst) <= 8
+    per_expert = [sum(row) for dst in counts for row in dst]
+    assert max(per_expert) - min(per_expert) <= 2
 
 
 def test_cyclic_matches_formula():
@@ -232,7 +241,7 @@ def test_cube_rate_is_required():
 
 
 def test_gmm_tile_formulas():
-    """GMM1 = max(A流, 计算); GMM2 = 纯计算; 串行 = 相加 + restart; B 流不计."""
+    """GMM1 = max(A流, 计算), 单缓冲 = 相加 + restart; GMM2 恒为纯计算; B 流不计."""
     bw, rate = 50000.0, 1.0e7
     g = m.AnalyticalGmmCosts(bw_bytes_per_us=bw, cube_mac_per_us=rate)
     m_rows, k, cols = 256, 6144, 256
@@ -246,4 +255,5 @@ def test_gmm_tile_formulas():
     serial = m.AnalyticalGmmCosts(bw_bytes_per_us=bw, cube_mac_per_us=rate,
                                   l1_buf_num=1, tile_restart_us=0.5, l1_tile_k=256)
     assert serial.gmm1_tile(m_rows, k, cols) == a_flow + compute1 + 24 * 0.5
-    assert serial.gmm2_tile(m_rows, 2048, cols) == m_rows * cols * 2048 / rate + 8 * 0.5
+    # GMM2 与 L1 缓冲数无关, 单缓冲下也没有 restart
+    assert serial.gmm2_tile(m_rows, 2048, cols) == g.gmm2_tile(m_rows, 2048, cols)

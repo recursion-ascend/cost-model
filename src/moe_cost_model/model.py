@@ -211,7 +211,11 @@ class A8W8WaveCostModel:
                 resource_first[resource] = min(resource_first.get(resource, ev.start_us), ev.start_us)
                 resource_last[resource] = max(resource_last.get(resource, ev.end_us), ev.end_us)
             stage = str(ev.meta.get("stage", "other"))
-            stage_busy[stage] = stage_busy.get(stage, 0.0) + duration
+            # overlapped: 与同 tile 的另一相位并行且较短 (相位流水), 不重复计入
+            if not ev.meta.get("overlapped"):
+                stage_busy[stage] = stage_busy.get(stage, 0.0) + duration
+            else:
+                stage_busy.setdefault(stage, 0.0)
             stage_first[stage] = min(stage_first.get(stage, ev.start_us), ev.start_us)
             stage_last[stage] = max(stage_last.get(stage, ev.end_us), ev.end_us)
             stage_dependency_wait[stage] = stage_dependency_wait.get(stage, 0.0) + ev.dependency_wait_us

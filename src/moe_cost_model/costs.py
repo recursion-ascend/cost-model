@@ -5,7 +5,7 @@ PrimitiveCosts 容器的全部延迟字段必填; 无回归拟合, 无零值默�
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 
 from .config.hardware import (
     ACT_BYTES_PER_VEC, BW_L1_GM, BW_LOCAL_GM, BW_REMOTE_GM, BW_SCATTER, BW_UB,
@@ -185,10 +185,9 @@ class AnalyticalGmmCosts:
 
     GMM2 每 tile:
         计算 = m·cols·K2 MACs
-        b=2: T = 计算/R_cube
-        b=1: T = 计算/R_cube + restart
+        T = 计算/R_cube                          与 L1 缓冲数无关, 无 restart
         A 从 UB 直达 L0A, 片上带宽约 500 GB/s 且每核独占, 搬运时间忽略不计,
-        所以 GMM2 只剩计算.
+        所以 GMM2 只剩计算. restart 是 L1 换块的停顿, A 不经 L1 就没有这一项.
 
     B 流 (权重搬运) 两个 stage 都不建模: 认为被其他任务的执行掩盖.
     cube_mac_per_us 必填, 无缺省: 计算项是两个公式的主体, 而 Cube 速率没有
@@ -214,23 +213,37 @@ class AnalyticalGmmCosts:
     def _chunks(self, k: int) -> int:
         return -(-k // self._k_l1)
 
+    def gmm1_phases(self, m: int, k: int, cols: int) -> Tuple[float, float]:
+        """GMM1 tile 的 (载入, 计算) 时长. 载入 = A 流, 单缓冲时含 restart.
+
+        闭式时长由二者合成 (双缓冲取 max, 单缓冲相加); 相位流水按同一组数
+        拆 load / cube 相位, 两边口径因此一致.
+        """
+        load = (m * k) / self.bw
+        if self.serial:
+            load += self._chunks(k) * self.chunk_restart
+        return load, 2.0 * m * cols * k / self.cube_rate
+
     def gmm1_tile(self, m: int, k: int, cols: int) -> float:
         """m 行 × cols 列输出 tile: A 流载入与 SwiGLU 双投影计算."""
-        load = (m * k) / self.bw
-        compute = 2.0 * m * cols * k / self.cube_rate
-        if self.serial:
-            return load + compute + self._chunks(k) * self.chunk_restart
-        return max(load, compute)
+        load, compute = self.gmm1_phases(m, k, cols)
+        return load + compute if self.serial else max(load, compute)
 
     def gmm2_tile(self, m: int, k2: int, cols: int) -> float:
         """GMM2: A 从 UB 直达 L0A 不计时, 时长 = 计算; 计算量 = m·cols·K2."""
-        compute = m * cols * k2 / self.cube_rate
-        if self.serial:
-            return compute + self._chunks(k2) * self.chunk_restart
-        return compute
+        return m * cols * k2 / self.cube_rate
 
 
 # PrimitiveCosts 
+
+
+def gmm1_phase_split(costs: PrimitiveCosts, m: int, k: int,
+                     cols: int) -> Optional[Tuple[float, float]]:
+    """costs.gmm1_tile 的 (载入, 计算) 分解; 自定义 callable 无法分解, 返回 None."""
+    owner = getattr(costs.gmm1_tile, "__self__", None)
+    if isinstance(owner, AnalyticalGmmCosts):
+        return owner.gmm1_phases(m, k, cols)
+    return None
 
 
 class AnalyticalActCosts:

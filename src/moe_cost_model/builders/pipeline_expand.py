@@ -5,7 +5,17 @@
   L0 同步延迟: 在 stage 间握手边上挂 dep_latency_overrides
   L1 队列计数信号量: stage 事件挂 QUEUE:* 信号量; gmm1→act 深度依赖走距离依赖
      (跨 tile 流水需要时拆 load/cube/fix 相位, 核资源移到 cube 相位)
-  L2 信道需求: 承载闭式时长的相位声明 channel_bytes = 时长×应得速率
+  L2 信道需求: 有 GM 流量的相位声明 channel_bytes = 流量时长×应得速率
+
+GMM 口径 (与 costs.AnalyticalGmmCosts 一致). 占用与计时是两回事:
+  L1 缓冲 (MTE 队列) 是容量约束. A 与 B 都经 L1 进 L0, 所以 GMM1 与 GMM2 的
+        tile 都占一个 L1 缓冲槽 — B 流不计时, 但权重仍在 L1 里占着位置.
+  gm_to_l1 信道与时长只计 A 流: B 流搬运不建模 (认为被其他任务的执行掩盖),
+        既不进 tile 时长, 也不计入信道流量.
+  GMM1  A 流走 GM→L1: 占 L1 缓冲槽 + gm_to_l1 信道; 计算占 Cube 队列.
+        load / cube 相位时长取事件 meta 的 load_us / compute_us (公式分解).
+  GMM2  时长 = 纯计算 (A 从 UB 直达 L0A): 占 L1 缓冲槽 (B 权重) + Cube 队列,
+        无信道流量.
 """
 from __future__ import annotations
 
@@ -35,10 +45,14 @@ def apply_pipeline(
 ) -> Tuple[List[Event], Dict[str, int], Dict[str, Channel]]:
     """施加约束, 返回 (事件表, 容量表, 信道表).
 
-    aic_num/h: 形状参数 (队列资源命名与 MAC 计算用)
+    aic_num/h: 形状参数 (保留以兼容调用方; 相位时长取自事件 meta)
     gmm1_act_depth: ModelOptions.gmm1_activation_depth, BUF 槽位默认值
     """
     km = kernel if kernel is not None else KernelConfig()
+    if km.l1_buf_num == 1 and cons.queues.mte_aic > 1:
+        raise ValueError(
+            f"KernelConfig.l1_buf_num=1 (单 L1 缓冲) 与 queues.mte_aic="
+            f"{cons.queues.mte_aic} (多个 L1 缓冲槽) 矛盾: 二者描述同一个硬件资源")
     by_name = {ev.name: ev for ev in events}
     channels = {ch.name: ch for ch in cons.channels}
 
@@ -71,14 +85,15 @@ def apply_pipeline(
     # 距离依赖天然保序无环, 深度由 ModelOptions.gmm1_activation_depth 参数化.
 
     # ---- L1/L2: 队列计数信号量 + 信道需求 (gmm1 需要时拆相位) ----
-    split_gmm1 = cons.queues.mte_aic > 1 or cons.phases.cube_mac_per_us is not None
+    # 深度 1 = 闭式时长整体标注; 深度 >1 才有跨 tile 的 load/cube 重叠可建模
+    split_gmm1 = cons.queues.mte_aic > 1
     new_events: List[Event] = []
     for ev in events:
         stage = str(ev.meta.get("stage", ""))
         if stage == _STAGE_GMM1:
             new_events.extend(_expand_gmm1(ev, cons, split_gmm1, channels, by_name, h, km))
         elif stage == _STAGE_GMM2:
-            new_events.extend(_annotate(ev, channels, queue="QUEUE:mte_aic"))
+            new_events.extend(_annotate(ev, queues=("QUEUE:mte_aic", "QUEUE:cube")))
         elif stage == _STAGE_ACT:
             new_events.extend(_expand_aiv(
                 ev, cons, channels, by_name, vec=True, km=km,
@@ -124,23 +139,18 @@ def apply_pipeline(
 
 def _annotate(
     ev: Event,
-    channels: Dict[str, Channel],
     *,
-    queue: str,
+    queues: Tuple[str, ...],
 ) -> List[Event]:
-    """GMM2 head/tail: 保留原结构, 挂 MTE 队列计数信号量 + 信道需求."""
+    """GMM2 head/tail: 保留原结构, 挂队列计数信号量 (L1 缓冲槽 + Cube). 无信道需求."""
     core = ev.meta.get("core")
-    ch = ()
-    if CH_GM_TO_L1 in channels and ev.duration_us > 0:
-        ch = ((CH_GM_TO_L1, ev.duration_us * BW_L1_GM, BW_L1_GM),)
-    q = (f"{queue}:c{core}", 1)
+    qs = tuple((f"{queue}:c{core}", 1) for queue in queues)
     return [Event(
         name=ev.name, resources=ev.resources, duration_us=ev.duration_us,
         deps=ev.deps, order=ev.order, meta=dict(ev.meta),
         dep_latency_us=ev.dep_latency_us,
         dep_latency_overrides=ev.dep_latency_overrides,
-        acquires=ev.acquires + (q,), releases=ev.releases + (q,),
-        channel_bytes=ch,
+        acquires=ev.acquires + qs, releases=ev.releases + qs,
     )]
 
 
@@ -162,23 +172,41 @@ def _expand_gmm1(
     h: int,
     km=None,
 ) -> List[Event]:
-    """GMM1 tile: 默认整体标注; 深度>1 或给了 cube 速率时拆 load/cube/fix.
+    """GMM1 tile: 默认整体标注; MTE 队列深度 >1 时拆相位.
 
-    拆分结构: load(流量, MTE 队列+信道, 无核资源) → cube(计算, 核资源+Cube
-    队列) → fix(写回, Fix 队列, 保留原名承接下游依赖). 跨 tile 的 load 与
-    cube 重叠由 MTE 队列深度控制 — 稳态周期 = max(load, cube) 与闭式
-    max(载入/BW, 计算/R) 一致.
+    拆分结构 (闭式 max(A流, 计算) 的含义是 tile 内载入与计算重叠, 慢侧绑定):
+
+        grant ─┬─ load (A 流, gm_to_l1 信道, 无核资源) ─┬─ fix (写回, 保留原名)
+               └─ cube (计算, 核资源 + Cube 队列)      ─┘
+
+      grant  取一个 L1 缓冲槽 (MTE 队列), fix 结束时归还. 时长 = 闭式时长里
+             公式以外的部分 (流水填充、每核首 tile 启动开销).
+      load 与 cube 并行, fix 等两者都完成 → 单 tile 时长 = max(load, cube),
+             与闭式一致; A 流被信道切速时 load 拉长, tile 随之拉长.
+      跨 tile: cube 独占核, 后一个 tile 的 load 可在前一个 tile 计算时预取,
+             预取个数受 MTE 队列深度限制.
+
+    load / cube 时长取 meta 的 load_us / compute_us (GMM 公式的分解).
+    stage 忙碌时长只计 load 与 cube 中较长的一个 (较短者标 overlapped),
+    否则重叠的时间会被算两遍.
     """
     km = km if km is not None else KernelConfig()
     stage = _STAGE_GMM1
     core = ev.meta.get("core")
     m_rows = int(ev.meta.get("m_rows", 0))
     base_dur = ev.duration_us
+    load_us = ev.meta.get("load_us")
+    compute_us = ev.meta.get("compute_us")
+    if load_us is None and (split or CH_GM_TO_L1 in channels):
+        raise ValueError(
+            f"{ev.name}: 缺 A 流/计算分解 — gmm1_tile 是自定义 callable. "
+            "相位拆分 (queues.mte_aic > 1) 与 gm_to_l1 信道需要 AnalyticalGmmCosts 的公式")
+    # 信道只承载 A 流: 字节 = A 流时长 × 应得速率 (无争用服务时长 = load_us)
+    ch = ((CH_GM_TO_L1, load_us * BW_L1_GM, BW_L1_GM),) \
+        if CH_GM_TO_L1 in channels and load_us else ()
 
     if not split:
-        # 整体标注: 信道字节与闭式时长自洽 (无争用服务 = base_dur, 不拉伸)
-        ch = ((CH_GM_TO_L1, base_dur * BW_L1_GM, BW_L1_GM),) \
-            if CH_GM_TO_L1 in channels else ()
+        # 整体标注: 事件时长 = 闭式时长; A 流被信道切速到超过它时随之拉长
         q = (f"QUEUE:mte_aic:c{core}", 1)
         return [Event(
             name=ev.name, resources=ev.resources, duration_us=base_dur,
@@ -189,50 +217,47 @@ def _expand_gmm1(
             channel_bytes=ch,
         )]
 
-    cube_rate = cons.phases.cube_mac_per_us
-    # 尾 N-tile 精确: MAC 与写回按实际列数, 不按整 tileN (缺省 meta 时退回整 tile)
+    # 尾 N-tile 精确: 写回按实际列数, 不按整 tileN (缺省 meta 时退回整 tile)
     logical_n = int(ev.meta.get("logical_n", km.tile_n))
-    macs = 2.0 * m_rows * logical_n * h   # SwiGLU 双投影 (R_cube 约定吸收 act_half)
-    cube_dur = (macs / cube_rate) if cube_rate else 0.0
     fix_bw = cons.phases.fix_bw_bytes_per_us
     fix_dur = (m_rows * logical_n * 2 / fix_bw) if fix_bw else 0.0
-    load_dur = max(0.0, base_dur - cube_dur - fix_dur)
-    # 拆分模式: 信道字节与 load 相位时长自洽 — 无争用服务 = load_dur.
-    # 若按完整 base_dur 折算字节, load 会被撑回全长再叠加 cube/fix,
-    # 单 tile 总长 = base + cube (双重计费). 字节保真让位于时序一致性
-    # (信道为占位机制, 未标定).
-    ch = ((CH_GM_TO_L1, load_dur * BW_L1_GM, BW_L1_GM),) \
-        if CH_GM_TO_L1 in channels and load_dur > 0 else ()
+    closed_form = max(load_us, compute_us)      # 走到这里必为双缓冲 (入口已校验)
+    overhead = max(0.0, base_dur - closed_form)
+    load_longer = load_us > compute_us
 
     # 缓冲占用语义: mte 计数信号量 = L1 缓冲槽.
-    # ld 开始时取 (载入占缓冲), cb 结束时还 (计算消费完释放) —
-    # QueueDepths(mte_aic=d) 因此精确等于 d 个 L1 缓冲, 跨 tile 约束
-    # E_compute(i-d) 由调度器自动执行. ld 不继承引擎信号量 (Q:aic),
-    # 否则容量 1 的引擎信号量会卡死 mte 深度 (审计已确认的旧 bug).
-    ld = Event(
-        name=ev.name + ".ld", resources=(), duration_us=load_dur,
+    # grant 开始时取, fix 结束时还 (载入与计算都完成, 缓冲才空出来) —
+    # QueueDepths(mte_aic=d) 因此精确等于 d 个 L1 缓冲. 相位事件不继承引擎
+    # 信号量 (Q:aic), 否则容量 1 的引擎信号量会卡死 mte 深度 (审计已确认的旧 bug).
+    mte = (f"QUEUE:mte_aic:c{core}", 1)
+    lg = Event(
+        name=ev.name + ".lg", resources=(), duration_us=overhead,
         deps=_drop_program_order(ev, stage, by_name), order=ev.order,
-        meta=dict(ev.meta, phase="load"),
+        meta=dict(ev.meta, phase="grant"),
         dep_latency_us=ev.dep_latency_us,
         dep_latency_overrides=ev.dep_latency_overrides,
-        acquires=((f"QUEUE:mte_aic:c{core}", 1),),
-        releases=(),
+        acquires=(mte,),
+    )
+    ld = Event(
+        name=ev.name + ".ld", resources=(), duration_us=load_us,
+        deps=(lg.name,), order=ev.order,
+        meta=dict(ev.meta, phase="load", overlapped=not load_longer),
         channel_bytes=ch,
     )
     cb = Event(
-        name=ev.name + ".cb", resources=ev.resources, duration_us=cube_dur,
-        deps=(ld.name,), order=ev.order, meta=dict(ev.meta, phase="cube"),
+        name=ev.name + ".cb", resources=ev.resources, duration_us=compute_us,
+        deps=(lg.name,), order=ev.order,
+        meta=dict(ev.meta, phase="cube", overlapped=load_longer),
         acquires=((f"QUEUE:cube:c{core}", 1),),
-        releases=((f"QUEUE:cube:c{core}", 1),
-                  (f"QUEUE:mte_aic:c{core}", 1)),
+        releases=((f"QUEUE:cube:c{core}", 1),),
     )
     fx = Event(
         name=ev.name, resources=(), duration_us=fix_dur,
-        deps=(cb.name,), order=ev.order, meta=dict(ev.meta, phase="fix"),
+        deps=(ld.name, cb.name), order=ev.order, meta=dict(ev.meta, phase="fix"),
         acquires=((f"QUEUE:fix:c{core}", 1),),
-        releases=((f"QUEUE:fix:c{core}", 1),),
+        releases=((f"QUEUE:fix:c{core}", 1), mte),
     )
-    return [ld, cb, fx]
+    return [lg, ld, cb, fx]
 
 
 def _expand_aiv(

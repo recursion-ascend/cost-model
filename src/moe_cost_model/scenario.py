@@ -40,7 +40,8 @@ class Workload:
     """路由工作量: 每 rank 的 token 数 + 路由计数 C[dst][expert][src] 的来源.
 
     routing:
-      uniform   每个源 rank 的 tokens×topk 行均分到全部专家
+      uniform   每个源 rank 的 tokens×topk 行均分到全部专家; 除不尽的余数行
+                等间隔撒开, 各目的 rank 收到的行数相差不超过 1
       cyclic    token t 的第 k 个 slot 发给专家 (t + k + ((src+1) % world)×local) % 专家总数
       random    每 token 随机选 topk 个不同专家 (Python 随机流, 种子 seed + src;
                 与 prof 仓 torch 生成器的随机流不同, 同种子的路由不相同)
@@ -106,7 +107,11 @@ class Workload:
             if self.routing == "uniform":
                 base, rem = divmod(self.tokens * self.topk, experts)
                 for gid in range(experts):
-                    send(src, gid, base + (1 if gid < rem else 0))
+                    send(src, gid, base)
+                # 余数行等间隔撒到专家上, 并按源 rank 错位: 各目的 rank 与各专家
+                # 收到的行数都尽量平 (不堆在编号靠前的专家上)
+                for i in range(rem):
+                    send(src, (i * experts // rem + src) % experts)
             elif self.routing == "cyclic":
                 shift = ((src + 1) % world) * local
                 for t in range(self.tokens):
@@ -144,7 +149,7 @@ class Calibration:
     cube_mac_per_us: Optional[float] = None
     bw_l1_gm: Optional[float] = None
     gmm1_fill_us: float = 0.0
-    gmm1_tile_restart_us: float = 0.0
+    gmm1_tile_restart_us: float = 0.0     # 单缓冲下 L1 换块停顿; 只作用于 GMM1
     bw_ub: Optional[float] = None
     t_startup_us: Optional[float] = None
     bw_scatter: Optional[float] = None

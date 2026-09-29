@@ -119,12 +119,42 @@ res = simulate(sc)
 | stage | 双缓冲 (`l1_buf_num=2`)      | 单缓冲 (`l1_buf_num=1`)          |
 | ----- | ------------------------------ | ---------------------------------- |
 | GMM1  | `max(A流/BW, 计算/R_cube)`   | `A流/BW + 计算/R_cube + restart` |
-| GMM2  | `计算/R_cube`                | `计算/R_cube + restart`          |
+| GMM2  | `计算/R_cube`                | `计算/R_cube`                    |
 
 - A 流 = m·K 字节; GMM1 计算 = 2·m·cols·K MACs; GMM2 计算 = m·cols·K2 MACs。
-- GMM2 只有计算: A 从 UB 直达 L0A, 片上带宽约 500 GB/s 且每核独占, 搬运时间忽略不计。
+- GMM2 只有计算: A 从 UB 直达 L0A, 片上带宽约 500 GB/s 且每核独占, 搬运时间忽略不计。restart 是 L1 换块的停顿, A 不经 L1, 所以 GMM2 没有 restart, 时长与 L1 缓冲数无关。
 - B 流 (权重搬运) 不建模: 认为被其他任务的执行掩盖。
 - `R_cube` (`cube_mac_per_us`) 必填, 无缺省。仓库里没有标定过的 Cube 速率, 示例与测试里的 `2.7e7` 只是占位值。
+
+相位流水 (`options.pipeline`, 可选) 与闭式同口径:
+
+| stage | MTE 队列 (L1 缓冲槽) | `gm_to_l1` 信道 | Cube 队列 |
+| ----- | -------------------- | ----------------- | --------- |
+| GMM1  | 占                   | A 流字节 m·K      | 占        |
+| GMM2  | 占 (B 权重)          | 不占              | 占        |
+
+占用与计时是两回事: A 与 B 都经 L1 进 L0, 所以两个 stage 的 tile 都占 L1 缓冲槽; B 流搬运不计时、不计信道流量, 但权重仍在 L1 里占着位置。
+
+- `queues.mte_aic > 1` 时 GMM1 拆相位: tile 内 load 与 cube 并行, 单 tile 时长 = `max(A流, 计算)`; 后一个 tile 的 A 流可在前一个 tile 计算时预取。
+- load / cube 相位时长取自 GMM 公式的分解, 载入带宽与 Cube 速率只有公式这一个来源。
+- `l1_buf_num = 1` 与 `queues.mte_aic > 1` 互相矛盾, 同时给会报错。
+- `gmm1_tile` 换成自定义函数后没有 A 流/计算分解, 拆相位或开 `gm_to_l1` 信道会报错。
+
+### 共享专家
+
+`[workload]` 里设 `shared_expert_num = 1` 打开。事件与依赖:
+
+| 事件 | 占用 | 时长 | 依赖 |
+| --- | --- | --- | --- |
+| 共享 GMM1 tile | AIC 核 | GMM1 公式 | 无, 从 0 时刻开始 |
+| 共享 ACT tile | AIV0 核 | ACT 公式 | 同 tile 的共享 GMM1 |
+| 门控 | 无 | 0 | 全部共享 ACT |
+| MoE dispatch_call | AIV1 核 | — | 门控 (MTE: 每个波; Layered: 仅首波接收) |
+| 共享 GMM2 tile | AIC 核 | GMM2 公式 (纯计算) | 尾段 core_sync + 本 m-group 的全部共享 ACT |
+| 汇合 | 无 | 0 | 全部共享 GMM2 tile |
+| 尾段 rank_sync | 无 | — | 汇合 |
+
+共享专家的 tile 行数取每卡 token 数 (每个 token 都过共享专家)。未覆盖: 共享专家个数只影响 UNPERMUTE 字节, GMM1/ACT/GMM2 只建一遍; 相位流水不处理共享 stage。
 
 ### 2. 写新编排循环
 
@@ -206,14 +236,14 @@ res = simulate(sc)
 ```bash
 cd moe-cost-model
 pip install -e .          # 或直接 pytest (pyproject 已配 pythonpath)
-pytest tests/             # 125 项测试, 约 1.5 分钟
+pytest tests/             # 133 项测试, 约 2 分钟
 python examples/run_scenario.py    # 场景文件 + 改旋钮对比
 python examples/run_basic.py       # 底层入口
 ```
 
 ## 回归保护
 
-`tests/test_golden.py` 对 43 个配置核对调度指纹: 每个事件的起止时刻、等待归因、关键父事件取 sha256, 任何一位浮点差异都会失败。覆盖 MTE / Layered 两条路径、波偏移、编译期旋钮、三种调度策略、分核与打包策略、相位流水、容量与信道、片间信道、任务转移。
+`tests/test_golden.py` 对 44 个配置核对调度指纹: 每个事件的起止时刻、等待归因、关键父事件取 sha256, 任何一位浮点差异都会失败。覆盖 MTE / Layered 两条路径、波偏移、编译期旋钮、三种调度策略、分核与打包策略、相位流水、容量与信道、片间信道、任务转移。
 
 ```bash
 python tools/gen_golden.py --check     # 核对, 不写文件
@@ -271,7 +301,7 @@ moe-cost-model/
 │   │   └── pipeline_expand.py   #   相位拆分
 │   ├── model.py                 # 第 5 层: A8W8WaveCostModel 编排
 │   └── analysis/                # 第 6 层: 关键路径 / 空闲核任务转移
-├── tests/                       # 125 项 (引擎 / 建图 / API 锚点 / Layered / golden 指纹 / 场景)
+├── tests/                       # 133 项 (引擎 / 建图 / API 锚点 / Layered / golden 指纹 / 场景)
 ├── examples/                    # scenario_basic.toml + run_scenario.py + run_basic.py
 └── tools/                       # 分析脚本 (审计 / 诊断 / 全量对比 / golden 生成)
 ```

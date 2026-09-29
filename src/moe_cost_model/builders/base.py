@@ -85,6 +85,8 @@ class EventBuilderBase:
         # gmm2 tail 事件按 (expert, global_group) 归档 — layered combine 的
         # 组级就绪依赖 (kernel: GMM2 sync counter ≥ nTilesPerGroup)
         self.gmm2_tail_by_group: Dict[Tuple[int, int], List[str]] = {}
+        # 共享专家 ACT 事件按 m-group 归档 — 共享 GMM2 的数据依赖
+        self.shared_act_by_group: Dict[int, List[str]] = {}
 
     
 
@@ -161,6 +163,12 @@ class EventBuilderBase:
 
 
     def _build_shared_expert(self, shape, km, ACT_HALF, TILE_M, TILE_N, p, c):
+        """共享专家前半段: GMM1 + ACT tile, 排在 MoE dispatch 之前.
+
+        返回门控事件名 (全部共享 ACT 完成), dispatch_call 依赖它.
+        后半段 (共享 GMM2) 在尾段, 见 _add_shared_gmm2.
+        """
+        self.shared_act_by_group = {}
         if shape.shared_expert_num <= 0:
             return None
         m_tot_s = shape.token_num
@@ -182,8 +190,37 @@ class EventBuilderBase:
                 f"shared.act.m{mg}.n{nt}", (f"AIV0:{core}",),
                 c.activation_tile(m_rows, logical_n),
                 deps=(g1s[-1],), meta={"stage": "shared_act", "m_rows": m_rows}))
+            self.shared_act_by_group.setdefault(mg, []).append(as_events[-1])
         return self._event("shared.head_done", (), 0.0, deps=tuple(as_events),
                            meta={"stage": "shared_head_done"})
+
+    def _add_shared_gmm2(self, shape, km, ACT_HALF, p, c, after: str) -> str:
+        """共享专家后半段: GMM2 按 tile 建事件, 占 AIC 核, 时长取 GMM2 公式 (纯计算).
+
+        每个 tile 依赖 after (尾段前序事件) 与本 m-group 的全部共享 ACT
+        (GMM2 的输入是该 m-group 的 ACT 产出, 覆盖整个 K).
+        返回汇合事件名 (全部共享 GMM2 tile 完成).
+        """
+        tile_m, tile_n = km.tile_m, km.tile_n
+        k_gmm2 = shape.hidden_dim // ACT_HALF
+        n_tiles = ceil_div(shape.h, tile_n)
+        m_groups = ceil_div(shape.token_num, tile_m)
+        cursor = BlockCursor(p, 0)
+        tiles = []
+        for ti in range(m_groups * n_tiles):
+            mg, nt = swizzle_coord(ti, m_groups, n_tiles,
+                                   km.swizzle_offset, km.swizzle_direction)
+            m_rows = min(tile_m, shape.token_num - mg * tile_m)
+            logical_n = min(tile_n, shape.h - nt * tile_n)
+            core = cursor.owners(1)[0]
+            tiles.append(self._event(
+                f"shared.gmm2.m{mg}.n{nt}", (f"AIC:{core}",),
+                c.gmm2_tile(m_rows, k_gmm2, logical_n),
+                deps=(after, *self.shared_act_by_group.get(mg, ())),
+                meta={"stage": "shared_gmm2", "m_rows": m_rows, "mgroup": mg,
+                      "ntile": nt, "logical_n": logical_n, "core": core}))
+        return self._event("epilogue.shared_gmm2_done", (), 0.0, deps=tuple(tiles),
+                           meta={"stage": "epilogue", "part": "shared_gmm2_done"})
 
     # stage 建图函数在同包各文件: dispatch.py / gmm1.py / activation.py /
     # gmm2.py / combine.py — 状态经 BuildContext (context.py) 传递.
@@ -202,10 +239,7 @@ class EventBuilderBase:
                                 meta={"stage": "epilogue", "part": "output_core_sync"})
         tail_head = core_sync
         if shape.shared_expert_num > 0:
-            w2_bytes = (shape.hidden_dim // ACT_HALF) * shape.h
-            shared_gmm2 = self._event("epilogue.shared_gmm2", (), w2_bytes / BW_UNPERMUTE_AGG,
-                                      deps=(core_sync,), meta={"stage": "epilogue", "part": "shared_gmm2"})
-            tail_head = shared_gmm2
+            tail_head = self._add_shared_gmm2(shape, km, ACT_HALF, p, c, after=core_sync)
         rank_sync = self._event("epilogue.output_rank_sync", (), T_RANK_SYNC_RTT_US, deps=(tail_head,),
                                 meta={"stage": "epilogue", "part": "output_rank_sync"})
         out_init = self._event("epilogue.output_buffer_init", (), T_OUTPUT_INIT_US, deps=(rank_sync,),

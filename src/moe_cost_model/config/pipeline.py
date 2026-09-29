@@ -97,11 +97,11 @@ class QueueDepths:
 
 @dataclass(frozen=True)
 class PhaseRates:
-    """可选相位速率. None = 该相位时长折入承载闭式时长的相位 (BW 主导假设).
+    """可选相位速率. None = 该相位不单独计时.
 
-    提供速率后相位展开会把 load/cube/fix 拆开, 支持跨 tile 流水重叠.
+    GMM1 的 load / cube 相位时长不在这里给: 取自 GMM 公式的 A 流与计算分解
+    (载入带宽与 Cube 速率以公式为唯一来源), 与闭式时长同口径.
     """
-    cube_mac_per_us: Optional[float] = None       # AIC 立方计算速率 (MAC/µs)
     fix_bw_bytes_per_us: Optional[float] = None   # FixPipe 带宽 (B/µs)
     act_load_bw_bytes_per_us: Optional[float] = None  # ACT GM→UB 读带宽
     combine_load_bw_bytes_per_us: Optional[float] = None  # COMBINE GM 读带宽

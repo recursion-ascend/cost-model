@@ -43,11 +43,11 @@ def uniform_routing(world: int, local: int, per_src: int):
     return [[[per_src] * world for _ in range(local)] for _ in range(world)]
 
 
-def manual_costs():
+def manual_costs(cube_rate=CUBE_RATE):
     return m.PrimitiveCosts(
         dispatch_mechanistic=m.DispatchMechanisticLatency(),
-        gmm1_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm1_tile,
-        gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm2_tile,
+        gmm1_tile=m.AnalyticalGmmCosts(cube_mac_per_us=cube_rate).gmm1_tile,
+        gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=cube_rate).gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
         count_table_prepare_us=m.T_COUNT_GATE,
@@ -113,8 +113,7 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
     off = m.StageWaveOffsets
     pol = m.InstancePolicy
     kc = m.KernelConfig
-    split = dict(queues=m.QueueDepths(mte_aic=2, cube=2, fix=2),
-                 phases=m.PhaseRates(cube_mac_per_us=2.7e7))
+    split = dict(queues=m.QueueDepths(mte_aic=2, cube=2, fix=2))
 
     c: Dict[str, Callable[[], Dict[str, object]]] = {}
 
@@ -184,8 +183,11 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
         sk(), 64, options=_pipeline(channels=_channels(), **split))
     c["pipeline_split_no_channels"] = lambda: run_api(sk(), 64, options=_pipeline(**split))
     c["pipeline_compute_bound"] = lambda: run_api(
+        sk(), 64, costs=manual_costs(cube_rate=6.75e6),
+        options=_pipeline(queues=m.QueueDepths(mte_aic=2)))
+    c["pipeline_fix_phase"] = lambda: run_api(
         sk(), 64, options=_pipeline(queues=m.QueueDepths(mte_aic=2),
-                                    phases=m.PhaseRates(cube_mac_per_us=6.75e6)))
+                                    phases=m.PhaseRates(fix_bw_bytes_per_us=2.0e5)))
     c["pipeline_contended_channels"] = lambda: run_api(
         sk(), 64, options=_pipeline(channels=(
             m.Channel("gm_to_l1", bw_total=m.BW_L1_GM * 8, max_rate_per_event=m.BW_L1_GM),
