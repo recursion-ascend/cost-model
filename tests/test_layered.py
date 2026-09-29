@@ -6,9 +6,13 @@ stage/mega_moe_layered_dispatch.h (二级接收), stage/mega_moe_layered_combine
 """
 import moe_cost_model as m
 
+# 测试夹具值, 非标定常数: Cube 速率没有缺省, 测试统一取此值
+CUBE_RATE = 2.7e7
+
 
 def _costs():
-    return m.build_analytical_costs(h=6144, dispatch_mechanistic=m.DispatchMechanisticLatency())
+    return m.build_analytical_costs(h=6144, dispatch_mechanistic=m.DispatchMechanisticLatency(),
+        cube_mac_per_us=CUBE_RATE)
 
 
 def _uniform(world=4, local=64, token_num=64, topk=8):

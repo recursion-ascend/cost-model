@@ -1,7 +1,6 @@
 """第 4 层: GMM1 stage — GMM1 tile 事件 + 游标分核.
 
 依赖: 组就绪标记 (dispatch 产出) + 同核第 i-depth 个 ACT (UB 缓冲).
-B 复用经 KernelConfig.gmm1_b_reuse + b_load 关键字;
 流水填充经 PrimitiveCosts.gmm1_fill_us 按 tile 均摊.
 """
 from __future__ import annotations
@@ -30,10 +29,7 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                                    km.swizzle_offset, km.swizzle_direction)
             m_rows = builder._tile_rows(sl, mg, tile_m=km.tile_m)
             logical_n = min(TILE_N, gmm1_sched_n - nt * TILE_N)
-            if km.gmm1_b_reuse:
-                dur = c.gmm1_tile(m_rows, shape.h, logical_n, b_load=(mg == 0))
-            else:
-                dur = c.gmm1_tile(m_rows, shape.h, logical_n)
+            dur = c.gmm1_tile(m_rows, shape.h, logical_n)
             dur += fill_share
             tile_info.append((mg, nt, m_rows, logical_n, dur))
             tile_costs.append(dur)

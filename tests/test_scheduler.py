@@ -9,6 +9,9 @@ from moe_cost_model.scheduler import Channel, Event, MultiResourceScheduler
 
 P = m.PipelineConstraints
 
+# 测试夹具值, 非标定常数: Cube 速率没有缺省, 测试统一取此值
+CUBE_RATE = 2.7e7
+
 
 def _deterministic_case():
     WORLD, LOCAL = 4, 64
@@ -24,8 +27,8 @@ def _deterministic_case():
 def _run(options=None, policy=None):
     costs = m.PrimitiveCosts(
         dispatch_mechanistic=m.DispatchMechanisticLatency(),
-        gmm1_tile=m.AnalyticalGmmCosts().gmm1_tile,
-        gmm2_tile=m.AnalyticalGmmCosts().gmm2_tile,
+        gmm1_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm1_tile,
+        gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
         count_table_prepare_us=m.T_COUNT_GATE,
@@ -122,8 +125,8 @@ def test_split_no_deadlock_large_dag():
     rc = tuple(tuple(tuple(r) for r in c) for c in counts)
     costs = m.PrimitiveCosts(
         dispatch_mechanistic=m.DispatchMechanisticLatency(),
-        gmm1_tile=m.AnalyticalGmmCosts().gmm1_tile,
-        gmm2_tile=m.AnalyticalGmmCosts().gmm2_tile,
+        gmm1_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm1_tile,
+        gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
         count_table_prepare_us=m.T_COUNT_GATE,

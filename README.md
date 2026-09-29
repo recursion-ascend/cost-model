@@ -6,36 +6,65 @@ Ascend NPU MegaMoE 流水编排性能评估工具。算子工程师改参数、�
 
 ### 1. 改参数直接评估
 
-改一个旋钮，跑一次 `simulate_routing_counts`，拿到总时长、逐核利用率、各 stage 忙碌时长、四种等待归因、关键路径。改前后各跑一次，对比差值就是收益或代价。
+一个场景文件承载全部旋钮, 改一个旋钮跑一次, 对比差值就是收益或代价。
+
+```bash
+python examples/run_scenario.py
+```
+
+场景文件 (`examples/scenario_basic.toml`) 的表名与字段名就是对象属性名:
+
+```toml
+h = 6144
+hidden_dim = 4096
+aic_num = 28
+p1_override = 2
+p2_override = 1
+
+[workload]
+tokens = 64
+topk = 8
+world = 4
+local_experts = 64
+routing = "uniform"          # uniform | cyclic | random | explicit | file
+
+[calibration]
+cube_mac_per_us = 2.7e7      # 必填, 无缺省; 示例值, 换成实测 Cube 速率
+
+[policy]
+dispatch_lookahead = 2
+```
 
 ```python
-from moe_cost_model import (
-    simulate_routing_counts, build_analytical_costs,
-    DispatchMechanisticLatency, KernelConfig, InstancePolicy,
-    ModelOptions, StageWaveOffsets,
-    GreedyLeastBusy, BalancedWaves, idle_core_stealing,
-)
+from moe_cost_model import load_scenario, simulate
 
-kernel = KernelConfig(tile_m=256, tile_n=256)
-costs = build_analytical_costs(h=6144, kernel=kernel,
-                               dispatch_mechanistic=DispatchMechanisticLatency())
+base = load_scenario("examples/scenario_basic.toml")
+variant = base.with_overrides({"policy.gmm2_lag_waves": 2, "kernel.tile_n": 128})
 
-# 基线
-base = simulate_routing_counts(
-    routing_counts=C,           # C[dst][expert][src] 行数
-    token_num_per_rank=64, h=6144, hidden_dim=4096,
-    aic_num=28, costs=costs, topk=8,
-    kernel=kernel, p1_override=2, p2_override=1,
-)
-
-# 改 GMM2 滞后两波
-variant = simulate_routing_counts(
-    ...同上...,
-    policy=InstancePolicy(gmm2_lag_waves=2),
-)
-print(f"基线 {base['kernel_total_us']:.1f} µs")
-print(f"变体 {variant['kernel_total_us']:.1f} µs")
+for sc in (base, variant):
+    res = simulate(sc)
+    print(sc.to_dict(defaults=False), res["kernel_total_us"])
 ```
+
+也可以不用文件, 直接在 Python 里构造:
+
+```python
+from moe_cost_model import Calibration, InstancePolicy, Scenario, Workload, simulate
+
+sc = Scenario(
+    workload=Workload(tokens=64, world=4, local_experts=64, routing="uniform"),
+    p1_override=2, p2_override=1,
+    calibration=Calibration(cube_mac_per_us=2.7e7),
+    policy=InstancePolicy(gmm2_lag_waves=2),
+    wave_packing="balanced_waves",
+)
+res = simulate(sc)
+```
+
+写错字段名、类型不对、策略名不存在都会立即报错并给出提示, 例如
+`policy.gmm2_lag_wave: 未知字段, 是否想写 'gmm2_lag_waves'?`。
+
+底层入口 `simulate_routing_counts` 保留, 直接给路由计数 `C[dst][expert][src]` 与公式容器。
 
 可调的全部旋钮：
 
@@ -51,7 +80,7 @@ print(f"变体 {variant['kernel_total_us']:.1f} µs")
 | GMM2→COMBINE  | `gmm2_combine_credit`                 | 正整数               | 固定 credit 流控              |
 | tile 几何      | `tile_m` / `tile_n` / `l1_tile_k` | 正整数               | 行高、列宽、K 窗              |
 | L1 缓冲        | `l1_buf_num`                          | 1 或 2               | 单缓冲串行或双缓冲重叠        |
-| B 矩阵复用     | `gmm1_b_reuse`                        | 开或关               | 切片内 B 只计一次             |
+| B 矩阵复用     | `gmm1_b_reuse`                        | 开或关               | 不影响时长 (B 流不建模)       |
 | COMBINE 量化   | `combine_quant_mode`                  | 0 或 1               | BF16 直写或 FP8 加 scale      |
 | 相位流水       | `PipelineConstraints`                 | 队列深度             | load 与 cube 跨 tile 重叠     |
 | 调度策略       | `scheduling_policy`                   | 三种策略             | 就绪集里谁先跑                |
@@ -70,9 +99,32 @@ print(f"变体 {variant['kernel_total_us']:.1f} µs")
 | `gmm2_combine_credit`                                  | 生效               | 生效                                      |
 | `core_assignment`                                      | 生效               | 生效                                      |
 | `tile_m` / `tile_n` / `l1_tile_k` / `l1_buf_num` | 生效               | 生效                                      |
-| `gmm1_b_reuse` / `combine_quant_mode`                | 生效               | 生效                                      |
+| `combine_quant_mode`                                   | 生效               | 生效                                      |
 
-`KernelConfig` 的编译期旋钮（`l1_buf_num`、`l1_tile_k`、`combine_quant_mode`）以 `KernelConfig` 为唯一事实源。手工拼 `PrimitiveCosts` 时入口自动按 kernel 重绑公式，任何拼法都生效。`weight_nz` 例外——NZ 路径带宽需显式标定，缺失时报错。
+`KernelConfig` 的编译期旋钮（`l1_buf_num`、`l1_tile_k`、`combine_quant_mode`）以 `KernelConfig` 为唯一事实源。手工拼 `PrimitiveCosts` 时入口自动按 kernel 重绑公式，任何拼法都生效。`weight_nz` 与 `gmm1_b_reuse` 只描述权重搬运，而权重搬运不建模，所以不影响时长。
+
+策略旋钮用名字引用：
+
+| 旋钮                  | 可选名字                                                          |
+| --------------------- | ----------------------------------------------------------------- |
+| `wave_packing`      | `sequential_greedy` / `longest_expert_first` / `balanced_waves` |
+| `core_assignment`   | `static_round_robin` / `greedy_least_busy` / `contiguous_block` |
+| `scheduling_policy` | `earliest_start` / `critical_path_first` / `priority_by_stage`  |
+| `restructure`       | `idle_core_stealing`                                              |
+
+带参数时写成表：`{name = "priority_by_stage", stage_order = [...]}`。自定义策略用 `moe_cost_model.register(类别, 名字, 构造函数)` 注册。
+
+### GMM tile 时长公式
+
+| stage | 双缓冲 (`l1_buf_num=2`)      | 单缓冲 (`l1_buf_num=1`)          |
+| ----- | ------------------------------ | ---------------------------------- |
+| GMM1  | `max(A流/BW, 计算/R_cube)`   | `A流/BW + 计算/R_cube + restart` |
+| GMM2  | `计算/R_cube`                | `计算/R_cube + restart`          |
+
+- A 流 = m·K 字节; GMM1 计算 = 2·m·cols·K MACs; GMM2 计算 = m·cols·K2 MACs。
+- GMM2 只有计算: A 从 UB 直达 L0A, 片上带宽约 500 GB/s 且每核独占, 搬运时间忽略不计。
+- B 流 (权重搬运) 不建模: 认为被其他任务的执行掩盖。
+- `R_cube` (`cube_mac_per_us`) 必填, 无缺省。仓库里没有标定过的 Cube 速率, 示例与测试里的 `2.7e7` 只是占位值。
 
 ### 2. 写新编排循环
 
@@ -113,7 +165,9 @@ print(f"变体 {variant['kernel_total_us']:.1f} µs")
 
 ## 精度边界
 
-默认配置对应当前 kernel 行为，在 B≤128 标定域内各 stage busy 误差 ±5%，墙钟偏差 -6~-8%。
+**GMM 公式于 2026-09-29 换口径 (见上), 本节数字是旧公式下的结论, 新公式尚未对实测校准。** 校准需要两样东西: 实测的 Cube 速率; 按新口径重新标定的 `BW_L1_GM` (现值 51.9 GB/s 是在 A 流与 B 流一起计费的旧口径下反解的)。
+
+旧公式下: 默认配置对应当前 kernel 行为，在 B≤128 标定域内各 stage busy 误差 ±5%，墙钟偏差 -6~-8%。
 
 偏离默认的取值为未验证取值：模型照常给出预测，但结论需实测抽检。标定域外的已知失效：B=1024 时 COMBINE 偏差 +114~246%（BW_SCATTER 单点标定域外），GMM1 系统性高估 +4~10%（B 矩阵逐 tile 计费）。
 
@@ -152,8 +206,9 @@ print(f"变体 {variant['kernel_total_us']:.1f} µs")
 ```bash
 cd moe-cost-model
 pip install -e .          # 或直接 pytest (pyproject 已配 pythonpath)
-pytest tests/             # 90 项测试, 约 1.5 分钟
-python examples/run_basic.py
+pytest tests/             # 125 项测试, 约 1.5 分钟
+python examples/run_scenario.py    # 场景文件 + 改旋钮对比
+python examples/run_basic.py       # 底层入口
 ```
 
 ## 回归保护
@@ -171,9 +226,9 @@ python tools/gen_golden.py             # 重新生成快照
 
 | 配置 | 事件数 | 耗时 |
 | --- | --- | --- |
-| MTE, 4 rank × 64 专家, B=64 (`examples/run_basic.py`) | 2.7 万 | 约 1.6 s |
-| Layered, 同上 | 1.9 万 | 约 1.9 s |
-| 相位流水 + 信道, 4 rank × 64 专家, B=1024 | 3.5 万 | 约 5 s |
+| MTE, 4 rank × 64 专家, B=64 (`examples/run_basic.py`) | 2.7 万 | 约 1.5 s |
+| Layered, 同上 | 1.9 万 | 约 1.1 s |
+| 相位流水 + 信道, 4 rank × 64 专家, B=1024 | 3.5 万 | 约 4 s |
 
 片间信道关闭、无重构钩子、使用内置调度策略时, 各 rank 独立调度。`idle_core_stealing` 每次提交都扫描全部未提交事件, 耗时随事件数平方增长: 6800 事件约 30 s。
 
@@ -184,7 +239,9 @@ moe-cost-model/
 ├── pyproject.toml
 ├── src/moe_cost_model/
 │   ├── __init__.py              # 显式导出
-│   ├── api.py                   # simulate_routing_counts 入口
+│   ├── scenario.py              # 统一入口: Scenario / load_scenario / simulate
+│   ├── registry.py              # 策略名注册表
+│   ├── api.py                   # simulate_routing_counts 底层入口
 │   ├── config/                  # 第 0 层: 纯参数
 │   │   ├── hardware.py          #   硬件常数 + KernelConfig
 │   │   ├── policy.py            #   InstancePolicy + StageWaveOffsets
@@ -214,7 +271,7 @@ moe-cost-model/
 │   │   └── pipeline_expand.py   #   相位拆分
 │   ├── model.py                 # 第 5 层: A8W8WaveCostModel 编排
 │   └── analysis/                # 第 6 层: 关键路径 / 空闲核任务转移
-├── tests/                       # 90 项 (引擎 / 建图 / API 锚点 / Layered / golden 指纹)
-├── examples/run_basic.py
+├── tests/                       # 125 项 (引擎 / 建图 / API 锚点 / Layered / golden 指纹 / 场景)
+├── examples/                    # scenario_basic.toml + run_scenario.py + run_basic.py
 └── tools/                       # 分析脚本 (审计 / 诊断 / 全量对比 / golden 生成)
 ```

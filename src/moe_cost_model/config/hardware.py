@@ -17,8 +17,9 @@ L1_TILE_K = SourcedInt(256, 'kernel:一次载入覆盖的 K 维行数')
 # ---- 硬件物理参数----
 # 内存子系统带宽
 # 标定: H 扫描差分 (gmm1_map 系列); B=64 域单点, 并发数未扫.
-# GMM tile 载入的激活矩阵与权重矩阵共用此带宽; 常数由两种流量一起折算得出.
-BW_L1_GM = SourcedValue(51900.0, 'measured:片外内存到片上 L1 的载入带宽, 激活与权重共用')
+# 常数在旧口径 (激活 A 流 + 权重 B 流一起计费) 下折算得出. 现行 GMM 公式只有
+# GMM1 的 A 流用到它, B 流不建模 — 口径已变, 数值待按新公式重新标定.
+BW_L1_GM = SourcedValue(51900.0, 'measured:片外内存到片上 L1 的载入带宽; 旧口径 (A+B 流) 下标定, 待重标')
 # 标定: ACT 大 m tile 单点.
 # ACT 从 UB 读输入、向 UB 写输出, 读写流量都按此速率折算成时长.
 BW_UB = SourcedValue(93000.0, 'measured:ACT 搬移 UB 数据的带宽')
@@ -228,7 +229,8 @@ class KernelConfig:
     模板参数. 修改后模型的 wave 规划/tile 网格/分核轮转随之改变.
     """
 
-    weight_nz: bool = False           # 权重 GM 布局: Z(线性) / NZ(分形, 需 NZ 带宽标定)
+    weight_nz: bool = False           # 权重 GM 布局: Z(线性) / NZ(分形). 不影响时长:
+                                      #   B 流 (权重载入) 不进 GMM tile 公式
     tile_m: int = 256                 # MEGAMOE_TILE_M: 每个 m-group 的行数
     tile_n: int = 256                 # MEGAMOE_TILE_N: scheduler N tile
     l1_buf_num: int = 2               # MEGAMOE_L1_BUF_NUM: L1 ping-pong (1=禁用)
@@ -241,9 +243,8 @@ class KernelConfig:
     swizzle_direction: int = 0
     activation_n_half: int = ACTIVATION_N_HALF   # SwiGLU 双投影
     l1_tile_k: int = 256              # K-chunk 基线 (select_kl1 自适应)
-    # GMM1 B 复用: True 时切片内只有首个 m-group 的 tile 付 B 列块的
-    # GM→L1 流量, 后续 m-group 假设命中 L2. 未验证取值 — l2_n1/2/4/8
-    # 实验验证前默认关; 且 51.9 GB/s 在全计口径下反解, 换口径需重推.
+    # GMM1 B 复用. 不影响时长: B 流 (权重载入) 不进 GMM tile 公式,
+    # 复用与否都不计费. 字段保留以对应 kernel 选项.
     gmm1_b_reuse: bool = False
     combine_quant_mode: int = 0       # CombineQuantMode 模板参数: 0=NO_QUANT, 1=QUANT(FP8+scale)
     l1_size: int = 512 * 1024         # DAV_3510 平台

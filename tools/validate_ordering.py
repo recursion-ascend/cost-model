@@ -16,7 +16,7 @@ REPO = PROJ.parent
 sys.path.insert(0, str(PROJ))
 sys.path.insert(0, str(Path(__file__).parent))
 
-from artifacts import read_prof_bin
+from artifacts import cube_rate, read_prof_bin
 from moe_cost_model import (
     AnalyticalActCosts, AnalyticalCombineCosts, AnalyticalGmmCosts,
     DispatchMechanisticLatency, KernelConfig, PrimitiveCosts, T_COUNT_GATE,
@@ -97,8 +97,8 @@ def main():
             continue
         costs = PrimitiveCosts(
             dispatch_mechanistic=DispatchMechanisticLatency(),
-            gmm1_tile=AnalyticalGmmCosts().gmm1_tile,
-            gmm2_tile=AnalyticalGmmCosts().gmm2_tile,
+            gmm1_tile=AnalyticalGmmCosts(cube_mac_per_us=cube_rate()).gmm1_tile,
+            gmm2_tile=AnalyticalGmmCosts(cube_mac_per_us=cube_rate()).gmm2_tile,
             activation_tile=AnalyticalActCosts().tile,
             combine_tile=AnalyticalCombineCosts(h=t["h"]).tile,
             count_table_prepare_us=T_COUNT_GATE)

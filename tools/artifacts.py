@@ -12,6 +12,16 @@ from typing import Dict, List, Tuple
 from moe_cost_model import parse_tiling  # noqa: F401  (统一出口)
 
 N_CORES = 84          # 每卡打点核数上限 (AIC+AIV 阵列)
+
+
+def cube_rate() -> float:
+    """Cube 计算速率 (MAC/µs), 取自环境变量 MOE_CUBE_MAC_PER_US. 无缺省."""
+    import os
+    raw = os.environ.get("MOE_CUBE_MAC_PER_US")
+    if not raw:
+        raise SystemExit("需要环境变量 MOE_CUBE_MAC_PER_US (Cube 计算速率, MAC/µs): "
+                         "GMM 公式以计算项为主体, 该速率无缺省值")
+    return float(raw)
 RING_ALIGN = 64       # 每核 ring header 对齐
 REC = 16              # 事件记录 (eid, payload, cycle)
 

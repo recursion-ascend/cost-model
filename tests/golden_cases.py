@@ -23,6 +23,10 @@ H, HIDDEN, AIC = 6144, 4096, 28
 # 路由与公式
 # ---------------------------------------------------------------------------
 
+# 测试夹具值, 非标定常数: Cube 速率没有缺省, 测试统一取此值
+CUBE_RATE = 2.7e7
+
+
 def skewed_routing():
     """4 rank × 64 专家, 4 个非空专家 (300/64/13/256 行). 与 test_api_smoke 锚点同源."""
     world, local = 4, 64
@@ -42,8 +46,8 @@ def uniform_routing(world: int, local: int, per_src: int):
 def manual_costs():
     return m.PrimitiveCosts(
         dispatch_mechanistic=m.DispatchMechanisticLatency(),
-        gmm1_tile=m.AnalyticalGmmCosts().gmm1_tile,
-        gmm2_tile=m.AnalyticalGmmCosts().gmm2_tile,
+        gmm1_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm1_tile,
+        gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
         count_table_prepare_us=m.T_COUNT_GATE,
@@ -52,7 +56,8 @@ def manual_costs():
 
 def analytical_costs(kernel=None):
     return m.build_analytical_costs(
-        h=H, kernel=kernel, dispatch_mechanistic=m.DispatchMechanisticLatency())
+        h=H, kernel=kernel, dispatch_mechanistic=m.DispatchMechanisticLatency(),
+        cube_mac_per_us=CUBE_RATE)
 
 
 # ---------------------------------------------------------------------------

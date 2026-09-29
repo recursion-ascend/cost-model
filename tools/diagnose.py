@@ -24,7 +24,7 @@ from moe_cost_model import (
 )
 from moe_cost_model.analysis import bottleneck_report, what_if, extract_critical_path, critical_path_breakdown
 from routing import make_routing
-from artifacts import read_prof_bin
+from artifacts import cube_rate, read_prof_bin
 
 import csv
 
@@ -89,8 +89,8 @@ def make_simulator(t, C):
     def sim(options=None, full=False, p1_ovr=None, p2_ovr=None):
         costs = PrimitiveCosts(
             dispatch_mechanistic=DispatchMechanisticLatency(),
-            gmm1_tile=AnalyticalGmmCosts().gmm1_tile,
-            gmm2_tile=AnalyticalGmmCosts().gmm2_tile,
+            gmm1_tile=AnalyticalGmmCosts(cube_mac_per_us=cube_rate()).gmm1_tile,
+            gmm2_tile=AnalyticalGmmCosts(cube_mac_per_us=cube_rate()).gmm2_tile,
             activation_tile=AnalyticalActCosts().tile,
             combine_tile=AnalyticalCombineCosts(h=t["h"]).tile,
             count_table_prepare_us=T_COUNT_GATE)

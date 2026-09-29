@@ -9,12 +9,15 @@ from moe_cost_model.analysis import idle_core_stealing
 from moe_cost_model.shape import MegaMoeShape
 from moe_cost_model.analysis import bottleneck_report
 
+# 测试夹具值, 非标定常数: Cube 速率没有缺省, 测试统一取此值
+CUBE_RATE = 2.7e7
+
 
 def _costs():
     return m.PrimitiveCosts(
         dispatch_mechanistic=m.DispatchMechanisticLatency(),
-        gmm1_tile=m.AnalyticalGmmCosts().gmm1_tile,
-        gmm2_tile=m.AnalyticalGmmCosts().gmm2_tile,
+        gmm1_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm1_tile,
+        gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
         count_table_prepare_us=m.T_COUNT_GATE,

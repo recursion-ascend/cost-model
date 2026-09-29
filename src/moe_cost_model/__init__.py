@@ -74,5 +74,7 @@ from .analysis import (
     idle_core_stealing, resource_utilization,
 )
 from .api import simulate_routing_counts
+from .registry import register
+from .scenario import Calibration, Scenario, Workload, load_scenario, simulate
 
 __all__ = [name for name in dir() if not name.startswith('_')]

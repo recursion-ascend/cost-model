@@ -19,9 +19,6 @@ def _rebind_costs_to_kernel(costs: PrimitiveCosts, kernel) -> PrimitiveCosts:
     公式 (标定参数 — 带宽/速率/重启停顿 — 保留公式自身的), 三个旋钮
     因此在任何拼装方式下都生效.
 
-    例外: weight_nz 的 Z→NZ 方向报错 — NZ 路径带宽是独立标定, 无法从
-    Z 公式推导, 必须显式给 (build_analytical_costs(bw_l1_gm_b_nz=...)
-    或 AnalyticalGmmCosts(weight_nz=True, bw_b_nz_bytes_per_us=...)).
     自定义 callable 无法内省, 原样使用 (调用方自行保证一致).
     """
     if kernel is None:
@@ -29,18 +26,9 @@ def _rebind_costs_to_kernel(costs: PrimitiveCosts, kernel) -> PrimitiveCosts:
     g1 = getattr(costs.gmm1_tile, "__self__", None)
     if isinstance(g1, AnalyticalGmmCosts):
         if (g1.serial != (kernel.l1_buf_num == 1)
-                or g1._k_l1 != kernel.l1_tile_k
-                or g1.weight_nz != kernel.weight_nz):
-            if kernel.weight_nz and not g1.weight_nz:
-                raise ValueError(
-                    "KernelConfig.weight_nz=True 但 gmm1 公式按 Z 布局构造, "
-                    "NZ 路径带宽无法从 Z 标定推导. 显式给: "
-                    "build_analytical_costs(bw_l1_gm_b_nz=...) 或 "
-                    "AnalyticalGmmCosts(weight_nz=True, bw_b_nz_bytes_per_us=...)")
+                or g1._k_l1 != kernel.l1_tile_k):
             new_g = AnalyticalGmmCosts(
                 bw_bytes_per_us=g1.bw,
-                weight_nz=kernel.weight_nz,
-                bw_b_nz_bytes_per_us=(g1.bw_b if g1.weight_nz else 0.0),
                 l1_buf_num=kernel.l1_buf_num,
                 cube_mac_per_us=g1.cube_rate,
                 tile_restart_us=g1.chunk_restart,
@@ -74,6 +62,9 @@ def simulate_routing_counts(
     p1_override: int = 0,
     p2_override: int = 0,
     dispatch_layout: Optional[DispatchDataLayout] = None,
+    wave_packing=None,
+    core_assignment=None,
+    scheduling_policy=None,
 ) -> Dict[str, object]:
     """Simulate directly from C[dst_rank][local_expert][src_rank].
 
@@ -84,6 +75,9 @@ def simulate_routing_counts(
     not invented here: the rate-server mechanism exists but is a placeholder
     (ModelOptions.fabric_channels, default off) until an ablation benchmark
     justifies enabling it (see README 信道占位状态).
+
+    wave_packing / core_assignment / scheduling_policy: 策略对象, 对全部 rank
+    生效; None = 模型缺省 (SequentialGreedy / StaticRoundRobin / EarliestStart).
     """
     world = len(routing_counts)
     if world == 0:
@@ -128,6 +122,9 @@ def simulate_routing_counts(
             shared_expert_num=shared_expert_num,
             kernel=kernel,
             policy=policy if policy is not None else InstancePolicy(),
+            wave_packing=wave_packing,
+            core_assignment=core_assignment,
+            scheduling_policy=scheduling_policy,
         ))
     rank_results = model.simulate_multi(shapes, restructure=restructure)
     all_ready: List[Dict[str, object]] = []

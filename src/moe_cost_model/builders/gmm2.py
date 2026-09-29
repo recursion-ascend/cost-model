@@ -29,10 +29,7 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                                    km.swizzle_offset, km.swizzle_direction)
             m_rows = builder._tile_rows(sl, mg, tile_m=km.tile_m)
             gmm2_logical_n = min(TILE_N, shape.h - nt * TILE_N)
-            if c.gmm2_bw_bytes_per_us is not None:
-                dur = k_gmm2 * gmm2_logical_n / c.gmm2_bw_bytes_per_us
-            else:
-                dur = c.gmm2_tile(m_rows, k_gmm2, gmm2_logical_n)
+            dur = c.gmm2_tile(m_rows, k_gmm2, gmm2_logical_n)
             tile_info.append((mg, nt, m_rows, gmm2_logical_n, dur))
             tile_costs.append(dur)
         if core_assign is not None:

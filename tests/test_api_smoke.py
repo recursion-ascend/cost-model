@@ -5,6 +5,9 @@
 """
 import moe_cost_model as m
 
+# 测试夹具值, 非标定常数: Cube 速率没有缺省, 测试统一取此值
+CUBE_RATE = 2.7e7
+
 
 def _deterministic_case():
     WORLD, LOCAL = 4, 64
@@ -20,8 +23,8 @@ def _deterministic_case():
 def _run(options=None, kernel=None, policy=None):
     costs = m.PrimitiveCosts(
         dispatch_mechanistic=m.DispatchMechanisticLatency(),
-        gmm1_tile=m.AnalyticalGmmCosts().gmm1_tile,
-        gmm2_tile=m.AnalyticalGmmCosts().gmm2_tile,
+        gmm1_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm1_tile,
+        gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
         count_table_prepare_us=m.T_COUNT_GATE,
@@ -55,7 +58,10 @@ def test_default_pin():
     #   蛇形反转下 25% head 等错 K 块, tail 漏 6/8 依赖 (75% ACT 无边, 回归配置
     #   267/768 tail 早启动最大 89.6 µs). 改为 head←覆盖 [0,kL1) 的 ACT,
     #   tail←覆盖 [kL1,K) 的 ACT → 228.556 → 232.083
-    assert abs(res["kernel_total_us"] - 232.083) < 0.01
+    # 2026-09 GMM 公式换口径: GMM1 = max(A流, 计算), GMM2 = 纯计算, B 流不建模;
+    #   Cube 速率无缺省, 测试取夹具值 CUBE_RATE=2.7e7 (非标定) → 232.083 → 83.082.
+    #   本锚点只钉回归, 数值本身随夹具速率而定, 不代表实测时长
+    assert abs(res["kernel_total_us"] - 83.082) < 0.01
     assert len(res["rank_results"][0]["events"]) == 659
     # 排队模型生效标志: 资源争用出现 (旧模型恒为 0)
     rq = sum(1 for e in res["rank_results"][0]["events"] if e.resource_queue_us > 0)
@@ -73,8 +79,8 @@ def test_gmm2_lag_waves_override():
 
     costs = m.PrimitiveCosts(
         dispatch_mechanistic=m.DispatchMechanisticLatency(),
-        gmm1_tile=m.AnalyticalGmmCosts().gmm1_tile,
-        gmm2_tile=m.AnalyticalGmmCosts().gmm2_tile,
+        gmm1_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm1_tile,
+        gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
         count_table_prepare_us=m.T_COUNT_GATE,
@@ -171,8 +177,8 @@ def test_gmm2_act_edges_by_ntile():
 def _run_costs():
     return m.PrimitiveCosts(
         dispatch_mechanistic=m.DispatchMechanisticLatency(),
-        gmm1_tile=m.AnalyticalGmmCosts().gmm1_tile,
-        gmm2_tile=m.AnalyticalGmmCosts().gmm2_tile,
+        gmm1_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm1_tile,
+        gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
         count_table_prepare_us=m.T_COUNT_GATE,
@@ -182,7 +188,7 @@ def _run_costs():
 def test_kl1_override_restores_legacy():
     """kL1=256 显式覆盖应恢复与 auto 相同值 (结构等价性自检)."""
     res = _run(options=m.ModelOptions(gmm2_kl1=256))
-    assert abs(res["kernel_total_us"] - 232.083) < 0.5
+    assert abs(res["kernel_total_us"] - 83.082) < 0.5
 
 
 def test_primitive_costs_requires_all():

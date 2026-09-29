@@ -20,6 +20,7 @@ from moe_cost_model import (
     DispatchMechanisticLatency, BW_L1_GM, T_COUNT_GATE, parse_tiling, KernelConfig,
 )
 from routing import make_routing
+from artifacts import cube_rate
 
 ROOT = REPO / "prof_runs"
 N_CORES, RING_ALIGN, REC = 84, 64, 16
@@ -93,7 +94,7 @@ def derive_p1_p2(mgw, hidden, h, aic):
     return 0, 0  # 0 = 无 override (用默认 tier)
 
 
-agc = AnalyticalGmmCosts()
+agc = AnalyticalGmmCosts(cube_mac_per_us=cube_rate())
 act = AnalyticalActCosts()
 
 
@@ -188,7 +189,6 @@ for run in RUN_DIRS:
         aic_num=t["aic"], costs=costs, p1_override=p1, p2_override=p2,
         topk=t["topk"], shared_expert_num=t["shared"],
         kernel=KernelConfig(weight_nz=(t.get("groupedMatmulMode") == 2)),
-        # 注: NZ run 需先标定 bw_l1_gm_b_nz (build_analytical_costs 参数, 进 AnalyticalGmmCosts)
     )
     label = f"{run.parent.name}/{run.name}"[:32]
     extra = f"[p1={p1},p2={p2}]" if p1 or p2 else ""

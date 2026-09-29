@@ -1,0 +1,45 @@
+# 基线场景: 4 rank × 64 专家, 每 rank 64 token, MTE 路径.
+# 运行: python examples/run_scenario.py
+#
+# 表名与字段名就是对象属性名: [policy] 对应 InstancePolicy, [kernel] 对应
+# KernelConfig, [options] 对应 ModelOptions. 写错字段名会直接报错并给出提示.
+
+name = "bs64-baseline"
+h = 6144
+hidden_dim = 4096
+aic_num = 28
+p1_override = 2              # 每波组数; 0 = 按 kernel 分档自动取
+p2_override = 1
+
+# 策略旋钮, 不写 = 模型缺省
+# wave_packing = "balanced_waves"            # sequential_greedy | longest_expert_first | balanced_waves
+# core_assignment = "greedy_least_busy"      # static_round_robin | greedy_least_busy | contiguous_block
+# scheduling_policy = "priority_by_stage"    # earliest_start | critical_path_first | priority_by_stage
+
+[workload]
+tokens = 64                  # 每 rank token 数
+topk = 8
+world = 4                    # rank 数
+local_experts = 64           # 每 rank 专家数
+routing = "uniform"          # uniform | cyclic | random | explicit | file
+
+[calibration]
+# Cube 计算速率 (MAC/µs), 必填, 无缺省. 这里是示例值, 不是标定常数:
+# 换成目标平台的实测速率再看结果.
+cube_mac_per_us = 2.7e7
+
+[kernel]
+tile_m = 256
+tile_n = 256
+topo_urma = false            # true = Layered 宏波循环
+
+[policy]
+dispatch_lookahead = 2
+# gmm2_lag_waves = 1
+
+# [policy.wave_offsets]      # 前瞻与滞后的任意组合, 给出后覆盖上面两项
+# dispatch = 1
+# gmm2 = -1
+
+# [options.pipeline.queues]  # 相位流水: load 与 cube 跨 tile 重叠
+# mte_aic = 2
