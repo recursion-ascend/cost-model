@@ -1,13 +1,15 @@
 {
-  "comment": "典型配置输出快照 — 重构时确认数值未变. 与 test_api_smoke 锚点同源. Cube 速率取测试夹具值 2.7e7 (非标定).",
+  "comment": "典型配置输出快照 — 重构时确认数值未变. 与 test_api_smoke 锚点同源. Cube 速率取测试夹具值 2.7e7 (非标定). kernel_total_us 记到最后一个 COMBINE 结束, kernel_dag_end_us 含尾段.",
   "cases": {
     "deterministic_4rank_bs64": {
-      "kernel_total_us": 83.081768,
+      "kernel_total_us": 68.431359,
+      "kernel_dag_end_us": 83.081768,
       "events_per_rank": 659,
-      "anchor": 83.082
+      "anchor": 68.431
     },
     "deterministic_4rank_bs64_lag1": {
-      "kernel_total_us": 107.486507
+      "kernel_total_us": 92.836098,
+      "kernel_dag_end_us": 107.486507
     }
   }
 }

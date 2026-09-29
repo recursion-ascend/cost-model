@@ -17,11 +17,13 @@ from ..scheduler.events import ScheduledEvent
 # ---------------------------------------------------------------------------
 
 def extract_critical_path(scheduled: Sequence[ScheduledEvent]) -> List[ScheduledEvent]:
-    """从最晚结束事件沿 critical_parent 回溯到根."""
+    """从执行时间的终点事件 (最晚结束的 COMBINE) 沿 critical_parent 回溯到根."""
+    from ..model import completion_event
+
     by_name = {e.name: e for e in scheduled}
     if not scheduled:
         return []
-    leaf = max(scheduled, key=lambda e: (e.end_us, e.order, e.name))
+    leaf = completion_event(scheduled)
     path: List[ScheduledEvent] = []
     cur: Optional[ScheduledEvent] = leaf
     seen = set()

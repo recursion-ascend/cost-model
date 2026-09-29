@@ -154,7 +154,7 @@ res = simulate(sc)
 | 汇合 | 无 | 0 | 全部共享 GMM2 tile |
 | 尾段 rank_sync | 无 | — | 汇合 |
 
-共享专家的 tile 行数取每卡 token 数 (每个 token 都过共享专家)。未覆盖: 共享专家个数只影响 UNPERMUTE 字节, GMM1/ACT/GMM2 只建一遍; 相位流水不处理共享 stage。
+共享 GMM2 在最后一个 COMBINE 之后, 不计入 `kernel_total_us`, 只影响 `kernel_dag_end_us`。共享专家的 tile 行数取每卡 token 数 (每个 token 都过共享专家)。未覆盖: 共享专家个数只影响 UNPERMUTE 字节, GMM1/ACT/GMM2 只建一遍; 相位流水不处理共享 stage。
 
 ### 2. 写新编排循环
 
@@ -181,15 +181,19 @@ res = simulate(sc)
 
 | 字段                                            | 含义                |
 | ----------------------------------------------- | ------------------- |
-| `kernel_total_us`                             | 最慢 rank 的总时长  |
-| `rank_results[r]["total_us"]`                 | 各 rank 总时长      |
+| `kernel_total_us`                             | 最慢 rank 的执行时间, 记到最后一个 COMBINE 结束 |
+| `kernel_dag_end_us`                           | 含尾段的结束时刻 (对比实测整段墙钟时用) |
+| `rank_results[r]["total_us"]`                 | 各 rank 执行时间, 记到该 rank 最后一个 COMBINE 结束 |
+| `rank_results[r]["dag_end_us"]`               | 各 rank 含尾段的结束时刻 |
 | `rank_results[r]["resource_utilization"]`     | 每核利用率          |
 | `rank_results[r]["stage_busy_us"]`            | 各 stage 忙碌时长   |
 | `rank_results[r]["stage_dependency_wait_us"]` | 各 stage 等数据时长 |
 | `rank_results[r]["stage_resource_queue_us"]`  | 各 stage 等引擎时长 |
-| `rank_results[r]["critical_path"]`            | 关键路径事件链      |
+| `rank_results[r]["critical_path"]`            | 关键路径事件链, 终点是最后一个 COMBINE |
 | `rank_results[r]["cursor_trace"]`             | 游标推进轨迹        |
 | `provenance`                                  | 全部常数出处报告    |
+
+执行时间不含尾段 (counts_export / core_sync / rank_sync / buffer_init / unpermute / finalize)。尾段事件仍在事件图里照常调度, 只是不计入。共享专家的 GMM2 排在尾段 core_sync 之后, 因此也不在执行时间内。
 
 对比两个变体时，先看 `kernel_total_us` 差值，再看 `stage_busy_us` 哪个 stage 变了，最后看 `critical_path` 上卡在哪种等待。
 
@@ -236,7 +240,7 @@ res = simulate(sc)
 ```bash
 cd moe-cost-model
 pip install -e .          # 或直接 pytest (pyproject 已配 pythonpath)
-pytest tests/             # 133 项测试, 约 2 分钟
+pytest tests/             # 134 项测试, 约 2 分钟
 python examples/run_scenario.py    # 场景文件 + 改旋钮对比
 python examples/run_basic.py       # 底层入口
 ```
@@ -301,7 +305,7 @@ moe-cost-model/
 │   │   └── pipeline_expand.py   #   相位拆分
 │   ├── model.py                 # 第 5 层: A8W8WaveCostModel 编排
 │   └── analysis/                # 第 6 层: 关键路径 / 空闲核任务转移
-├── tests/                       # 133 项 (引擎 / 建图 / API 锚点 / Layered / golden 指纹 / 场景)
+├── tests/                       # 134 项 (引擎 / 建图 / API 锚点 / Layered / golden 指纹 / 场景)
 ├── examples/                    # scenario_basic.toml + run_scenario.py + run_basic.py
 └── tools/                       # 分析脚本 (审计 / 诊断 / 全量对比 / golden 生成)
 ```

@@ -91,6 +91,7 @@ def run_shapes(routing, token_num, *, costs=None, aic_num=AIC, p1=2, p2=1,
     ranks = model.simulate_multi(shapes, restructure=restructure)
     slowest = max(ranks, key=lambda r: float(ranks[r]["total_us"]))
     return {"kernel_total_us": float(ranks[slowest]["total_us"]),
+            "kernel_dag_end_us": max(float(r["dag_end_us"]) for r in ranks.values()),
             "slowest_rank": slowest, "rank_results": ranks}
 
 
@@ -248,6 +249,7 @@ def fingerprint(result: Dict[str, object]) -> Dict[str, object]:
         per_rank.append({
             "rank": r,
             "total_us": rr["total_us"],
+            "dag_end_us": rr["dag_end_us"],
             "events": len(rr["events"]),
             "wave_count": rr["wave_count"],
             "stage_busy_us": {k: rr["stage_busy_us"][k] for k in sorted(rr["stage_busy_us"])},

@@ -26,7 +26,8 @@ STAGES = ("dispatch_call", "dispatch", "gmm1", "activation", "gmm2", "combine", 
 for rate in (1.0e7, 2.7e7, 5.0e7):
     res = simulate(base.with_overrides({"calibration.cube_mac_per_us": rate}))
     rank = res["rank_results"][res["slowest_rank"]]
-    print(f"\nR_cube = {rate:.1e}  kernel 总时长 = {res['kernel_total_us']:.3f} us  "
+    print(f"\nR_cube = {rate:.1e}  执行时间 (到最后一个 COMBINE 结束) = "
+          f"{res['kernel_total_us']:.3f} us, 含尾段 = {res['kernel_dag_end_us']:.3f} us  "
           f"(最慢 rank {res['slowest_rank']}, {rank['wave_count']} 波, "
           f"{len(rank['events'])} 事件)")
     print(f"  {'stage':14s} {'首个开始':>9s} {'最后结束':>9s} {'事件数':>6s} {'单事件时长':>16s}")

@@ -107,7 +107,8 @@ def main():
             hidden_dim=t["hidden"], aic_num=t["aic"], costs=costs,
             p1_override=p1, p2_override=p2, topk=t["topk"],
             shared_expert_num=t["shared"])
-        model_wall = max(res["rank_results"][r]["total_us"] for r in range(t["ep"]))
+        model_wall = max(res["rank_results"][r]["dag_end_us"]   # 实测墙钟含尾段
+                         for r in range(t["ep"]))
         rows.append({"name": run.name, "p1": p1, "p2": p2, "mgw": t["mGroupsPerWave"],
                      "meas": mw, "meas_sd": msd, "model": model_wall, "n": n})
 

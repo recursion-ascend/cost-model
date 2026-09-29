@@ -200,7 +200,7 @@ for run in RUN_DIRS:
         for ev in res["rank_results"][rank]["events"]:
             st = str(ev.meta.get("stage", "other"))
             sp[st] = sp.get(st, 0) + (ev.end_us - ev.start_us)
-        model_wall = res["rank_results"][rank]["total_us"]
+        model_wall = res["rank_results"][rank]["dag_end_us"]   # 实测墙钟含尾段
         row = []
         for stage, keys in [("DISPATCH", ("dispatch", "dispatch_call")), ("GMM1", ("gmm1",)),
                             ("ACT", ("activation",)), ("GMM2", ("gmm2",)), ("COMBINE", ("combine",))]:

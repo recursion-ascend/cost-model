@@ -171,6 +171,28 @@ def test_idle_core_stealing_active_and_effective():
     assert stolen > 0, "rank 前缀不匹配时任务转移静默失效 (旧 bug)"
     assert r_steal["kernel_total_us"] != r_plain["kernel_total_us"]
 
+def test_total_is_measured_to_last_combine():
+    """执行时间记到最后一个 COMBINE 结束; 尾段照常调度但不计入."""
+    world, local, per = 2, 4, 256
+    res = m.simulate_routing_counts(
+        routing_counts=[[[per] * world for _ in range(local)] for _ in range(world)],
+        token_num_per_rank=256, h=6144, hidden_dim=4096, aic_num=28,
+        costs=_costs(), topk=8, p1_override=2, p2_override=1)
+    for rank in res["rank_results"].values():
+        events = rank["events"]
+        last_combine = max(e.end_us for e in events if e.meta.get("stage") == "combine")
+        finalize = next(e for e in events if e.meta.get("part") == "finalize")
+        assert rank["total_us"] == last_combine
+        assert rank["dag_end_us"] == finalize.end_us > rank["total_us"]
+        assert rank["critical_path"][-1]["stage"] == "combine"
+        assert rank["critical_path"][-1]["end_us"] == rank["total_us"]
+    assert res["kernel_total_us"] == max(r["total_us"] for r in res["rank_results"].values())
+    assert res["kernel_dag_end_us"] == max(r["dag_end_us"]
+                                           for r in res["rank_results"].values())
+    path = bottleneck_report(res)["critical_path"]
+    assert ".combine." in path[-1]
+
+
 def test_shared_expert_gmm2_is_per_tile_pure_compute():
     """共享 GMM2: 按 tile 建事件, 占 AIC 核, 时长 = 计算量 / R_cube, 依赖齐全."""
     shape = _shape(shared_expert_num=1, token_num=600)      # 600 行 → 3 个 m-group

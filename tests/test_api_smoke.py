@@ -37,9 +37,9 @@ def _run(options=None, kernel=None, policy=None):
 
 
 def test_default_pin():
-    """确定性用例锚点. 组成: 五 stage (dispatch/GMM1/ACT/GMM2/COMBINE) +
-    尾段 (COUNTS_EXPORT/core_sync/rank_sync/out_init/UNPERMUTE/FINALIZE).
-    前导 (INIT/INPUT_QUANT/门控) 已移出 DAG, 不在锚点内.
+    """确定性用例锚点. 执行时间 = 五 stage (dispatch/GMM1/ACT/GMM2/COMBINE),
+    记到最后一个 COMBINE 结束. 尾段 (COUNTS_EXPORT/core_sync/rank_sync/out_init/
+    UNPERMUTE/FINALIZE) 在 DAG 里但不计入; 前导 (INIT/INPUT_QUANT/门控) 不在 DAG 里.
     """
     res = _run()
     # 锚点变更日志:
@@ -61,7 +61,10 @@ def test_default_pin():
     # 2026-09 GMM 公式换口径: GMM1 = max(A流, 计算), GMM2 = 纯计算, B 流不建模;
     #   Cube 速率无缺省, 测试取夹具值 CUBE_RATE=2.7e7 (非标定) → 232.083 → 83.082.
     #   本锚点只钉回归, 数值本身随夹具速率而定, 不代表实测时长
-    assert abs(res["kernel_total_us"] - 83.082) < 0.01
+    # 2026-09 执行时间改记到最后一个 COMBINE 结束: 尾段链 14.65 µs 不再计入
+    #   → 83.082 → 68.431; 含尾段的时刻另记在 kernel_dag_end_us (仍为 83.082)
+    assert abs(res["kernel_total_us"] - 68.431) < 0.01
+    assert abs(res["kernel_dag_end_us"] - 83.082) < 0.01
     assert len(res["rank_results"][0]["events"]) == 659
     # 排队模型生效标志: 资源争用出现 (旧模型恒为 0)
     rq = sum(1 for e in res["rank_results"][0]["events"] if e.resource_queue_us > 0)
@@ -188,7 +191,7 @@ def _run_costs():
 def test_kl1_override_restores_legacy():
     """kL1=256 显式覆盖应恢复与 auto 相同值 (结构等价性自检)."""
     res = _run(options=m.ModelOptions(gmm2_kl1=256))
-    assert abs(res["kernel_total_us"] - 83.082) < 0.5
+    assert abs(res["kernel_total_us"] - 68.431) < 0.5
 
 
 def test_primitive_costs_requires_all():

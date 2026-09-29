@@ -71,7 +71,9 @@ def simulate_routing_counts(
     The model never asks the caller for segment/batch counts.  Those are derived
     internally from routing counts and source control flow.  Ranks are scheduled
     independently because AIC/AIV resources are per-rank; the operator kernel
-    latency is the max-rank completion time.  Cross-rank fabric contention is
+    latency is the max-rank completion time, measured to the end of the last
+    COMBINE (kernel_total_us); kernel_dag_end_us additionally covers the
+    epilogue.  Cross-rank fabric contention is
     not invented here: the rate-server mechanism exists but is a placeholder
     (ModelOptions.fabric_channels, default off) until an ablation benchmark
     justifies enabling it (see README 信道占位状态).
@@ -143,6 +145,7 @@ def simulate_routing_counts(
     return {
         "provenance": provenance_report(prov),
         "kernel_total_us": float(rank_results[slowest_rank]["total_us"]),
+        "kernel_dag_end_us": max(float(r["dag_end_us"]) for r in rank_results.values()),
         "slowest_rank": slowest_rank,
         "rank_results": rank_results,
         "dispatch_ready_tiles": sorted(

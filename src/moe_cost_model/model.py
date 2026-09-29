@@ -22,6 +22,19 @@ from .planning.waves import (
 )
 
 
+def completion_event(scheduled: Sequence[ScheduledEvent]) -> Optional[ScheduledEvent]:
+    """执行时间的终点事件: 最晚结束的 COMBINE.
+
+    执行时间记到最后一个 COMBINE 结束为止; 其后的尾段 (counts_export /
+    core_sync / rank_sync / unpermute / finalize, 以及共享专家的 GMM2) 仍在
+    事件图里照常调度, 但不计入执行时间. 没有 COMBINE 事件时退回最晚结束的事件.
+    """
+    if not scheduled:
+        return None
+    combines = [e for e in scheduled if e.meta.get("stage") == "combine"]
+    return max(combines or scheduled, key=lambda e: (e.end_us, e.order, e.name))
+
+
 class A8W8WaveCostModel:
     def __init__(self, costs: PrimitiveCosts, options: ModelOptions = ModelOptions()):
         if not options.combine_no_quant:
@@ -259,8 +272,8 @@ class A8W8WaveCostModel:
         dispatch_ready_tiles.sort(key=lambda x: (x["t_dispatchReady_us"], x["expert"], x["mgroup"]))
 
         critical_path: List[Dict[str, object]] = []
-        if scheduled:
-            tail = max(scheduled, key=lambda x: (x.end_us, x.order))
+        tail = completion_event(scheduled)
+        if tail is not None:
             seen = set()
             cur: Optional[ScheduledEvent] = tail
             while cur is not None and cur.name not in seen:
@@ -275,9 +288,9 @@ class A8W8WaveCostModel:
                 cur = scheduled_by_name.get(cur.critical_parent) if cur.critical_parent else None
             critical_path.reverse()
 
-        total_us = max((e.end_us for e in scheduled), default=0.0)
         return {
-            "total_us": total_us,
+            "total_us": tail.end_us if tail is not None else 0.0,
+            "dag_end_us": max((e.end_us for e in scheduled), default=0.0),
             "m_groups_per_wave": self.m_groups_per_wave(shape),
             "wave_count": len(waves),
             "waves": waves,

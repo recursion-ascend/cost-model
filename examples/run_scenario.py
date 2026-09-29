@@ -1,4 +1,4 @@
-"""场景文件 → 执行时间 → 改旋钮对比.
+"""场景文件 → 执行时间 (到最后一个 COMBINE 结束) → 改旋钮对比.
 
 运行: python examples/run_scenario.py
 """
@@ -25,8 +25,9 @@ for label, overrides in variants.items():
     total = result["kernel_total_us"]
     if base_total is None:
         base_total = total
-    busy = result["rank_results"][result["slowest_rank"]]["stage_busy_us"]
-    top = sorted(busy.items(), key=lambda kv: -kv[1])[:5]      # 忙碌时长最大的 5 个 stage
-    stages = "  ".join(f"{s}={v:.0f}" for s, v in top)
+    # 各 stage 最后一个事件的结束时刻 (调度器排出的时刻, 不是各核忙碌时长之和)
+    ends = result["rank_results"][result["slowest_rank"]]["stage_last_end_us"]
+    stages = "  ".join(f"{s}={ends[s]:.1f}"
+                       for s in ("gmm1", "activation", "gmm2", "combine") if s in ends)
     # 单位写 us 不写 µ: Windows 默认控制台 (GBK) 无法编码 µ
-    print(f"{label:16s} {total:10.1f} us  ({total - base_total:+9.1f})  busy: {stages}")
+    print(f"{label:16s} {total:10.1f} us  ({total - base_total:+9.1f})  结束时刻: {stages}")

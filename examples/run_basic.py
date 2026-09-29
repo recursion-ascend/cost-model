@@ -35,5 +35,6 @@ res = simulate_routing_counts(
     policy=InstancePolicy(), p1_override=2, p2_override=1,
 )
 # 单位写 us 不写 µ: Windows 默认控制台 (GBK) 无法编码 µ
-print(f"kernel 总时长: {res['kernel_total_us']:.1f} us (最慢 rank {res['slowest_rank']})")
+print(f"执行时间 (到最后一个 COMBINE 结束): {res['kernel_total_us']:.1f} us "
+      f"(最慢 rank {res['slowest_rank']}); 含尾段: {res['kernel_dag_end_us']:.1f} us")
 print(f"事件数/rank: {len(res['rank_results'][0]['events'])}")
