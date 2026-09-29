@@ -1,0 +1,13 @@
+{
+  "comment": "典型配置输出快照 — 重构时确认数值未变. 与 test_api_smoke 锚点同源.",
+  "cases": {
+    "deterministic_4rank_bs64": {
+      "kernel_total_us": 232.083084,
+      "events_per_rank": 659,
+      "anchor": 232.083
+    },
+    "deterministic_4rank_bs64_lag1": {
+      "kernel_total_us": 248.413219
+    }
+  }
+}

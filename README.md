@@ -1,0 +1,199 @@
+# MegaMoE Cost Model
+
+Ascend NPU MegaMoE 流水编排性能评估工具。算子工程师改参数、改编排，模型算出执行时间，对比判断性能收益，不必逐个上板实测。
+
+## 当前能做什么
+
+### 1. 改参数直接评估
+
+改一个旋钮，跑一次 `simulate_routing_counts`，拿到总时长、逐核利用率、各 stage 忙碌时长、四种等待归因、关键路径。改前后各跑一次，对比差值就是收益或代价。
+
+```python
+from moe_cost_model import (
+    simulate_routing_counts, build_analytical_costs,
+    DispatchMechanisticLatency, KernelConfig, InstancePolicy,
+    ModelOptions, StageWaveOffsets,
+    GreedyLeastBusy, BalancedWaves, idle_core_stealing,
+)
+
+kernel = KernelConfig(tile_m=256, tile_n=256)
+costs = build_analytical_costs(h=6144, kernel=kernel,
+                               dispatch_mechanistic=DispatchMechanisticLatency())
+
+# 基线
+base = simulate_routing_counts(
+    routing_counts=C,           # C[dst][expert][src] 行数
+    token_num_per_rank=64, h=6144, hidden_dim=4096,
+    aic_num=28, costs=costs, topk=8,
+    kernel=kernel, p1_override=2, p2_override=1,
+)
+
+# 改 GMM2 滞后两波
+variant = simulate_routing_counts(
+    ...同上...,
+    policy=InstancePolicy(gmm2_lag_waves=2),
+)
+print(f"基线 {base['kernel_total_us']:.1f} µs")
+print(f"变体 {variant['kernel_total_us']:.1f} µs")
+```
+
+可调的全部旋钮：
+
+| 类别           | 旋钮                                    | 取值                 | 作用                          |
+| -------------- | --------------------------------------- | -------------------- | ----------------------------- |
+| 波宽           | `p1_override` / `p2_override`       | 正整数               | 每波组数                      |
+| wave 打包      | `wave_packing`                        | 三种策略             | 专家怎么组成波                |
+| 分核           | `core_assignment`                     | 三种策略             | tile 分给哪个核               |
+| dispatch 前瞻  | `dispatch_lookahead`                  | 正整数               | 搬运超前几波                  |
+| GMM2 滞后      | `gmm2_lag_waves`                      | 正整数               | GMM2 后移几波                 |
+| 波偏移组合     | `wave_offsets`                        | `StageWaveOffsets` | 前瞻和滞后任意组合            |
+| GMM1→ACT 深度 | `gmm1_activation_depth`               | 正整数               | UB 缓冲深度                   |
+| GMM2→COMBINE  | `gmm2_combine_credit`                 | 正整数               | 固定 credit 流控              |
+| tile 几何      | `tile_m` / `tile_n` / `l1_tile_k` | 正整数               | 行高、列宽、K 窗              |
+| L1 缓冲        | `l1_buf_num`                          | 1 或 2               | 单缓冲串行或双缓冲重叠        |
+| B 矩阵复用     | `gmm1_b_reuse`                        | 开或关               | 切片内 B 只计一次             |
+| COMBINE 量化   | `combine_quant_mode`                  | 0 或 1               | BF16 直写或 FP8 加 scale      |
+| 相位流水       | `PipelineConstraints`                 | 队列深度             | load 与 cube 跨 tile 重叠     |
+| 调度策略       | `scheduling_policy`                   | 三种策略             | 就绪集里谁先跑                |
+| 任务转移       | `idle_core_stealing`                  | 重构钩子             | 空闲核拿走忙核的 tile         |
+| 编排选择       | `topo_urma`                           | 开或关               | MTE 波循环或 Layered 宏波循环 |
+
+**`topo_urma` 不是平级旋钮，是结构分叉。** 切换后波粒度从 256 行 m-group 变为专家范围，dispatch 从源推变为目的拉，combine 从配对 tile 变为批量 PUT。
+
+| 旋钮                                                     | MTE 路径           | Layered 路径                              |
+| -------------------------------------------------------- | ------------------ | ----------------------------------------- |
+| `p1_override` / `p2_override`                        | 生效，决定每波组数 | 失效，Layered 按专家数和 token 数自定波数 |
+| `wave_packing`                                         | 生效，三种策略     | 失效，Layered 有自己的波规划              |
+| `dispatch_lookahead` / `wave_offsets`                | 生效，控制前瞻     | 失效，Layered 固定 recv 后紧跟 combine    |
+| `gmm2_lag_waves`                                       | 生效，控制滞后     | 失效，Layered 的 GMM2 总与当前波同跑      |
+| `gmm1_activation_depth`                                | 生效               | 生效                                      |
+| `gmm2_combine_credit`                                  | 生效               | 生效                                      |
+| `core_assignment`                                      | 生效               | 生效                                      |
+| `tile_m` / `tile_n` / `l1_tile_k` / `l1_buf_num` | 生效               | 生效                                      |
+| `gmm1_b_reuse` / `combine_quant_mode`                | 生效               | 生效                                      |
+
+`KernelConfig` 的编译期旋钮（`l1_buf_num`、`l1_tile_k`、`combine_quant_mode`）以 `KernelConfig` 为唯一事实源。手工拼 `PrimitiveCosts` 时入口自动按 kernel 重绑公式，任何拼法都生效。`weight_nz` 例外——NZ 路径带宽需显式标定，缺失时报错。
+
+### 2. 写新编排循环
+
+不改模型源码，写一个约 50 行的子类，复用以下现成件：
+
+| 现成件     | 位置                                                 | 内容                       |
+| ---------- | ---------------------------------------------------- | -------------------------- |
+| stage 函数 | `builders/gmm1.py`、`activation.py`、`gmm2.py` | 事件生成，与传输协议无关   |
+| 传输后端   | `builders/comm/`                                   | MTE 和 URMA 各一套，可混搭 |
+| 共享状态   | `builders/context.py`                              | 跨 stage 传递的五个字典    |
+| 尾段与完成 | `builders/base.py`                                 | 尾段链和完成事件           |
+
+能做的实验举例：GMM2 滞后交替的新波循环；两个 stage 之间插入新 stage；MTE 编排配 URMA 接收的混搭传输。
+
+### 3. 当前改不了的结构
+
+波粒度只有两种：MTE 路径按 256 行组切波，Layered 路径按专家范围切波。ACT 总与 GMM1 同波。同核程序序没有建成依赖边，靠资源互斥保序。片间 fab 信道占位关闭，跨卡争用不建模。
+
+要突破这些需要改 `builders/` 或 `scheduler/` 的结构，改完重新对实测校准。
+
+## 输出解读
+
+每次仿真返回以下可分析字段：
+
+| 字段                                            | 含义                |
+| ----------------------------------------------- | ------------------- |
+| `kernel_total_us`                             | 最慢 rank 的总时长  |
+| `rank_results[r]["total_us"]`                 | 各 rank 总时长      |
+| `rank_results[r]["resource_utilization"]`     | 每核利用率          |
+| `rank_results[r]["stage_busy_us"]`            | 各 stage 忙碌时长   |
+| `rank_results[r]["stage_dependency_wait_us"]` | 各 stage 等数据时长 |
+| `rank_results[r]["stage_resource_queue_us"]`  | 各 stage 等引擎时长 |
+| `rank_results[r]["critical_path"]`            | 关键路径事件链      |
+| `rank_results[r]["cursor_trace"]`             | 游标推进轨迹        |
+| `provenance`                                  | 全部常数出处报告    |
+
+对比两个变体时，先看 `kernel_total_us` 差值，再看 `stage_busy_us` 哪个 stage 变了，最后看 `critical_path` 上卡在哪种等待。
+
+## 精度边界
+
+默认配置对应当前 kernel 行为，在 B≤128 标定域内各 stage busy 误差 ±5%，墙钟偏差 -6~-8%。
+
+偏离默认的取值为未验证取值：模型照常给出预测，但结论需实测抽检。标定域外的已知失效：B=1024 时 COMBINE 偏差 +114~246%（BW_SCATTER 单点标定域外），GMM1 系统性高估 +4~10%（B 矩阵逐 tile 计费）。
+
+### 数据搬运带宽
+
+| 路径                    | 参数                   | 当前值     | 标定方法                   | 不准之处                                                  |
+| ----------------------- | ---------------------- | ---------- | -------------------------- | --------------------------------------------------------- |
+| GM→L1，GMM 载入        | `BW_L1_GM`           | 51.9 GB/s  | B=64 H 扫描差分单点        | 并发数未扫；激活与权重合并折算未分离                      |
+| GM→UB，ACT             | `BW_UB`              | 93 GB/s    | ACT 大 m tile 单点         | 读端口约 123、写端口约 142 B/cyc，速率不同，93 是混合折算 |
+| UB→GM，COMBINE 散射写  | `BW_SCATTER`         | 139.5 GB/s | B=64 随机路由反推          | B=1024 实测偏差 +168~246%，域外失效                       |
+| GM→L1，dispatch 本地段 | `BW_LOCAL_GM`        | 157 GB/s   | MTE 大尺寸拟合，单核无干扰 | 28 核并发时每核掉到 41~100 GB/s，未折入                   |
+| GM→L1，dispatch 远端段 | `BW_REMOTE_GM`       | 31 GB/s    | 1→2 行段差分              | 只在 B=64 域 1~2 行段验证，大段未测                       |
+| 跨卡，dispatch 远端     | `BW_WINDOW`          | 33 GB/s    | dispatch 窗排空差分 ×4    | 同上                                                      |
+| URMA GET，Layered 接收  | `URMA_GET_BW_SINGLE` | 2.25 GB/s  | pair 两点 OLS 拟合         | drain-chunk=8 下界；并发 ≥5 流未验证                     |
+| URMA PUT，Layered 聚合  | `URMA_PUT_BW_SINGLE` | 2.25 GB/s  | 无直测数据                 | 取 GET 对称值，完全假设                                   |
+| GM，UNPERMUTE 尾段      | `BW_UNPERMUTE_AGG`   | 0.95 TB/s  | UNPERMUTE 双尺度           | B=64 偏 +18%，B=1024 命中                                 |
+
+### Cube 计算速率
+
+| 参数       | 当前值    | 状态                                                                                                                    |
+| ---------- | --------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `R_cube` | 0，不启用 | 纯隔离实验 fixpipe 挂死，只有上界 13 TMAC/s。GMM1/GMM2 公式的计算项整个不生效，模型只算载入时间。计算主导的 tile 被低估 |
+
+### Vector 计算参数
+
+| 参数              | 当前值   | 状态                                                    |
+| ----------------- | -------- | ------------------------------------------------------- |
+| `VEC_REG_WIDTH` | 256 bit  | 来自 kernel 定义，精确                                  |
+| `T_STARTUP_VEC` | 1.48 µs | ACT 小 m 截距单点，假设与 m 无关                        |
+| ACT 每向量字节数  | 580 B    | 源码逐项计数；实验实测推算约 324 B/向量，两者差异未调和 |
+
+搬运带宽全部是单点标定，没有一个扫过并发数；Cube 计算速率完全没有精确值；Vector 的 ACT 字节口径源码计数与实测不一致。域内 B≤128 可用，域外或参数变了需重新标定。
+
+## 安装与运行
+
+```bash
+cd moe-cost-model
+pip install -e .          # 或直接 pytest (pyproject 已配 pythonpath)
+pytest tests/             # 46 项测试
+python examples/run_basic.py
+```
+
+## 项目结构
+
+```
+moe-cost-model/
+├── pyproject.toml
+├── src/moe_cost_model/
+│   ├── __init__.py              # 显式导出
+│   ├── api.py                   # simulate_routing_counts 入口
+│   ├── config/                  # 第 0 层: 纯参数
+│   │   ├── hardware.py          #   硬件常数 + KernelConfig
+│   │   ├── policy.py            #   InstancePolicy + StageWaveOffsets
+│   │   ├── pipeline.py          #   PipelineConstraints + QueueDepths
+│   │   └── provenance.py        #   常数出处标签系统
+│   ├── shape.py                 # 第 1 层: MegaMoeShape / ModelOptions
+│   ├── costs.py                 # 第 1 层: 各 stage 物理公式
+│   ├── scheduler/               # 第 2 层: 通用离散事件调度引擎
+│   │   ├── events.py            #   Event / Channel / 速率服务器
+│   │   ├── engine.py            #   MultiResourceScheduler
+│   │   └── policies.py          #   EarliestStart / CriticalPathFirst / PriorityByStage
+│   ├── planning/                # 第 3 层: wave 规划
+│   │   ├── waves.py             #   plan_waves / swizzle / Layered 波规划
+│   │   ├── core_assignment.py   #   StaticRoundRobin / GreedyLeastBusy / ContiguousBlock
+│   │   └── wave_packing.py      #   SequentialGreedy / LongestExpertFirst / BalancedWaves
+│   ├── builders/                # 第 4 层: 事件图构建
+│   │   ├── base.py              #   公共基类
+│   │   ├── context.py           #   BuildContext
+│   │   ├── gmm1.py + activation.py  #  GMM1 tile + ACT tile
+│   │   ├── gmm2.py              #   GMM2 head/tail
+│   │   ├── comm/                #   通信协议接口
+│   │   │   ├── base.py          #     DispatchTransport / CombineTransport
+│   │   │   ├── mte.py           #     MTE: DataCopyPad 直写 + 配对 tile combine
+│   │   │   └── urma.py          #     URMA: 批量 GET/PUT + AIV1 程序序链
+│   │   ├── mte.py               #   MTE 编排
+│   │   ├── layered.py           #   Layered 编排
+│   │   └── pipeline_expand.py   #   相位拆分
+│   ├── model.py                 # 第 5 层: A8W8WaveCostModel 编排
+│   └── analysis/                # 第 6 层: 关键路径 / 空闲核任务转移
+├── tests/                       # 46 项 (引擎 / 建图 / API 锚点 / Layered)
+├── examples/run_basic.py
+└── tools/                       # 分析脚本 (审计 / 诊断 / 全量对比)
+```

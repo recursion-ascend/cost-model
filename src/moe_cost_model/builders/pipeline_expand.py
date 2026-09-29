@@ -1,0 +1,302 @@
+"""L0/L1/L2 流水线约束施加器.
+
+输入 build_events 产出的事件表, 输出 (事件表, 容量表, 信道表) 供调度器.
+
+  L0 同步延迟: 在 stage 间握手边上挂 dep_latency_overrides
+  L1 队列计数信号量: stage 事件挂 QUEUE:* 信号量; gmm1→act 深度依赖走距离依赖
+     (跨 tile 流水需要时拆 load/cube/fix 相位, 核资源移到 cube 相位)
+  L2 信道需求: 承载闭式时长的相位声明 channel_bytes = 时长×应得速率
+"""
+from __future__ import annotations
+
+from typing import Dict, List, Optional, Tuple
+
+from ..config.hardware import BW_L1_GM, BW_SCATTER, KernelConfig
+from ..scheduler.events import Channel, Event
+from ..config.pipeline import PipelineConstraints
+
+CH_GM_TO_L1 = "gm_to_l1"
+CH_HBM_WRITE = "hbm_write"
+
+_STAGE_GMM1 = "gmm1"
+_STAGE_ACT = "activation"
+_STAGE_GMM2 = "gmm2"
+_STAGE_COMBINE = "combine"
+
+
+def apply_pipeline(
+    events: List[Event],
+    cons: PipelineConstraints,
+    *,
+    aic_num: int,
+    h: int,
+    gmm1_act_depth: int = 1,
+    kernel=None,
+) -> Tuple[List[Event], Dict[str, int], Dict[str, Channel]]:
+    """施加约束, 返回 (事件表, 容量表, 信道表).
+
+    aic_num/h: 形状参数 (队列资源命名与 MAC 计算用)
+    gmm1_act_depth: ModelOptions.gmm1_activation_depth, BUF 槽位默认值
+    """
+    km = kernel if kernel is not None else KernelConfig()
+    by_name = {ev.name: ev for ev in events}
+    channels = {ch.name: ch for ch in cons.channels}
+
+    # ---- L0: 同步延迟挂到握手边 ----
+    for ev in events:
+        stage = str(ev.meta.get("stage", ""))
+        if stage == _STAGE_ACT and cons.sync.gmm1_act_handshake_us:
+            ev.dep_latency_overrides = ev.dep_latency_overrides + tuple(
+                (d, cons.sync.gmm1_act_handshake_us)
+                for d in ev.deps
+                if str(by_name[d].meta.get("stage", "")) == _STAGE_GMM1
+            )
+        elif stage == _STAGE_GMM2 and cons.sync.act_gmm2_ready_us:
+            ev.dep_latency_overrides = ev.dep_latency_overrides + tuple(
+                (d, cons.sync.act_gmm2_ready_us)
+                for d in ev.deps
+                if str(by_name[d].meta.get("stage", "")) == _STAGE_ACT
+            )
+        elif stage == _STAGE_COMBINE and cons.sync.gmm2_combine_ack_us:
+            ev.dep_latency_overrides = ev.dep_latency_overrides + tuple(
+                (d, cons.sync.gmm2_combine_ack_us)
+                for d in ev.deps
+                if str(by_name[d].meta.get("stage", "")) == _STAGE_GMM2
+            )
+
+    # ---- L1: gmm1→act 生产者/消费者距离 ----
+    # 保留 build_events 的距离依赖 (gmm1[i] deps act[i-depth]), 拆相位时自动
+    # 落到 load 相位. 不用可互换信号量: 信号量配对在乱序调度下会与 act 的程序序
+    # 依赖成环 (load_A 等 token, act_B 程序序等 act_A, fix_A, load_A).
+    # 距离依赖天然保序无环, 深度由 ModelOptions.gmm1_activation_depth 参数化.
+
+    # ---- L1/L2: 队列计数信号量 + 信道需求 (gmm1 需要时拆相位) ----
+    split_gmm1 = cons.queues.mte_aic > 1 or cons.phases.cube_mac_per_us is not None
+    new_events: List[Event] = []
+    for ev in events:
+        stage = str(ev.meta.get("stage", ""))
+        if stage == _STAGE_GMM1:
+            new_events.extend(_expand_gmm1(ev, cons, split_gmm1, channels, by_name, h, km))
+        elif stage == _STAGE_GMM2:
+            new_events.extend(_annotate(ev, channels, queue="QUEUE:mte_aic"))
+        elif stage == _STAGE_ACT:
+            new_events.extend(_expand_aiv(
+                ev, cons, channels, by_name, vec=True, km=km,
+                load_bw=cons.phases.act_load_bw_bytes_per_us))
+        elif stage == _STAGE_COMBINE:
+            new_events.extend(_expand_aiv(
+                ev, cons, channels, by_name, vec=False, km=km,
+                load_bw=cons.phases.combine_load_bw_bytes_per_us))
+        else:
+            new_events.append(ev)
+
+    # ---- 容量表 (只声明实际被引用的资源) ----
+    capacities: Dict[str, int] = {}
+    used = set()
+    for ev in new_events:
+        for res, _ in ev.acquires:
+            used.add(res)
+        for res, _ in ev.releases:
+            used.add(res)
+    for res in used:
+        if res.startswith("QUEUE:mte_aic:"):
+            capacities[res] = cons.queues.mte_aic
+        elif res.startswith("QUEUE:cube:"):
+            capacities[res] = cons.queues.cube
+        elif res.startswith("QUEUE:fix:"):
+            capacities[res] = cons.queues.fix
+        elif res.startswith("QUEUE:vec:"):
+            capacities[res] = cons.queues.vec
+        elif res.startswith("QUEUE:mte_aiv:"):
+            capacities[res] = cons.queues.mte_aiv
+        elif res.startswith("Q:aic:"):
+            pass  # model.py 的引擎队列, 容量由 simulate() 设置
+        elif res.startswith("Q:vec0:"):
+            pass
+        elif res.startswith("Q:aiv1:"):
+            pass
+        elif res.startswith("BUF:gmm1act:"):
+            pass  # 已移除信号量机制, 距离依赖替代
+        else:
+            pass  # 未识别的引擎队列 — 容量由调用方 (simulate) 设置
+    return new_events, capacities, channels
+
+
+def _annotate(
+    ev: Event,
+    channels: Dict[str, Channel],
+    *,
+    queue: str,
+) -> List[Event]:
+    """GMM2 head/tail: 保留原结构, 挂 MTE 队列计数信号量 + 信道需求."""
+    core = ev.meta.get("core")
+    ch = ()
+    if CH_GM_TO_L1 in channels and ev.duration_us > 0:
+        ch = ((CH_GM_TO_L1, ev.duration_us * BW_L1_GM, BW_L1_GM),)
+    q = (f"{queue}:c{core}", 1)
+    return [Event(
+        name=ev.name, resources=ev.resources, duration_us=ev.duration_us,
+        deps=ev.deps, order=ev.order, meta=dict(ev.meta),
+        dep_latency_us=ev.dep_latency_us,
+        dep_latency_overrides=ev.dep_latency_overrides,
+        acquires=ev.acquires + (q,), releases=ev.releases + (q,),
+        channel_bytes=ch,
+    )]
+
+
+def _drop_program_order(ev: Event, stage: str, by_name: Dict[str, Event]) -> Tuple[str, ...]:
+    """剔除同 stage 同 core 的程序序依赖 (交给队列计数信号量/核资源)."""
+    return tuple(
+        d for d in ev.deps
+        if not (str(by_name[d].meta.get("stage", "")) == stage
+                and by_name[d].meta.get("core") == ev.meta.get("core"))
+    )
+
+
+def _expand_gmm1(
+    ev: Event,
+    cons: PipelineConstraints,
+    split: bool,
+    channels: Dict[str, Channel],
+    by_name: Dict[str, Event],
+    h: int,
+    km=None,
+) -> List[Event]:
+    """GMM1 tile: 默认整体标注; 深度>1 或给了 cube 速率时拆 load/cube/fix.
+
+    拆分结构: load(流量, MTE 队列+信道, 无核资源) → cube(计算, 核资源+Cube
+    队列) → fix(写回, Fix 队列, 保留原名承接下游依赖). 跨 tile 的 load 与
+    cube 重叠由 MTE 队列深度控制 — 稳态周期 = max(load, cube) 与闭式
+    max(载入/BW, 计算/R) 一致.
+    """
+    km = km if km is not None else KernelConfig()
+    stage = _STAGE_GMM1
+    core = ev.meta.get("core")
+    m_rows = int(ev.meta.get("m_rows", 0))
+    base_dur = ev.duration_us
+
+    if not split:
+        # 整体标注: 信道字节与闭式时长自洽 (无争用服务 = base_dur, 不拉伸)
+        ch = ((CH_GM_TO_L1, base_dur * BW_L1_GM, BW_L1_GM),) \
+            if CH_GM_TO_L1 in channels else ()
+        q = (f"QUEUE:mte_aic:c{core}", 1)
+        return [Event(
+            name=ev.name, resources=ev.resources, duration_us=base_dur,
+            deps=ev.deps, order=ev.order, meta=dict(ev.meta),
+            dep_latency_us=ev.dep_latency_us,
+            dep_latency_overrides=ev.dep_latency_overrides,
+            acquires=ev.acquires + (q,), releases=ev.releases + (q,),
+            channel_bytes=ch,
+        )]
+
+    cube_rate = cons.phases.cube_mac_per_us
+    # 尾 N-tile 精确: MAC 与写回按实际列数, 不按整 tileN (缺省 meta 时退回整 tile)
+    logical_n = int(ev.meta.get("logical_n", km.tile_n))
+    macs = 2.0 * m_rows * logical_n * h   # SwiGLU 双投影 (R_cube 约定吸收 act_half)
+    cube_dur = (macs / cube_rate) if cube_rate else 0.0
+    fix_bw = cons.phases.fix_bw_bytes_per_us
+    fix_dur = (m_rows * logical_n * 2 / fix_bw) if fix_bw else 0.0
+    load_dur = max(0.0, base_dur - cube_dur - fix_dur)
+    # 拆分模式: 信道字节与 load 相位时长自洽 — 无争用服务 = load_dur.
+    # 若按完整 base_dur 折算字节, load 会被撑回全长再叠加 cube/fix,
+    # 单 tile 总长 = base + cube (双重计费). 字节保真让位于时序一致性
+    # (信道为占位机制, 未标定).
+    ch = ((CH_GM_TO_L1, load_dur * BW_L1_GM, BW_L1_GM),) \
+        if CH_GM_TO_L1 in channels and load_dur > 0 else ()
+
+    # 缓冲占用语义: mte 计数信号量 = L1 缓冲槽.
+    # ld 开始时取 (载入占缓冲), cb 结束时还 (计算消费完释放) —
+    # QueueDepths(mte_aic=d) 因此精确等于 d 个 L1 缓冲, 跨 tile 约束
+    # E_compute(i-d) 由调度器自动执行. ld 不继承引擎信号量 (Q:aic),
+    # 否则容量 1 的引擎信号量会卡死 mte 深度 (审计已确认的旧 bug).
+    ld = Event(
+        name=ev.name + ".ld", resources=(), duration_us=load_dur,
+        deps=_drop_program_order(ev, stage, by_name), order=ev.order,
+        meta=dict(ev.meta, phase="load"),
+        dep_latency_us=ev.dep_latency_us,
+        dep_latency_overrides=ev.dep_latency_overrides,
+        acquires=((f"QUEUE:mte_aic:c{core}", 1),),
+        releases=(),
+        channel_bytes=ch,
+    )
+    cb = Event(
+        name=ev.name + ".cb", resources=ev.resources, duration_us=cube_dur,
+        deps=(ld.name,), order=ev.order, meta=dict(ev.meta, phase="cube"),
+        acquires=((f"QUEUE:cube:c{core}", 1),),
+        releases=((f"QUEUE:cube:c{core}", 1),
+                  (f"QUEUE:mte_aic:c{core}", 1)),
+    )
+    fx = Event(
+        name=ev.name, resources=(), duration_us=fix_dur,
+        deps=(cb.name,), order=ev.order, meta=dict(ev.meta, phase="fix"),
+        acquires=((f"QUEUE:fix:c{core}", 1),),
+        releases=((f"QUEUE:fix:c{core}", 1),),
+    )
+    return [ld, cb, fx]
+
+
+def _expand_aiv(
+    ev: Event,
+    cons: PipelineConstraints,
+    channels: Dict[str, Channel],
+    by_name: Dict[str, Event],
+    *,
+    vec: bool,
+    load_bw: Optional[float],
+    km=None,
+) -> List[Event]:
+    """ACT/COMBINE tile (AIV).
+
+    ACT:     vec 相位承载闭式时长 (UB 流量, 核内私有无信道)
+    COMBINE: scatter 相位承载闭式时长 + hbm_write 信道
+    给了 load 带宽则前置 GM 读相位 (MTE_AIV 队列), 否则整体标注.
+    """
+    km = km if km is not None else KernelConfig()
+    stage = str(ev.meta.get("stage", ""))
+    core = ev.meta.get("core")
+    base_dur = ev.duration_us
+    # 队列计数信号量按引擎分名: AIV0(ACT) 与 AIV1(COMBINE) 是两个引擎, 不共享.
+    # 共享旧名 QUEUE:vec:c{core} 会把同核 ACT/COMBINE 错误串行.
+    eng = "aiv0" if vec else "aiv1"
+    vec_queue = (f"QUEUE:vec:{eng}:c{core}", 1)
+    if stage == _STAGE_COMBINE:
+        ch = ((CH_HBM_WRITE, base_dur * BW_SCATTER, BW_SCATTER),) \
+            if CH_HBM_WRITE in channels and base_dur > 0 else ()
+    else:
+        ch = ()
+
+    need_split = load_bw is not None and base_dur > 0
+    if not need_split:
+        return [Event(
+            name=ev.name, resources=ev.resources, duration_us=base_dur,
+            deps=ev.deps, order=ev.order, meta=dict(ev.meta),
+            dep_latency_us=ev.dep_latency_us,
+            dep_latency_overrides=ev.dep_latency_overrides,
+            acquires=ev.acquires + (vec_queue,),
+            releases=ev.releases + (vec_queue,),
+            channel_bytes=ch,
+        )]
+
+    m_rows = int(ev.meta.get("m_rows", 0))
+    # 尾 N-tile 精确: GM 读字节按实际列数 (缺省 meta 时退回整 tile)
+    logical_n = int(ev.meta.get("logical_n", km.tile_n))
+    load_bytes = m_rows * logical_n * 2   # BF16 GM 读
+    load_dur = load_bytes / load_bw
+    ld = Event(
+        name=ev.name + ".ld", resources=(), duration_us=load_dur,
+        deps=_drop_program_order(ev, stage, by_name), order=ev.order,
+        meta=dict(ev.meta, phase="load"),
+        dep_latency_us=ev.dep_latency_us,
+        dep_latency_overrides=ev.dep_latency_overrides,
+        acquires=ev.acquires + ((f"QUEUE:mte_aiv:{eng}:c{core}", 1),),
+        releases=((f"QUEUE:mte_aiv:{eng}:c{core}", 1),),
+    )
+    main = Event(
+        name=ev.name, resources=ev.resources, duration_us=base_dur,
+        deps=(ld.name,), order=ev.order,
+        meta=dict(ev.meta, phase="vec" if vec else "scatter"),
+        releases=ev.releases + (vec_queue,),
+        acquires=(vec_queue,),
+        channel_bytes=ch,
+    )
+    return [ld, main]
