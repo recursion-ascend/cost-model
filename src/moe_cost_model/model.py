@@ -10,6 +10,7 @@ from .config.hardware import KernelConfig, BW_WINDOW, ceil_div
 from .config.policy import InstancePolicy
 from .scheduler.events import Channel, Event, ScheduledEvent
 from .scheduler.engine import MultiResourceScheduler
+from .scheduler.policies import CriticalPathFirst, EarliestStart, PriorityByStage
 from .costs import DispatchDataLayout
 from .builders.pipeline_expand import apply_pipeline
 from .costs import PrimitiveCosts
@@ -81,12 +82,14 @@ class A8W8WaveCostModel:
 
     def simulate_multi(self, shapes: Sequence[MegaMoeShape],
                        restructure=None) -> Dict[int, Dict[str, object]]:
-        """多 rank 单调度器: 核/队列资源按 rank 前缀隔离.
+        """多 rank 调度: 核/队列资源按 rank 前缀隔离.
 
         片间信道 (fab_src/fab_dst) 默认关闭 (占位, ModelOptions.fabric_channels):
         常数从真实运行反解、已含平均争用, 无消融证据前不再叠加速率服务器。
+
+        各 rank 之间无共享资源时逐 rank 独立调度 (结果与合并调度逐位一致,
+        见 _ranks_independent); 否则全部事件进同一个调度器.
         """
-        all_events: List[Event] = []
         per: List[Tuple[MegaMoeShape, List[Event], Dict, Dict, List[CursorTrace]]] = []
         world = max((len(sh.expert_source_tokens[0]) for sh in shapes), default=0)
         self._sched_policy = getattr(shapes[0], 'scheduling_policy', None) if shapes else None
@@ -118,9 +121,12 @@ class A8W8WaveCostModel:
                                                     bw_total=BW_WINDOW, max_rate_per_event=BW_WINDOW)
                 channels[f"fab_dst:{s_}"] = Channel(f"fab_dst:{s_}",
                                                     bw_total=BW_WINDOW, max_rate_per_event=BW_WINDOW)
-        capacities: Dict[str, int] = {}
+        # 每 rank 一组 (事件, 容量, 信道); 片间信道跨 rank 共享, 单列
+        groups: List[Tuple[List[Event], Dict[str, int], Dict[str, Channel]]] = []
         for shape, events, caps, chans, trace in per:
             pre = f"R{shape.rank_id}."
+            capacities: Dict[str, int] = {}
+            rank_channels: Dict[str, Channel] = {}
             for ev in events:
                 ev.resources = tuple(pre + r for r in ev.resources)
                 ev.acquires = tuple((pre + a, k) for a, k in ev.acquires)
@@ -129,7 +135,6 @@ class A8W8WaveCostModel:
                     (c, b, rt) if c.startswith("fab_") else (pre + c, b, rt)
                     for c, b, rt in ev.channel_bytes
                     if fab_on or not c.startswith("fab_"))
-                all_events.append(ev)
             qd = self.options.engine_queue_depths or EngineQueueDepths()
             for core in range(shape.aic_num):
                 capacities[pre + f"Q:aic:c{core}"] = qd.aic
@@ -138,13 +143,26 @@ class A8W8WaveCostModel:
             for k, v in caps.items():
                 capacities[pre + k] = v
             for ch_name, ch in chans.items():
-                channels[pre + ch_name] = Channel(pre + ch_name,
-                                                  bw_total=ch.bw_total,
-                                                  max_rate_per_event=ch.max_rate_per_event)
+                rank_channels[pre + ch_name] = Channel(pre + ch_name,
+                                                       bw_total=ch.bw_total,
+                                                       max_rate_per_event=ch.max_rate_per_event)
+            groups.append((events, capacities, rank_channels))
+
         sched_pol = getattr(self, '_sched_policy', None)
-        total, scheduled = MultiResourceScheduler().schedule(
-            all_events, capacities=capacities or None, channels=channels or None,
-            restructure=restructure, policy=sched_pol)
+        if not self._ranks_independent(shapes, restructure, sched_pol):
+            # 合并调度: 全部 rank 的事件/容量/信道进同一个调度器
+            merged_caps: Dict[str, int] = {}
+            for events, capacities, rank_channels in groups:
+                merged_caps.update(capacities)
+                channels.update(rank_channels)
+            groups = [([ev for events, _, _ in groups for ev in events],
+                       merged_caps, channels)]
+        scheduled: List[ScheduledEvent] = []
+        for events, capacities, rank_channels in groups:
+            _, part = MultiResourceScheduler().schedule(
+                events, capacities=capacities or None, channels=rank_channels or None,
+                restructure=restructure, policy=sched_pol)
+            scheduled.extend(part)
 
         results: Dict[int, Dict[str, object]] = {}
         for shape in shapes:
@@ -152,6 +170,27 @@ class A8W8WaveCostModel:
             evs = [e for e in scheduled if e.meta.get("rank") == rank]
             results[rank] = self._postprocess(shape, evs)
         return results
+
+    def _ranks_independent(self, shapes: Sequence[MegaMoeShape], restructure,
+                           sched_pol) -> bool:
+        """各 rank 能否独立调度而不改变结果.
+
+        调度器每步提交就绪集里排序键最小的事件. 资源/容量/信道按 rank 前缀
+        隔离、依赖不跨 rank 时, 一个 rank 的就绪集与资源状态只被本 rank 的提交
+        改变, 合并调度里该 rank 的提交子序列就等于它单独调度的序列.
+        以下情况该前提不成立, 走合并调度:
+          * 片间信道开启 — fab_src/fab_dst 跨 rank 共享;
+          * 重构钩子 — 上下文是全局视图, 可跨 rank 转移任务;
+          * 自定义调度策略 — event_key 能读到全局 tbase/end_by_name;
+          * rank_id 重复 — 交给调度器报重名.
+        """
+        if restructure is not None or self.options.fabric_channels:
+            return False
+        if sched_pol is not None and type(sched_pol) not in (
+                EarliestStart, CriticalPathFirst, PriorityByStage):
+            return False
+        ranks = [sh.rank_id for sh in shapes]
+        return len(set(ranks)) == len(ranks)
 
     def _postprocess(self, shape: MegaMoeShape,
                      scheduled: List[ScheduledEvent]) -> Dict[str, object]:

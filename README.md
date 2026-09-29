@@ -152,9 +152,30 @@ print(f"变体 {variant['kernel_total_us']:.1f} µs")
 ```bash
 cd moe-cost-model
 pip install -e .          # 或直接 pytest (pyproject 已配 pythonpath)
-pytest tests/             # 46 项测试
+pytest tests/             # 90 项测试, 约 1.5 分钟
 python examples/run_basic.py
 ```
+
+## 回归保护
+
+`tests/test_golden.py` 对 43 个配置核对调度指纹: 每个事件的起止时刻、等待归因、关键父事件取 sha256, 任何一位浮点差异都会失败。覆盖 MTE / Layered 两条路径、波偏移、编译期旋钮、三种调度策略、分核与打包策略、相位流水、容量与信道、片间信道、任务转移。
+
+```bash
+python tools/gen_golden.py --check     # 核对, 不写文件
+python tools/gen_golden.py             # 重新生成快照
+```
+
+重构与提速必须通过 `--check`。只有在有意改变模型行为时才重新生成快照, 并在提交说明里写明哪些用例变了、为什么。
+
+## 仿真耗时
+
+| 配置 | 事件数 | 耗时 |
+| --- | --- | --- |
+| MTE, 4 rank × 64 专家, B=64 (`examples/run_basic.py`) | 2.7 万 | 约 1.6 s |
+| Layered, 同上 | 1.9 万 | 约 1.9 s |
+| 相位流水 + 信道, 4 rank × 64 专家, B=1024 | 3.5 万 | 约 5 s |
+
+片间信道关闭、无重构钩子、使用内置调度策略时, 各 rank 独立调度。`idle_core_stealing` 每次提交都扫描全部未提交事件, 耗时随事件数平方增长: 6800 事件约 30 s。
 
 ## 项目结构
 
@@ -193,7 +214,7 @@ moe-cost-model/
 │   │   └── pipeline_expand.py   #   相位拆分
 │   ├── model.py                 # 第 5 层: A8W8WaveCostModel 编排
 │   └── analysis/                # 第 6 层: 关键路径 / 空闲核任务转移
-├── tests/                       # 46 项 (引擎 / 建图 / API 锚点 / Layered)
+├── tests/                       # 90 项 (引擎 / 建图 / API 锚点 / Layered / golden 指纹)
 ├── examples/run_basic.py
-└── tools/                       # 分析脚本 (审计 / 诊断 / 全量对比)
+└── tools/                       # 分析脚本 (审计 / 诊断 / 全量对比 / golden 生成)
 ```

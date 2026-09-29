@@ -26,7 +26,7 @@ from .config.hardware import (
     URMA_GET_LAT_US, URMA_PUT_BW_SINGLE, URMA_PUT_LAT_US, VEC_ELEM_FP32,
     VEC_REG_WIDTH, _gmm2_head_tail_fractions, ceil_div, select_kl1,
 )
-from .config.policy import InstancePolicy
+from .config.policy import InstancePolicy, StageWaveOffsets
 from .config.pipeline import (
     BufferSlots, PhaseRates, PipelineConstraints, QueueDepths, SyncLatency,
     parse_tiling,

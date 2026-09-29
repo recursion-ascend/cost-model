@@ -7,6 +7,10 @@
   - _ChannelState: 活跃区间按 end 清算, probe 只扫在飞区间 (~并发数) 而非全部历史
   - 前沿惰性探测: 先探 min t_base 事件得上界 A, 只探 t_base ≤ A 的候选
     (被剪枝事件 adjusted ≥ t_base > A, 选择结果精确等价)
+  - 就绪集增量维护: t_base 在事件入就绪集时算一次, 此后只在其占用的资源被
+    提交时重算; 最小 t_base 由惰性失效堆给出, 不再每轮全量扫描就绪集
+  - 探测结果留存: 联合准入探测只取决于 t_base 与事件引用的容量/信道台账,
+    二者未变则结果沿用; 提交只让引用了被写台账的事件重新探测
 """
 from __future__ import annotations
 
@@ -226,7 +230,6 @@ class MultiResourceScheduler:
                 if cname not in chan_state:
                     raise ValueError(f"event {ev.name} references unknown channel {cname}")
 
-        ready = {name for name, deg in indegree.items() if deg == 0}
         end_by_name: Dict[str, float] = {}
         resource_free: Dict[str, float] = {}
         resource_last_event: Dict[str, str] = {}
@@ -240,6 +243,90 @@ class MultiResourceScheduler:
         injected_count = [0]
         limit = restructure_limit if restructure_limit is not None else 4 * len(events)
 
+        # ---- 就绪集 (增量维护) ----
+        # ready 用 dict 保持入集顺序: 遍历序与哈希种子无关, 探测次序确定.
+        # tbase[name] = max(依赖就绪, 资源空闲), 键集合恒等于 ready.
+        # 堆项 (t_base, order, name, 代次); 代次与 ready_gen 不符即失效, 取堆顶时丢弃.
+        # 无容量/信道需求的事件 start = t_base, 进 simple_heap; 其余需联合准入
+        # 探测, 进 probe_heap (待探测, 按 t_base 排序).
+        # EarliestStart 快路径下, 探测过的事件移入 resolved_heap (按 start 排序),
+        # 结果存 resolved; 其 t_base 或所引用的台账 (容量计数/信道) 变化时退回
+        # probe_heap 重新探测. 不可行 (start=inf) 的只存 resolved, 不进堆.
+        ready: Dict[str, None] = {}
+        tbase: Dict[str, float] = {}
+        dep_ready_at: Dict[str, float] = {}
+        ready_gen: Dict[str, int] = {}
+        ready_by_res: Dict[str, set] = {}
+        simple_heap: List[Tuple[float, int, str, int]] = []
+        probe_heap: List[Tuple[float, int, str, int]] = []
+        resolved_heap: List[Tuple[float, int, str, int]] = []
+        resolved: Dict[str, Tuple[float, float, float, float, Dict[str, float]]] = {}
+        ledger_watch: Dict[str, Dict[str, None]] = {}   # 台账名 -> 引用它的就绪事件
+        gen_counter = [0]
+
+        def _ledgers(ev: Event) -> List[str]:
+            return [res for res, _ in ev.acquires] + [c[0] for c in ev.channel_bytes]
+
+        def _push_ready(name: str, ev: Event, tb: float) -> None:
+            gen_counter[0] += 1
+            ready_gen[name] = gen_counter[0]
+            tbase[name] = tb
+            resolved.pop(name, None)
+            heapq.heappush(probe_heap if (ev.acquires or ev.channel_bytes) else simple_heap,
+                           (tb, ev.order, name, gen_counter[0]))
+
+        def _ledger_written(ledger: str) -> None:
+            """台账有新写入: 引用它的已探测事件结果失效, 退回待探测."""
+            for n in ledger_watch.get(ledger, ()):
+                if n in resolved:
+                    _push_ready(n, by_name[n], tbase[n])
+
+        def _enter_ready(name: str) -> None:
+            ev = by_name[name]
+            dep_ready = max(
+                (end_by_name[d] + edge_latency(ev, d) for d in ev.deps), default=0.0
+            )
+            res_ready = max((resource_free.get(r, 0.0) for r in ev.resources), default=0.0)
+            ready[name] = None
+            dep_ready_at[name] = dep_ready
+            for r in ev.resources:
+                ready_by_res.setdefault(r, set()).add(name)
+            for led in _ledgers(ev):
+                ledger_watch.setdefault(led, {})[name] = None
+            _push_ready(name, ev, max(dep_ready, res_ready))
+
+        def _leave_ready(name: str) -> None:
+            if name not in ready:
+                return
+            del ready[name]
+            del tbase[name]
+            del dep_ready_at[name]
+            del ready_gen[name]
+            resolved.pop(name, None)
+            ev = by_name[name]
+            for r in ev.resources:
+                ready_by_res[r].discard(name)
+            for led in _ledgers(ev):
+                ledger_watch[led].pop(name, None)
+
+        def _resource_committed(resource: str) -> None:
+            """resource 的空闲时刻已变: 重算占用它的就绪事件的 t_base."""
+            for n in ready_by_res.get(resource, ()):
+                ev_n = by_name[n]
+                res_ready = max((resource_free.get(r, 0.0) for r in ev_n.resources),
+                                default=0.0)
+                tb = max(dep_ready_at[n], res_ready)
+                if tb != tbase[n]:
+                    _push_ready(n, ev_n, tb)
+
+        def _heap_top(heap: List[Tuple[float, int, str, int]]):
+            while heap:
+                top = heap[0]
+                if ready_gen.get(top[2]) == top[3]:
+                    return top
+                heapq.heappop(heap)
+            return None
+
         def _register(ev: Event) -> None:
             by_name[ev.name] = ev
             indegree[ev.name] = sum(1 for d in ev.deps if d not in end_by_name)
@@ -248,7 +335,7 @@ class MultiResourceScheduler:
                     raise ValueError(f"event {ev.name} depends on missing {d}")
                 children[d].append(ev.name)
             if indegree[ev.name] == 0:
-                ready.add(ev.name)
+                _enter_ready(ev.name)
             pending_names.add(ev.name)
 
         def _apply_restructure(t_now: float, last_ev: Optional[Event]) -> None:
@@ -270,8 +357,7 @@ class MultiResourceScheduler:
             for nm in act.cancel:
                 if nm in end_by_name:
                     raise ValueError(f"restructure: 不能取消已提交事件 {nm}")
-                if nm in ready:
-                    ready.discard(nm)
+                _leave_ready(nm)
                 pending_names.discard(nm)
                 canceled.add(nm)
             for d_pair in act.add_dep:
@@ -285,11 +371,14 @@ class MultiResourceScheduler:
                     if dep in end_by_name:
                         # dep 已提交: 依赖已满足. 不加 indegree — 已提交事件的
                         # children 不会再被访问, 加了计数就永远减不回 (假环).
+                        if tgt in ready:
+                            # 依赖集变了: 缓存的依赖就绪时刻失效, 重新入集
+                            _leave_ready(tgt)
+                            _enter_ready(tgt)
                         continue
                     indegree[tgt] += 1
                     children[dep].append(tgt)
-                    if tgt in ready:
-                        ready.discard(tgt)
+                    _leave_ready(tgt)
             for ev in act.inject:
                 if injected_count[0] >= limit:
                     raise ValueError("restructure: 注入事件数超上限 (策略失控保护)")
@@ -361,25 +450,16 @@ class MultiResourceScheduler:
                 return t, dur, ch_wait, cap_wait, rates
             return t, dur, ch_wait, cap_wait, rates
 
-        while ready:
-            # ---- pass 1: 全体 ready 的 t_base, 找最小 ----
-            tbase: Dict[str, float] = {}
-            min_name: Optional[str] = None
-            min_tb = float("inf")
-            for name in ready:
-                ev = by_name[name]
-                dep_ready = max(
-                    (end_by_name[d] + edge_latency(ev, d) for d in ev.deps), default=0.0
-                )
-                res_ready = max((resource_free.get(r, 0.0) for r in ev.resources), default=0.0)
-                tb = max(dep_ready, res_ready)
-                tbase[name] = tb
-                if tb < min_tb:
-                    min_tb = tb
-                    min_name = name
+        from .policies import EarliestStart
+        # 快路径只对 EarliestStart 本类启用: 排序键 (start, order, name) 与堆序一致.
+        # 子类/其他策略的键由 event_key 决定, 走通用路径.
+        fast = type(policy) is EarliestStart
+        for name, deg in indegree.items():
+            if deg == 0:
+                _enter_ready(name)
 
-            # ---- pass 2: 前沿惰性探测, 只探 t_base ≤ 当前最优 start 的候选 ----
-            best_key: Optional[Tuple[float, int, str]] = None
+        while ready:
+            best_key: Optional[tuple] = None
             best: Optional[Tuple[str, float, float, float, float, Dict[str, float]]] = None
 
             def consider(name: str) -> None:
@@ -398,25 +478,60 @@ class MultiResourceScheduler:
                     best_key = key
                     best = (name, start, dur, payload[0], payload[1], payload[2])
 
-            assert min_name is not None
-            consider(min_name)
-            if best_key is None:
-                # min t_base 事件容量死锁: 无剪枝上界, 全量探测
-                for name in ready:
-                    if name != min_name:
-                        consider(name)
-            elif getattr(policy, "prune_by_start", False):
-                # 剪枝仅对首项=开始时刻的策略有效 (EarliestStart):
-                # tbase 是 start 的下界, tbase > best.start 的候选不可能更早.
-                best_start = best[1]
-                for name in ready:
-                    if name != min_name and tbase[name] <= best_start:
-                        consider(name)
+            top_simple = _heap_top(simple_heap)
+            top_probe = _heap_top(probe_heap)
+            if fast:
+                # 排序键 (start, order, name). 无探测事件 start = t_base, 已探测事件
+                # start 留存, 两个堆顶各是本类最优. 待探测事件 start ≥ t_base, 只有
+                # t_base ≤ 当前最优 start 的才可能胜出, 逐个探测并收紧上界;
+                # 尚无可行候选时上界为 +inf, 全量探测 (容量死锁判定).
+                top_resolved = _heap_top(resolved_heap)
+                bound = float("inf")
+                if top_simple is not None:
+                    bound = top_simple[0]
+                if top_resolved is not None and top_resolved[0] < bound:
+                    bound = top_resolved[0]
+                while top_probe is not None and top_probe[0] <= bound:
+                    heapq.heappop(probe_heap)
+                    cand = top_probe[2]
+                    result = probe(by_name[cand], tbase[cand])
+                    resolved[cand] = result
+                    if result[0] != float("inf"):
+                        heapq.heappush(resolved_heap, (result[0],) + top_probe[1:])
+                        if result[0] < bound:
+                            bound = result[0]
+                    top_probe = _heap_top(probe_heap)
+                top_resolved = _heap_top(resolved_heap)
+                if top_simple is not None and (
+                        top_resolved is None or top_simple[:3] < top_resolved[:3]):
+                    best = (top_simple[2], top_simple[0],
+                            by_name[top_simple[2]].duration_us, 0.0, 0.0, {})
+                elif top_resolved is not None:
+                    best = (top_resolved[2],) + resolved[top_resolved[2]]
             else:
-                # 优先级/slack 等非时间首项: 时间剪枝无效, 全量比较
-                for name in ready:
-                    if name != min_name:
-                        consider(name)
+                # ---- 通用策略: 先探 min t_base 事件得上界, 再比较候选 ----
+                if top_simple is None or (top_probe is not None and top_probe < top_simple):
+                    min_name = top_probe[2]
+                else:
+                    min_name = top_simple[2]
+                consider(min_name)
+                if best_key is None:
+                    # min t_base 事件容量死锁: 无剪枝上界, 全量探测
+                    for name in list(ready):
+                        if name != min_name:
+                            consider(name)
+                elif getattr(policy, "prune_by_start", False):
+                    # 剪枝仅对首项=开始时刻的策略有效:
+                    # tbase 是 start 的下界, tbase > best.start 的候选不可能更早.
+                    best_start = best[1]
+                    for name in list(ready):
+                        if name != min_name and tbase[name] <= best_start:
+                            consider(name)
+                else:
+                    # 优先级/slack 等非时间首项: 时间剪枝无效, 全量比较
+                    for name in list(ready):
+                        if name != min_name:
+                            consider(name)
 
             if best is None:
                 blocked = sorted(ready)
@@ -424,7 +539,7 @@ class MultiResourceScheduler:
 
             name, start, dur, ch_wait, cap_wait, rates = best
             ev = by_name[name]
-            ready.remove(name)
+            _leave_ready(name)
             end = start + max(0.0, dur)
 
             dep_parent = max(ev.deps, key=lambda d: end_by_name[d], default=None)
@@ -455,6 +570,8 @@ class MultiResourceScheduler:
             for resource in ev.resources:
                 resource_free[resource] = end
                 resource_last_event[resource] = name
+            for resource in ev.resources:
+                _resource_committed(resource)
             for res, k in ev.acquires:
                 acq_ctr.setdefault(res, _TimeCounter()).add(start, k)
             for res, k in ev.releases:
@@ -464,6 +581,10 @@ class MultiResourceScheduler:
                 rate = rates.get(cname, 0.0)
                 chan_state[cname].commit(start, start + max(dur, 1e-12),
                                          min(nbytes / max(dur, 1e-12), self._rate_cap(channels[cname])))
+            for ledger in dict.fromkeys([res for res, _ in ev.acquires]
+                                        + [res for res, _ in ev.releases]
+                                        + [c[0] for c in ev.channel_bytes]):
+                _ledger_written(ledger)
 
             scheduled.append(
                 ScheduledEvent(
@@ -488,7 +609,7 @@ class MultiResourceScheduler:
             for child in children[name]:
                 indegree[child] -= 1
                 if indegree[child] == 0 and child not in canceled:
-                    ready.add(child)
+                    _enter_ready(child)
             pending_names.discard(name)
             _apply_restructure(start, ev)
 
