@@ -22,7 +22,15 @@ L1_TILE_K = SourcedInt(256, 'kernel:一次载入覆盖的 K 维行数')
 BW_L1_GM = SourcedValue(51900.0, 'measured:片外内存到片上 L1 的载入带宽; 旧口径 (A+B 流) 下标定, 待重标')
 # 标定: ACT 大 m tile 单点.
 # ACT 从 UB 读输入、向 UB 写输出, 读写流量都按此速率折算成时长.
-BW_UB = SourcedValue(93000.0, 'measured:ACT 搬移 UB 数据的带宽')
+#
+# 出处待重标 (2026-09-30): 这个值是**用 ACT_BYTES_PER_VEC=580 在单点上反解**的,
+# 而 580 已被证明与源码不符 (真值 722, 漏了 ComputeFp8Data 那一遍 bf16 重读)。
+# 同一个标定点按 722 重算会给 93000x722/580 = 115769; 而 20260930 的两点 m 扫
+# (bs36 m=72 / bs8192 m=256) 定出斜率 0.007760 us/向量, 对应 bw = 93041。
+# 两者差 24% —— 说明老标定点与新 run 的条件不同 (并发度/形状), 不能互换。
+# 现在保留 93000: 它与两点 m 扫一致, 而老标定点的原始数据已不可得, 无法重算。
+# 要彻底定死这个常数, 需要一次**已知并发度**下的 ACT 扫 m / 扫 tileN。
+BW_UB = SourcedValue(93000.0, 'measured:ACT 搬移 UB 数据的带宽; 出处按 580 反解, 待重标')
 # 标定: dispatch 窗排空差分 ×4.
 BW_WINDOW = SourcedValue(33000.0, 'measured:跨卡读数据的片间带宽, dispatch 用')
 # 标定: B=64 随机路由反推;
@@ -118,12 +126,21 @@ MXFP_MULTI_BASE_SIZE_K = SourcedInt(2, 'kernel:MX scale K 侧每 32 组字节数
 # 来自 kernel: VECTOR_REG_WIDTH
 VEC_REG_WIDTH = SourcedInt(256, 'kernel:向量寄存器位宽, bit')
 VEC_ELEM_FP32 = VEC_REG_WIDTH // 4   # FP32 元素/向量
-# SwiGLU 每向量的 UB 流量 :
-#   读: gate(BF16 128B) + up(BF16 128B) + bf16重读(128B) = 384B
-#   写: bf16中间(128B) + fp8(64B) + scale(4B) = 196B
-#   总: 580B/向量
-ACT_BYTES_PER_VEC = SourcedValue((128 + 128 + 128) + (128 + 64 + 4),
-                                'derived:ACT 每处理一个向量的 UB 字节数, 读 384B + 写 196B')
+# SwiGLU + MX 量化每向量 (64 个 FP32 元素) 的 UB 流量, 从源码逐句计数:
+#   bf16 中间缓冲被**整体流三遍** (blaze/epilogue/block_epilogue_activation_mx_quant.h):
+#     SwiGLU 写一遍, ComputeMaxExp 读一遍, ComputeFp8Data 再读一遍
+#   读: gate(BF16 128B) + up(BF16 128B) + ComputeMaxExp 重读(128B)
+#       + ComputeFp8Data 重读(128B) + maxExp/inverseMxScale 回读(8B) = 520B
+#   写: bf16 中间(128B) + maxExp(4B) + inverseMxScale(4B) + fp8(64B) + scale(2B) = 202B
+#   总: 722B/向量
+# 旧值 580 漏了 ComputeFp8Data 那一遍重读 (128B) 与 scale 中间量 (~14B)。
+# 两点 m 扫独立验证 (2026-09-30): bs36 (m=72, n_vec=288) 与 bs8192 (m=256, n_vec=1024)
+# 两个 run 定出实测斜率 0.007760 us/向量; 722/BW_UB = 0.007763 (+0.05%), 580 低 19.6%。
+# 截距实测 1.425 us 对 T_STARTUP_VEC=1.48 (差 3.8%)。改后 ACT 误差 -10.5%/-16.1%
+# -> +1.5%/+0.6%。注意: 单个 run 里 54 个 tile 形状全同, 只有比值可观测, 所以这个
+# 修正必须靠两个不同 m 的 run 才能与 BW_UB 分开 —— 单 run 改它是变相拟合。
+ACT_BYTES_PER_VEC = SourcedValue((128 + 128 + 128 + 128 + 8) + (128 + 4 + 4 + 64 + 2),
+                                'derived:ACT 每处理一个向量的 UB 字节数, 读 520B + 写 202B')
 
 # GMM2 K-window 
 GMM1_MIN_LOGICAL_TILES_PER_CORE = SourcedInt(4, 'kernel:p1 中档缺省: 每核最少 GMM1 逻辑 tile 数')

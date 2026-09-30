@@ -218,7 +218,17 @@ def _expand_gmm1(
         raise ValueError(
             f"{ev.name}: 缺 A 流/计算分解 — gmm1_tile 是自定义 callable. "
             "相位拆分 (queues.mte_aic > 1) 与 gm_to_l1 信道需要 AnalyticalGmmCosts 的公式")
-    # 信道只承载 A 流: 字节 = A 流时长 × 应得速率 (无争用服务时长 = load_us)
+    # 字节 = 载入相位时长 × 应得速率 (无争用服务时长 = load_us), 信道因此中性。
+    #
+    # 已声明未建模: 2026-09-30 起 GMM1 的载入是 max(A流, B流) 而不是相加 (两点 m 扫
+    # 实测: tile 时长与 m 无关), 于是这里折算出的字节只有 max(A,B) = B 流那一份,
+    # **少算了 A 流真实搬运的 m*k 字节**。
+    # 这不是笔误, 是当前单信道抽象表达不了的东西: A 流的字节是真的要过去, 但它的
+    # 延迟被跨 tile 的 L1 双缓冲藏住了 (tile i+1 的载入与 tile i 的计算重叠), 所以
+    # 它占带宽却不占本 tile 载入相位的时长。若在这里改成申报 A+B 字节, 调度器会按
+    # max(名义, 字节/速率) 把事件拉长回相加口径 —— 反而与实测矛盾。
+    # 要同时表达"占带宽、不占本 tile 时长", 需要把预取建成跨 tile 的独立事件
+    # (载入 tile i+1 的 A 流挂在 tile i 的计算旁), 那是编排层的改动。
     ch = ((CH_GM_TO_L1, load_us * BW_L1_GM, BW_L1_GM),) \
         if CH_GM_TO_L1 in channels and load_us else ()
 

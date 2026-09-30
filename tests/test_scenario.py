@@ -239,10 +239,13 @@ def test_cube_rate_is_optional():
 
 
 def test_gmm_tile_formulas():
-    """GMM1 = max(A流+B流, 计算); GMM2 = max(B流, 计算); 单缓冲 = 相加 + restart.
+    """GMM1 = max(A流, B流, 计算); GMM2 = max(B流, 计算); 单缓冲 = 相加 + restart.
 
-    B 流是小 batch 下的主导项 —— 见 20260930 实测 (bs=36): GMM1 单 tile 55.0 µs,
-    A 流只有 7.1, A流+B流 57.6。
+    载入取 max 而非相加, 由两点 m 扫定 (20260930 两个 run, 其余参数全同):
+      bs36  m=72  实测单 tile 55.041 us
+      bs8192 m=256 实测单 tile 53.810 us
+    —— **与 m 无关** (斜率 -0.0067, A 流斜率是 +0.0987 us/行)。相加口径在 m=72
+    只高 4.7% (A 流才占 12%), 到 m=256 就高 40.8%。
     """
     bw, rate = 50000.0, 1.0e7
     g = m.AnalyticalGmmCosts(bw_bytes_per_us=bw, cube_mac_per_us=rate)
@@ -252,19 +255,23 @@ def test_gmm_tile_formulas():
     b_flow2 = k2 * cols / bw
     compute1 = 2.0 * m_rows * cols * k / rate
     compute2 = m_rows * cols * k2 / rate
-    assert g.gmm1_tile(m_rows, k, cols) == max(a_flow + b_flow1, compute1)
+    assert g.gmm1_tile(m_rows, k, cols) == max(a_flow, b_flow1, compute1)
     assert g.gmm2_tile(m_rows, k2, cols) == max(b_flow2, compute2)
-    assert g.gmm1_phases(m_rows, k, cols) == (a_flow + b_flow1, compute1)
+    assert g.gmm1_phases(m_rows, k, cols) == (max(a_flow, b_flow1), compute1)
     assert g.gmm2_phases(m_rows, k2, cols) == (b_flow2, compute2)
-    # B 复用: 非首组的 tile 不付 B 流
+    # B 复用: 非首组的 tile 不付 B 流, 载入只剩 A 流
     assert g.gmm1_tile(m_rows, k, cols, False) == max(a_flow, compute1)
     # 计算快到让载入绑定
     fast = m.AnalyticalGmmCosts(bw_bytes_per_us=bw, cube_mac_per_us=1.0e12)
-    assert fast.gmm1_tile(m_rows, k, cols) == a_flow + b_flow1
+    assert fast.gmm1_tile(m_rows, k, cols) == max(a_flow, b_flow1)
+    # 载入绑定时 tile 时长与 m 无关 —— 这正是两点 m 扫实测到的 (实测域 cube_rate=0)
+    assert fast.gmm1_tile(64, k, cols) == fast.gmm1_tile(256, k, cols)
+    # A 流超过 B 流 (m > 2*cols) 才翻转成 A 绑定
+    assert fast.gmm1_tile(4 * cols, k, cols) > fast.gmm1_tile(2 * cols, k, cols)
     assert fast.gmm2_tile(m_rows, k2, cols) == b_flow2
     serial = m.AnalyticalGmmCosts(bw_bytes_per_us=bw, cube_mac_per_us=rate,
                                   l1_buf_num=1, tile_restart_us=0.5, l1_tile_k=256)
-    assert serial.gmm1_tile(m_rows, k, cols) == a_flow + b_flow1 + compute1 + 24 * 0.5
+    assert serial.gmm1_tile(m_rows, k, cols) == max(a_flow, b_flow1) + compute1 + 24 * 0.5
     assert serial.gmm2_tile(m_rows, k2, cols) == b_flow2 + compute2 + 8 * 0.5
 
 

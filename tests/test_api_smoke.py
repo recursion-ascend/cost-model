@@ -82,8 +82,14 @@ def test_default_pin():
     # 2026-09-30 dispatch 段改成内核的行级软流水 (buffer_count=6 槽, 前 6 行的
     #   Fetch 背靠背发出, 只有第 7 行起才等槽): rows<=6 的段不再按行串行累加,
     #   由一次往返延迟封底 → 220.403 → 218.919
-    assert abs(res["kernel_total_us"] - 218.919) < 0.01
-    assert abs(res["kernel_dag_end_us"] - 233.569) < 0.01
+    # 2026-09-30 两点 m 扫 (bs36 m=72 + bs8192 m=256) 定下两处形态:
+    #   1) GMM1 载入改 max(A流, B流) 而非相加 —— 实测 tile 时长与 m 无关
+    #      (相加口径在 m=256 高 40.8%)。GMM1 误差 +4.7%/+40.8% -> -8.2%/-6.1%
+    #   2) ACT_BYTES_PER_VEC 580 -> 722 (源码计数: bf16 中间缓冲被整读三遍,
+    #      旧值漏了 ComputeFp8Data 那一遍)。ACT 误差 -10.5%/-16.1% -> +1.5%/+0.6%
+    #   两者都降低了本夹具的时长 -> 218.919 -> 184.484
+    assert abs(res["kernel_total_us"] - 184.484) < 0.01
+    assert abs(res["kernel_dag_end_us"] - 199.134) < 0.01
     assert len(res["rank_results"][0]["events"]) == 659
     # 排队模型生效标志: 资源争用出现 (旧模型恒为 0)
     rq = sum(1 for e in res["rank_results"][0]["events"] if e.resource_queue_us > 0)
@@ -214,7 +220,7 @@ def _run_costs():
 def test_kl1_override_restores_legacy():
     """kL1=256 显式覆盖应恢复与 auto 相同值 (结构等价性自检)."""
     res = _run(options=m.ModelOptions(gmm2_kl1=256))
-    assert abs(res["kernel_total_us"] - 218.919) < 0.5
+    assert abs(res["kernel_total_us"] - 184.484) < 0.5
 
 
 def test_primitive_costs_requires_all():

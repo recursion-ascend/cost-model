@@ -191,7 +191,13 @@ def test_phase_split_compute_bound():
 
 
 def test_gm_channel_carries_both_gmm_loads():
-    """gm_to_l1 信道承载两个 GMM 的载入: GMM1 = A流+B流, GMM2 = B流."""
+    """gm_to_l1 信道承载两个 GMM 的载入相位字节: GMM1 = max(A流,B流), GMM2 = B流.
+
+    已声明未建模: GMM1 的 A 流字节 (m*k) 是真的要过 GM→L1, 但载入相位时长实测是
+    max(A,B) 而不是相加 (A 流的延迟被跨 tile 的 L1 双缓冲藏住), 而这里的字节是按
+    相位时长折算的 —— 所以信道少算了 A 流那一份。要同时表达"占带宽、不占本 tile
+    时长"得把预取建成跨 tile 的事件, 见 pipeline_expand 里的说明。
+    """
     channels = m.default_channels(28, bw_l1_gm=m.BW_L1_GM, bw_scatter=m.BW_SCATTER)
     for options in (m.ModelOptions(pipeline=P(channels=channels)), _split(channels=channels)):
         events = _run(options=options)["rank_results"][0]["events"]
@@ -214,8 +220,8 @@ def test_gm_channel_carries_both_gmm_loads():
         stage = ev.meta.get("stage")
         if stage == "gmm1":
             (name, nbytes, _), = ev.channel_bytes
-            # A 流 m·K + B 流 2·K·n
-            want = ev.meta["m_rows"] * 6144 + 2 * 6144 * ev.meta["logical_n"]
+            # 载入相位 = max(A流 m·K, B流 2·K·n); 本夹具下 B 流更大
+            want = max(ev.meta["m_rows"] * 6144, 2 * 6144 * ev.meta["logical_n"])
             assert abs(nbytes - want) < 1e-3
             assert any(q.startswith("QUEUE:mte_aic") for q, _ in ev.acquires)
         elif stage == "gmm2":

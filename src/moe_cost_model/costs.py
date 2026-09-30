@@ -273,12 +273,20 @@ class AnalyticalGmmCosts:
                     b_load: bool = True) -> Tuple[float, float]:
         """GMM1 tile 的 (载入, 计算) 时长; 单缓冲时载入含 restart.
 
-        闭式时长由二者合成 (双缓冲取 max, 单缓冲相加); 相位流水按同一组数
-        拆 load / cube 相位, 两边口径因此一致.
+        载入 = max(A流, B流), **不是相加** —— 两条流可以重叠, 慢的那条绑定。
+        2026-09-30 两点 m 扫定的口径 (bs36 m=72 / bs8192 m=256, 其余全同):
+          实测单 tile 55.041 / 53.810 us —— **与 m 无关** (对 m 的斜率 -0.0067,
+          而 A 流斜率是 +0.0987 us/行)。相加口径在 m=72 时只高 4.7% (A 流才占
+          12%, 看不出来), 到 m=256 就高 40.8%。
+          纯 B 流 50.51 us 对实测均值 54.43 -> 有效权重带宽 48166 B/us, 比
+          BW_L1_GM=51900 低 7% —— 那个常数的出处标签本来就写着"旧口径 (A+B 流)
+          下标定, 待重标", 剩下的 7% 正是它。
+        本配置下 A 流永不超过 B 流 (A>B 要 m > 2*cols = 512, 而 tile_m <= 256),
+        所以 max 与"只算 B"在实测域内不可分; 取 max 是更一般的形态。
         """
-        load = (m * k) / self.bw
-        if b_load:
-            load += (2 * k * cols) / self.bw_b
+        a_load = (m * k) / self.bw
+        b_load_us = (2 * k * cols) / self.bw_b if b_load else 0.0
+        load = max(a_load, b_load_us)
         if self.serial:
             load += self._chunks(k) * self.chunk_restart
         compute = (2.0 * m * cols * k / self.cube_rate) if self.cube_rate > 0 else 0.0

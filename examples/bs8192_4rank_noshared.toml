@@ -1,0 +1,31 @@
+# 4 卡, 每卡 8192 token, topk=6, 每卡 16 专家, 均匀路由, A8W8 wave (MTE) 路径.
+# shared_expert_num = 0
+#
+#   每卡发出 8192 x 6 = 49152 行, 均分到 4 x 16 = 64 个专家 -> 每格 768 行
+#   每个专家收 768 x 4 = 3072 行 = 12 个 m-group (对比 bs36 的 72 行 = 1 个)
+# 运行: python tools/compare_measured.py 20260930_145851_854111_bs8192_h5120_i4608_k6_cyclic_noshared examples/bs8192_4rank_noshared.toml
+
+name = "bs8192-4rank-topk6-noshared"
+h = 5120
+hidden_dim = 9216            # kernel 的 hiddenDim = 2 x intermediate (SwiGLU gate+up)
+aic_num = 28
+# p1/p2 手填, 由 [tiling] 重算 mGroupsPerWave = 4 核对
+p1_override = 4
+p2_override = 1
+
+[workload]
+tokens = 8192
+topk = 6
+world = 4
+local_experts = 16
+routing = "uniform"          # 与实测 routing_rank0.csv 逐格一致 (每格 768)
+shared_expert_num = 0
+
+[calibration]
+# 不给 cube_mac_per_us = 不计计算项
+
+[kernel]
+topo_urma = false
+
+[tiling]
+path = "../20260930_145851_854111_bs8192_h5120_i4608_k6_cyclic_noshared/raw/tiling_rank0.bin"
