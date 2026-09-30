@@ -78,6 +78,8 @@ from .analysis import (
 )
 from .api import simulate_routing_counts
 from .registry import register
-from .scenario import Calibration, Scenario, Workload, load_scenario, simulate
+from . import guardrails
+from .scenario import (Calibration, Scenario, TilingSource, Workload,
+                       load_scenario, simulate)
 
 __all__ = [name for name in dir() if not name.startswith('_')]

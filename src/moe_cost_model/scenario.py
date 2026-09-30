@@ -15,15 +15,17 @@ import json
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Mapping, Optional, Tuple
+from typing import Dict, List, Mapping, Optional, Tuple
 
 from . import registry
 from .api import simulate_routing_counts
+from . import guardrails
 from .config.hardware import BW_L1_GM, BW_SCATTER, KernelConfig
+from .config.pipeline import parse_tiling
 from .config.pipeline import (BufferSlots, PhaseRates, PipelineConstraints,
                               QueueDepths, SyncLatency)
 from .config.policy import InstancePolicy, StageWaveOffsets
-from .costs import (DispatchMechanisticLatency, PrimitiveCosts,
+from .costs import (DispatchDataLayout, DispatchMechanisticLatency, PrimitiveCosts,
                     UrmaMechanisticLatency, build_analytical_costs)
 from .scheduler.events import Channel, default_channels
 from .shape import EngineQueueDepths, ModelOptions
@@ -162,6 +164,20 @@ class Calibration:
     urma: Optional[UrmaMechanisticLatency] = None
 
 
+@dataclass(frozen=True)
+class TilingSource:
+    """kernel tiling 真值的来源 (raw/tiling_rank*.bin).
+
+    给了它就不用在场景文件里手抄 kernel 参数: 形状逐字段核对 (含用 p1/p2 重算
+    mGroupsPerWave), 不一致 strict=True 直接报错; adopt=True 时把 kernel 真值
+    (行级软流水槽数、路由批大小) 直接采用, 不再靠缺省常数碰巧相等。
+    """
+
+    path: str = ""
+    strict: bool = True     # 与场景不一致时 raise; False 只把说明放进结果
+    adopt: bool = True      # 采用 tiling 里的 kernel 真值
+
+
 # ---------------------------------------------------------------------------
 # 场景
 # ---------------------------------------------------------------------------
@@ -190,6 +206,7 @@ class Scenario:
     policy: InstancePolicy = field(default_factory=InstancePolicy)
     options: ModelOptions = field(default_factory=ModelOptions)
     calibration: Calibration = field(default_factory=Calibration)
+    tiling: Optional[TilingSource] = None
     default_channels: bool = False
     wave_packing: object = None
     core_assignment: object = None
@@ -219,6 +236,12 @@ class Scenario:
         wl = dict(data["workload"]) if isinstance(data["workload"], dict) else data["workload"]
         if isinstance(wl, dict) and wl.get("file") and base_dir is not None:
             wl["file"] = str((Path(base_dir) / str(wl["file"])).resolve())
+        # [tiling] path 与 workload.file 同规则: 相对场景文件所在目录
+        til = data.get("tiling")
+        if isinstance(til, dict) and til.get("path") and base_dir is not None:
+            til = dict(til)
+            til["path"] = str((Path(base_dir) / str(til["path"])).resolve())
+            data["tiling"] = til
         if isinstance(wl, dict) and "counts" in wl and "routing" not in wl:
             wl["routing"] = "explicit"
         data["workload"] = wl
@@ -241,6 +264,51 @@ class Scenario:
             out["costs"] = "<显式 PrimitiveCosts 对象>"
         return out
 
+    # ---- tiling 真值 ----
+
+    def tiling_truth(self) -> Dict[str, int]:
+        """解析 [tiling] path; 未给则空表."""
+        if self.tiling is None or not self.tiling.path:
+            return {}
+        return parse_tiling(self.tiling.path)
+
+    def check(self) -> Tuple[List[str], List[str]]:
+        """全部护栏, 返回 (硬错, 警告).
+
+        硬错只有一类 —— **与显式给出的 tiling 真值矛盾**。它无歧义 (场景声称的形状
+        与跑出数据的 kernel 配置不符), 而且只在调用方主动给了 [tiling] 时才可能出现,
+        所以 strict 缺省 True 直接报错。
+
+        其余都是警告, 不拦:
+          - 路由不守恒: 每源 rank 发出行数 != tokens x topk。对手写 counts 有用,
+            但 tokens 与 counts 在本模型里是**两个独立输入** (tokens 只喂 p1 档位
+            判定与 UNPERMUTE 字节), 测试夹具就故意让它们不一致, 故只警告。
+          - 信道尺度: default_channels 的"聚合 = 每核速率 x 核数"本身是有意的中性
+            基线, 不是错; 警告的价值在于往这条信道上再加消费者之前先看见它。
+        """
+        errors: List[str] = []
+        warnings: List[str] = []
+        wl = self.workload
+        warnings += guardrails.check_routing_conservation(
+            wl.routing_counts(), wl.tokens, wl.topk)
+        til = self.tiling_truth()
+        if til:
+            errors += guardrails.check_against_tiling(self, til)
+        pipe = self.resolved_options().pipeline
+        if pipe is not None and pipe.channels:
+            warnings += guardrails.check_channels(pipe.channels, self.aic_num)
+        return errors, warnings
+
+    def build_dispatch_layout(self) -> DispatchDataLayout:
+        """dispatch 行布局; adopt 时路由批大小取 tiling 真值."""
+        layout = DispatchDataLayout.from_hidden(self.h)
+        til = self.tiling_truth()
+        if til and self.tiling is not None and self.tiling.adopt:
+            items = til.get("dispatchRouteItemsPerBatch") or 0
+            if items > 0 and items != layout.route_items_per_batch:
+                layout = dataclasses.replace(layout, route_items_per_batch=items)
+        return layout
+
     # ---- 仿真输入 ----
 
     def build_costs(self) -> PrimitiveCosts:
@@ -250,12 +318,17 @@ class Scenario:
         extra = {}
         if cal.count_table_prepare_us is not None:
             extra["count_table_prepare_us"] = cal.count_table_prepare_us
-        # tiling 给了 dispatchBufferCount 就用真值覆盖行级软流水槽数
+        # 行级软流水槽数的真值来源, 依次: [tiling] path > pipeline.buffers > 缺省常数
         dispatch = cal.dispatch
-        pipe = self.options.pipeline
-        window = pipe.buffers.dispatch_window if pipe is not None else 0
-        if window > 0 and window != dispatch.buffer_count:
-            dispatch = dataclasses.replace(dispatch, buffer_count=window)
+        til = self.tiling_truth()
+        window = 0
+        if til and self.tiling is not None and self.tiling.adopt:
+            window = til.get("dispatchBufferCount") or 0
+        if window <= 0:
+            pipe = self.options.pipeline
+            window = pipe.buffers.dispatch_window if pipe is not None else 0
+        if window > 0 and int(window) != int(dispatch.buffer_count):
+            dispatch = dataclasses.replace(dispatch, buffer_count=int(window))
         return build_analytical_costs(
             h=self.h, kernel=self.kernel,
             dispatch_mechanistic=dispatch, urma_mechanistic=cal.urma,
@@ -282,12 +355,23 @@ class Scenario:
 
 
 def simulate(scenario: Scenario) -> Dict[str, object]:
-    """场景 → 执行时间. 返回 simulate_routing_counts 的结果, 另带 scenario."""
+    """场景 → 执行时间. 返回 simulate_routing_counts 的结果, 另带 scenario.
+
+    先跑护栏 (guardrails): 给了 [tiling] 时逐字段核对 kernel 真值 (含用 p1/p2 重算
+    mGroupsPerWave), 矛盾即报错 (tiling.strict=false 可降级); 路由守恒与信道尺度
+    只警告。全部说明都放进结果的 "warnings"。
+    """
     wl = scenario.workload
+    errors, warnings = scenario.check()
+    strict = scenario.tiling is None or scenario.tiling.strict
+    if errors and strict:
+        raise ValueError("与 tiling 真值矛盾 (tiling.strict=false 可降级为警告):\n  - "
+                         + "\n  - ".join(errors))
     result = simulate_routing_counts(
         routing_counts=wl.routing_counts(), token_num_per_rank=wl.tokens,
         h=scenario.h, hidden_dim=scenario.hidden_dim, aic_num=scenario.aic_num,
         costs=scenario.build_costs(), topk=wl.topk,
+        dispatch_layout=scenario.build_dispatch_layout(),
         shared_expert_num=wl.shared_expert_num,
         kernel=scenario.kernel, options=scenario.resolved_options(),
         policy=scenario.policy,
@@ -300,6 +384,8 @@ def simulate(scenario: Scenario) -> Dict[str, object]:
         orchestration=registry.resolve("orchestration", scenario.orchestration),
     )
     result["scenario"] = scenario
+    if errors or warnings:
+        result["warnings"] = tuple(errors + warnings)
     return result
 
 
@@ -340,6 +426,7 @@ _NESTED = {
     (Scenario, "policy"): InstancePolicy,
     (Scenario, "options"): ModelOptions,
     (Scenario, "calibration"): Calibration,
+    (Scenario, "tiling"): TilingSource,
     (InstancePolicy, "wave_offsets"): StageWaveOffsets,
     (ModelOptions, "pipeline"): PipelineConstraints,
     (ModelOptions, "engine_queue_depths"): EngineQueueDepths,

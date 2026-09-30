@@ -8,9 +8,15 @@ name = "bs36-4rank-topk6"
 h = 5120
 hidden_dim = 9216            # kernel 的 hiddenDim = 2 x intermediate (SwiGLU gate+up)
 aic_num = 28
-# p1/p2 由实测 tiling_rank0.bin 反解: mGroupsPerWave = 2
+# p1/p2 是主机侧策略, tiling 里没有, 只能手填; 但 [tiling] 会用它们重算
+# mGroupsPerWave 与真值核对 —— 抄错或随 kernel 改版失效都会直接报错。
 p1_override = 2
 p2_override = 1
+
+[tiling]
+# kernel 真值来源: 形状逐字段核对, 行级软流水槽数与路由批大小直接采用。
+# 路径相对本场景文件所在目录 (与 workload.file 同规则); 换 run 只改这一行。
+path = "../20260930_104026_183038_bs36_h5120_i4608_k6_cyclic/raw/tiling_rank0.bin"
 
 [workload]
 tokens = 36
