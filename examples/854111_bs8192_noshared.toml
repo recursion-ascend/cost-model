@@ -1,0 +1,24 @@
+# 由 data/20260930_145851_854111_bs8192_h5120_i4608_k6_cyclic_noshared 生成。路由用该 run 实测的 routing_rank*.csv (explicit), 零路由误差 ——
+# 模型内置的 cyclic 公式与这批 run 的实际路由不一致, 故不用生成式路由。
+name = "854111_bs8192_noshared"
+h = 5120
+hidden_dim = 9216
+aic_num = 28
+# p1/p2 有多解, 都给同一个 mGroupsPerWave=4; 只有派生量可观测, 由 [tiling] 核对
+p1_override = 4
+p2_override = 1
+
+[workload]
+tokens = 8192
+topk = 6
+routing = "file"
+file = "routing/20260930_145851_854111_bs8192_h5120_i4608_k6_cyclic_noshared.json"
+shared_expert_num = 0
+
+[calibration]
+
+[kernel]
+topo_urma = false
+
+[tiling]
+path = "../data/20260930_145851_854111_bs8192_h5120_i4608_k6_cyclic_noshared/raw/tiling_rank0.bin"

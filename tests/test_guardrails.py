@@ -12,9 +12,11 @@ from moe_cost_model.guardrails import (
     check_against_tiling, check_channels, check_routing_conservation)
 from moe_cost_model.scenario import TilingSource
 
-RUN = Path(__file__).resolve().parents[1] / "20260930_104026_183038_bs36_h5120_i4608_k6_cyclic"
+ROOT = Path(__file__).resolve().parents[1]
+# 实测 run 都在 data/ 下 (已 gitignore); 场景文件由 tiling 真值生成, 见 examples/*.toml
+SCENARIO = ROOT / "examples" / "112575_bs36_noshared.toml"
+RUN = ROOT / "data" / "20260930_154158_112575_bs36_h5120_i4608_k6_cyclic_noshared"
 TILING = RUN / "raw" / "tiling_rank0.bin"
-SCENARIO = Path(__file__).resolve().parents[1] / "examples" / "bs36_4rank.toml"
 has_run = pytest.mark.skipif(not TILING.exists(), reason="实测 run 未就位 (已 gitignore)")
 
 

@@ -88,8 +88,14 @@ def test_default_pin():
     #   2) ACT_BYTES_PER_VEC 580 -> 722 (源码计数: bf16 中间缓冲被整读三遍,
     #      旧值漏了 ComputeFp8Data 那一遍)。ACT 误差 -10.5%/-16.1% -> +1.5%/+0.6%
     #   两者都降低了本夹具的时长 -> 218.919 -> 184.484
-    assert abs(res["kernel_total_us"] - 184.484) < 0.01
-    assert abs(res["kernel_dag_end_us"] - 199.134) < 0.01
+    # 2026-09-30 bs=128 run (m=256 但仍是 1 个 m-group) 把混淆变量分开, 回退 GMM1:
+    #   载入恢复 A流+B流 相加 (之前据 bs36 vs bs8192 改成 max 是错的 —— bs8192 同时
+    #   变了 m 与每专家 m-group 数, 两个效应抵消)。bs36->bs128 只有 m 变, 实测斜率
+    #   0.10416 对 A 流斜率 0.09865, 比值 1.06 -> A 流是加性项。
+    #   ACT 的 722 不受影响 (两个独立 m=256 run 互差 0.5%)。
+    #   184.484 -> 220.483
+    assert abs(res["kernel_total_us"] - 220.483) < 0.01
+    assert abs(res["kernel_dag_end_us"] - 235.133) < 0.01
     assert len(res["rank_results"][0]["events"]) == 659
     # 排队模型生效标志: 资源争用出现 (旧模型恒为 0)
     rq = sum(1 for e in res["rank_results"][0]["events"] if e.resource_queue_us > 0)
@@ -220,7 +226,7 @@ def _run_costs():
 def test_kl1_override_restores_legacy():
     """kL1=256 显式覆盖应恢复与 auto 相同值 (结构等价性自检)."""
     res = _run(options=m.ModelOptions(gmm2_kl1=256))
-    assert abs(res["kernel_total_us"] - 184.484) < 0.5
+    assert abs(res["kernel_total_us"] - 220.483) < 0.5
 
 
 def test_primitive_costs_requires_all():

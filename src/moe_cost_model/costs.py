@@ -273,20 +273,27 @@ class AnalyticalGmmCosts:
                     b_load: bool = True) -> Tuple[float, float]:
         """GMM1 tile 的 (载入, 计算) 时长; 单缓冲时载入含 restart.
 
-        载入 = max(A流, B流), **不是相加** —— 两条流可以重叠, 慢的那条绑定。
-        2026-09-30 两点 m 扫定的口径 (bs36 m=72 / bs8192 m=256, 其余全同):
-          实测单 tile 55.041 / 53.810 us —— **与 m 无关** (对 m 的斜率 -0.0067,
-          而 A 流斜率是 +0.0987 us/行)。相加口径在 m=72 时只高 4.7% (A 流才占
-          12%, 看不出来), 到 m=256 就高 40.8%。
-          纯 B 流 50.51 us 对实测均值 54.43 -> 有效权重带宽 48166 B/us, 比
-          BW_L1_GM=51900 低 7% —— 那个常数的出处标签本来就写着"旧口径 (A+B 流)
-          下标定, 待重标", 剩下的 7% 正是它。
-        本配置下 A 流永不超过 B 流 (A>B 要 m > 2*cols = 512, 而 tile_m <= 256),
-        所以 max 与"只算 B"在实测域内不可分; 取 max 是更一般的形态。
+        载入 = A流 + B流 (相加)。
+
+        口径修订史 —— 这里错过一次, 记下来免得再犯:
+          2026-09-30 先用 bs36 (m=72) 与 bs8192 (m=256) 两个 run 比, 看到实测单 tile
+          55.0 / 53.8 us 几乎不随 m 变, 于是改成了 max(A,B)。**那是混淆变量**: bs8192
+          同时变了 m (72->256) 与每专家 m-group 数 (1->12), 两个效应刚好抵消。
+          随后 bs128 (m=256 但仍是 1 个 m-group) 把两者分开:
+            bs36   m= 72, 1 组: 实测 55.645   模型 A+B = 57.61  (+3.5%)
+            bs128  m=256, 1 组: 实测 74.810   模型 A+B = 75.76  (+1.3%)
+            bs8192 m=256,12 组: 实测 53.810   模型 A+B = 75.76  (+40.8%)
+          bs36->bs128 是干净的单变量对比: 实测斜率 0.10416 us/行, A 流斜率
+          0.09865 -> 比值 1.06。**A 流确实是加性项**, 相加口径在 1 个 m-group 的两个
+          形状上都只差 1~4%。
+          bs8192 那 -28% 的来源是另一件事: 每专家 12 个 m-group 时权重在 m-group 之间
+          被复用 (L2 命中), B 流不是每 tile 都付。模型有 KernelConfig.gmm1_b_reuse
+          这个旋钮表达它, 但"付几次"的规律还没定 (按 1/12 算会过冲: A + B/12 = 29.5
+          远低于实测 53.8)。待 bs8192 的 trace 重传后单独查。
         """
         a_load = (m * k) / self.bw
         b_load_us = (2 * k * cols) / self.bw_b if b_load else 0.0
-        load = max(a_load, b_load_us)
+        load = a_load + b_load_us
         if self.serial:
             load += self._chunks(k) * self.chunk_restart
         compute = (2.0 * m * cols * k / self.cube_rate) if self.cube_rate > 0 else 0.0

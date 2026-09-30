@@ -1,15 +1,15 @@
 {
-  "comment": "典型配置输出快照 — 重构时确认数值未变. 与 test_api_smoke 锚点同源. GMM 公式含 B 流; Cube 速率取测试夹具值 2.7e7 (非标定, 实测域内计算不绑定). COMBINE 按行归属分本卡/跨卡两个带宽, 跨卡带宽 BW_REMOTE_WRITE 现为 assumed 未标定. dispatch 段按内核行级软流水 (buffer_count 槽) 算, 不再按行串行累加. GMM1 载入 = max(A流,B流) 非相加, ACT 每向量 722B (均由两点 m 扫定形态). kernel_total_us 记到最后一个 COMBINE 结束, kernel_dag_end_us 含尾段.",
+  "comment": "典型配置输出快照 — 重构时确认数值未变. 与 test_api_smoke 锚点同源. GMM 公式含 B 流; Cube 速率取测试夹具值 2.7e7 (非标定, 实测域内计算不绑定). COMBINE 按行归属分本卡/跨卡两个带宽, 跨卡带宽 BW_REMOTE_WRITE 现为 assumed 未标定. dispatch 段按内核行级软流水 (buffer_count 槽) 算, 不再按行串行累加. GMM1 载入 = A流+B流 相加 (bs128 三点定), ACT 每向量 722B. kernel_total_us 记到最后一个 COMBINE 结束, kernel_dag_end_us 含尾段.",
   "cases": {
     "deterministic_4rank_bs64": {
-      "kernel_total_us": 184.483978,
-      "kernel_dag_end_us": 199.134387,
+      "kernel_total_us": 220.482570,
+      "kernel_dag_end_us": 235.132979,
       "events_per_rank": 659,
-      "anchor": 184.484
+      "anchor": 220.483
     },
     "deterministic_4rank_bs64_lag1": {
-      "kernel_total_us": 177.900903,
-      "kernel_dag_end_us": 192.551311
+      "kernel_total_us": 234.689037,
+      "kernel_dag_end_us": 249.339446
     }
   }
 }
