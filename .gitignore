@@ -32,3 +32,6 @@ Thumbs.db
 /2026*_bs*.zip
 /build_bench/
 /data/
+
+# 根目录项目的旧副本, 不上库
+/moe-cost-model/

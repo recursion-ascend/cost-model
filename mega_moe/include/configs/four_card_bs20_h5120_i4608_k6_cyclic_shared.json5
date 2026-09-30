@@ -1,0 +1,40 @@
+{                                                                 #
+  "case": {                                                       # case
+    "tokens": 20,                                                 # 每卡 token 数
+    "hidden": 5120,                                               # 输入输出维度 H
+    "intermediate": 4608,                                         # 专家中间维度 I（hiddenDim = 2I = 9216）
+    "ep": 4,                                                      # 卡数
+    "experts": 12,                                                # 全局路由专家数（每卡 3）
+    "topk": 6,                                                    # 每 token 路由专家数
+    "shared_experts": 1,                                          # 每卡共享专家数
+    "routing": "cyclic",                                          # cyclic 均匀路由
+    "seed": 20260930,                                             # 各 rank 使用 seed + rank（cyclic 不使用）
+    "dtype": "fp8_e5m2",                                          # MXFP8 E5M2 激活/权重
+    "warmup": 3                                                   # 预热次数；正式固定一次
+  },                                                              #
+  "device": {                                                     # device
+    "ids": [                                                      # 物理设备编号
+      0,                                                          #
+      1,                                                          #
+      2,                                                          #
+      3                                                           #
+    ],                                                            #
+    "aic_cores": 28,                                              # 每卡 AIC 数
+    "aiv_cores": 56,                                              # 每卡 AIV 数
+    "slots_per_core": 16384                                       # 每核打点记录容量
+  },                                                              #
+  "profiling": {                                                  # profiling
+    "timestamp_frequency_mhz": 1000                               # 时间戳换算频率，不调频
+  },                                                              #
+  "build": {                                                      # build
+    "soc": "ascend950pr_957c",                                    # soc
+    "platform": "Ascend950PR_957c",                               # platform
+    "jobs": 2,                                                    # jobs
+    "type": "Release"                                             # type
+  },                                                              #
+  "runtime": {                                                    # runtime
+    "cann_env": "",                                               # 沿用已加载环境
+    "omp_threads": 1,                                             # OpenMP 线程数
+    "distributed_timeout": 180                                    # 分布式超时秒数
+  }                                                               #
+}                                                                 #
