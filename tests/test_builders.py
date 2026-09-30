@@ -22,6 +22,7 @@ def _costs():
         gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
+        combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
         count_table_prepare_us=m.T_COUNT_GATE,
     )
 
@@ -172,6 +173,37 @@ def test_idle_core_stealing_active_and_effective():
                  for e in r["events"] if "stolen_from" in e.meta)
     assert stolen > 0, "rank 前缀不匹配时任务转移静默失效 (旧 bug)"
     assert r_steal["kernel_total_us"] != r_plain["kernel_total_us"]
+
+def test_combine_remote_rows_come_from_routing():
+    """每个 COMBINE 窗的跨卡行数由 routing 逐行数出, 不是按比例摊.
+
+    专家内的行按源卡顺序排布 (dispatch 就是按这个顺序分段写的), 所以窗的行区间
+    与源卡分段求交即得。均匀路由下 4 卡每专家 4×18 行 → 每窗 54 行跨卡。
+    """
+    from moe_cost_model.builders.base import count_remote_rows
+    # [18,18,18,18], dst=0 → 前 18 行本卡, 后 54 行跨卡
+    src = [18, 18, 18, 18]
+    assert count_remote_rows(src, 0, 0, 72) == 54
+    assert count_remote_rows(src, 0, 0, 18) == 0        # 全落在本卡段
+    assert count_remote_rows(src, 0, 18, 36) == 18      # 全落在 rank1 段
+    assert count_remote_rows(src, 0, 10, 30) == 12      # 跨段: 8 本卡 + 12 远端
+    assert count_remote_rows(src, 2, 0, 72) == 54       # 本卡段换位置
+    assert count_remote_rows(src, 2, 36, 54) == 0
+    assert count_remote_rows([0, 72, 0, 0], 0, 0, 72) == 72   # 一张源卡包场
+    assert count_remote_rows([72, 0, 0, 0], 0, 0, 72) == 0    # 全本地专家
+
+    # 建图里落到事件 meta 上
+    res = m.simulate_routing_counts(
+        routing_counts=[[[18] * 4 for _ in range(3)] for _ in range(4)],
+        token_num_per_rank=36, h=5120, hidden_dim=9216, aic_num=28,
+        costs=_costs(), topk=6, p1_override=2, p2_override=1)
+    comb = [e for e in res["rank_results"][0]["events"]
+            if e.meta.get("stage") == "combine"]
+    assert comb
+    for e in comb:
+        assert e.meta["remote_rows"] == count_remote_rows(
+            [18] * 4, 0, e.meta["row_begin"], e.meta["row_end"])
+
 
 def test_total_is_measured_to_last_combine():
     """执行时间记到最后一个 COMBINE 结束; 尾段照常调度但不计入."""

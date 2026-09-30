@@ -26,7 +26,15 @@ BW_UB = SourcedValue(93000.0, 'measured:ACT 搬移 UB 数据的带宽')
 # 标定: dispatch 窗排空差分 ×4.
 BW_WINDOW = SourcedValue(33000.0, 'measured:跨卡读数据的片间带宽, dispatch 用')
 # 标定: B=64 随机路由反推;
-BW_SCATTER = SourcedValue(139500.0, 'measured:COMBINE 散射写带宽; 域受限')
+# 只剩本卡侧口径: COMBINE 现在把 GM→UB 读回与本卡行写按 BW_LOCAL_GM 计,
+# 跨卡行写按 BW_REMOTE_WRITE 计, 本常数不再进 COMBINE 公式 (留给旧标定复现).
+BW_SCATTER = SourcedValue(139500.0, 'measured:COMBINE 散射写带宽 (旧口径, 已不用); 域受限')
+# COMBINE 的跨卡行写 (CombineTokens 每行一次 DataCopyPad 直写目的卡窗口) 无直测:
+# 现有跨卡常数都是读侧 (BW_REMOTE_GM 是 dispatch 远端段的读)。同引擎同互连,
+# 暂按对称假设取读侧值 —— 与 URMA_PUT_BW_SINGLE 取 GET 对称值同一处理。
+# 标定待办: 20260930 bs=36 run 只有一种 tile 形状 (m=72, 每行 512B), 单点不足以
+# 分离"每行固定开销"与"按字节"两项; 需要扫 m 或扫 tile_n 的 run 才能定这个常数。
+BW_REMOTE_WRITE = SourcedValue(31000.0, 'assumed:跨卡写目的卡窗口的带宽 (每核), 取远端读对称值; COMBINE 用')
 
 # 流水线启动/填充延迟
 # 暂取 0; 实测存在 68ns/tile 的缺口 (n 系差分), 机制待推导.

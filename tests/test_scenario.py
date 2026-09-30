@@ -266,3 +266,43 @@ def test_gmm_tile_formulas():
                                   l1_buf_num=1, tile_restart_us=0.5, l1_tile_k=256)
     assert serial.gmm1_tile(m_rows, k, cols) == a_flow + b_flow1 + compute1 + 24 * 0.5
     assert serial.gmm2_tile(m_rows, k2, cols) == b_flow2 + compute2 + 8 * 0.5
+
+
+def test_combine_tile_splits_local_and_remote_rows():
+    """COMBINE = GM→UB 读回 + 本卡行写 + 跨卡行写, 三段各按自己的带宽.
+
+    内核 CombineTokens 对本窗每一行发一次 DataCopyPad, 目标是该行来源卡的窗口
+    (Gmm2Aiv1EpilogueA8W4)。所以本窗代价取决于其中多少行要跨卡 —— 这一项由
+    routing 精确给出, 不是按比例摊。
+    """
+    loc, rem = 100000.0, 5000.0
+    cb = m.AnalyticalCombineCosts(bw_local_bytes_per_us=loc, bw_remote_bytes_per_us=rem)
+    rows, n = 72, 256
+    read = rows * (2 * n + cb.META_BYTES_PER_ROW) / loc      # ElementC = BF16
+    row_bytes = 2 * n
+    assert cb.write_bytes_per_elem == 2.0
+    assert cb.read_us(rows, n) == read
+    # 全本卡 / 全跨卡 两个端点
+    assert cb.tile(rows, n, 0) == read + rows * row_bytes / loc
+    assert cb.tile(rows, n, rows) == read + rows * row_bytes / rem
+    # 混合: 逐行线性, 54 行跨卡 (4 卡均匀路由下每专家的实际值)
+    assert cb.tile(rows, n, 54) == read + 18 * row_bytes / loc + 54 * row_bytes / rem
+    # 跨卡贵 → 本地亲和度越高越便宜, 且是严格单调的
+    us = [cb.tile(rows, n, r) for r in range(0, rows + 1, 9)]
+    assert us == sorted(us) and us[-1] > 2.0 * us[0]
+    with pytest.raises(ValueError):
+        cb.tile(rows, n, rows + 1)
+    with pytest.raises(ValueError):
+        cb.tile(rows, n, -1)
+
+
+def test_combine_quant_mode_only_changes_write_side():
+    """QUANT 模式只改写侧宽度 (FP8 + 1/32 scale); 读回仍是 BF16 的 GMM2 输出."""
+    kw = dict(bw_local_bytes_per_us=100000.0, bw_remote_bytes_per_us=5000.0)
+    no_q = m.AnalyticalCombineCosts(combine_quant_mode=0, **kw)
+    q = m.AnalyticalCombineCosts(combine_quant_mode=1, **kw)
+    assert no_q.read_us(72, 256) == q.read_us(72, 256)
+    assert q.write_bytes_per_elem == 1.0 + 1.0 / 32.0
+    assert q.tile(72, 256, 54) < no_q.tile(72, 256, 54)
+    with pytest.raises(ValueError, match="combine_quant_mode"):
+        m.AnalyticalCombineCosts(combine_quant_mode=9)

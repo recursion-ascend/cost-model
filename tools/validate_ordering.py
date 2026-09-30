@@ -100,7 +100,8 @@ def main():
             gmm1_tile=AnalyticalGmmCosts(cube_mac_per_us=cube_rate()).gmm1_tile,
             gmm2_tile=AnalyticalGmmCosts(cube_mac_per_us=cube_rate()).gmm2_tile,
             activation_tile=AnalyticalActCosts().tile,
-            combine_tile=AnalyticalCombineCosts(h=t["h"]).tile,
+            combine_tile=AnalyticalCombineCosts().tile,
+            combine_write_bytes_per_row=AnalyticalCombineCosts().write_bytes_per_row,
             count_table_prepare_us=T_COUNT_GATE)
         res = simulate_routing_counts(
             routing_counts=rc, token_num_per_rank=t["bs"], h=t["h"],

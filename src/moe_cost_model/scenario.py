@@ -152,6 +152,10 @@ class Calibration:
     gmm1_tile_restart_us: float = 0.0     # 单缓冲下 L1 换块停顿; 只作用于 GMM1
     bw_ub: Optional[float] = None
     t_startup_us: Optional[float] = None
+    # COMBINE: 读回 + 本卡行写走 bw_combine_local, 跨卡行写走 bw_combine_remote
+    bw_combine_local: Optional[float] = None
+    bw_combine_remote: Optional[float] = None
+    # hbm_write 信道的每核应得速率 (速率服务器用, 不进 COMBINE 公式)
     bw_scatter: Optional[float] = None
     count_table_prepare_us: Optional[float] = None
     dispatch: DispatchMechanisticLatency = field(default_factory=DispatchMechanisticLatency)
@@ -253,7 +257,9 @@ class Scenario:
             cube_mac_per_us=cal.cube_mac_per_us,
             gmm1_fill_us=cal.gmm1_fill_us,
             gmm1_tile_restart_us=cal.gmm1_tile_restart_us, bw_ub=cal.bw_ub,
-            t_startup_us=cal.t_startup_us, bw_scatter=cal.bw_scatter, **extra)
+            t_startup_us=cal.t_startup_us,
+            bw_combine_local=cal.bw_combine_local,
+            bw_combine_remote=cal.bw_combine_remote, **extra)
 
     def resolved_options(self) -> ModelOptions:
         """default_channels 展开后的 ModelOptions."""

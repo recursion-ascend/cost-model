@@ -66,6 +66,31 @@ def build_dispatch_expert_ir(*, expert, dst_rank, source_counts, row_begin, row_
         rows=sum(r for _, r in segs))
 
 
+def rows_by_source_rank(source_counts, row_begin: int, row_end: int) -> Tuple[int, ...]:
+    """行区间 [row_begin, row_end) 按源卡拆出的逐卡行数.
+
+    专家内的行按源卡顺序排布 (dispatch 就是按这个顺序分段写的, 见
+    build_dispatch_expert_ir), 所以任意行区间的归属可以精确数出来 —— 不是按
+    比例摊。COMBINE 要把每行写回它的来源卡, 这组数就是该窗发往各卡的行数,
+    既定时长 (本卡/跨卡两个带宽), 也定片间信道流量 (逐目的卡一条边)。
+    """
+    out = []
+    cur = 0
+    for cnt in source_counts:
+        nxt = cur + cnt
+        lo = max(row_begin, cur)
+        hi = min(row_end, nxt)
+        out.append(hi - lo if hi > lo else 0)
+        cur = nxt
+    return tuple(out)
+
+
+def count_remote_rows(source_counts, dst_rank: int, row_begin: int, row_end: int) -> int:
+    """rows_by_source_rank 里源卡 != dst_rank 的行数合计."""
+    by_src = rows_by_source_rank(source_counts, row_begin, row_end)
+    return sum(n for src, n in enumerate(by_src) if src != dst_rank)
+
+
 class EventBuilderBase:
     """持有建图工作状态, 按波序列生成事件图.
 

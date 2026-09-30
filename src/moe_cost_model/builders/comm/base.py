@@ -5,7 +5,8 @@ ctx.dispatch_ready_event 登记就绪标记事件名, 下游 GMM1 依赖它;
 行数守恒由实现自校验.
 
 CombineTransport 契约: on_gmm2_tile 在 GMM2 tile 建好后逐个调用 (t 是该 tile
-的行列范围, label 是它的名字片段),
+的行列范围, label 是它的名字片段; shape 用来把 tile 的行区间映射回源卡,
+COMBINE 要按"写回本卡/写回远端卡"分开计费),
 flush_wave 在该波全部 GMM2 建完后调用一次; 实现自行决定
 聚合粒度 (配对 tile / 批量 PUT).
 """
@@ -22,7 +23,7 @@ class DispatchTransport:
 class CombineTransport:
     """combine 后端接口: 为 GMM2 产出建聚合事件."""
 
-    def on_gmm2_tile(self, builder, ctx, w, si, sl, t, label, ntile, core,
+    def on_gmm2_tile(self, builder, ctx, w, shape, si, sl, t, label, ntile, core,
                      gname, global_group, call_iteration):
         raise NotImplementedError
 

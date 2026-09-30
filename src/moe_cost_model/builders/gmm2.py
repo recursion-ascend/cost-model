@@ -95,7 +95,7 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
 
             # combine 走传输后端钩子: MTE 配对 tile / URMA 记录待批
             builder.combine_backend.on_gmm2_tile(
-                builder, ctx, w, si, sl, t, label, ntile, core,
+                builder, ctx, w, shape, si, sl, t, label, ntile, core,
                 gname, global_group, call_iteration)
 
 

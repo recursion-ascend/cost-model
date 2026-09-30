@@ -50,6 +50,7 @@ def manual_costs(cube_rate=CUBE_RATE):
         gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=cube_rate).gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
+        combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
         count_table_prepare_us=m.T_COUNT_GATE,
     )
 

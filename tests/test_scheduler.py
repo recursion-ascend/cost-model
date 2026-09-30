@@ -31,6 +31,7 @@ def _run(options=None, policy=None, cube_rate=CUBE_RATE, kernel=None):
         gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=cube_rate).gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
+        combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
         count_table_prepare_us=m.T_COUNT_GATE,
     )
     return m.simulate_routing_counts(
@@ -129,6 +130,7 @@ def test_split_no_deadlock_large_dag():
         gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
+        combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
         count_table_prepare_us=m.T_COUNT_GATE,
     )
     res = m.simulate_routing_counts(
@@ -252,6 +254,7 @@ def test_custom_gmm1_callable_cannot_be_split():
         gmm2_tile=analytical.gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
+        combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
         count_table_prepare_us=m.T_COUNT_GATE)
     kw = dict(routing_counts=_deterministic_case(), token_num_per_rank=64, h=6144,
               hidden_dim=4096, aic_num=28, costs=costs, p1_override=2, p2_override=1)
@@ -274,6 +277,7 @@ def test_custom_gmm1_callable_takes_three_args():
         gmm1_tile=custom, gmm2_tile=analytical.gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
+        combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
         count_table_prepare_us=m.T_COUNT_GATE)
     res = m.simulate_routing_counts(
         routing_counts=_deterministic_case(), token_num_per_rank=64, h=6144,

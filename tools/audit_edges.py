@@ -27,6 +27,7 @@ def make_costs():
         gmm2_tile=AnalyticalGmmCosts(cube_mac_per_us=cube_rate()).gmm2_tile,
         activation_tile=AnalyticalActCosts().tile,
         combine_tile=AnalyticalCombineCosts().tile,
+        combine_write_bytes_per_row=AnalyticalCombineCosts().write_bytes_per_row,
         count_table_prepare_us=T_COUNT_GATE)
 
 

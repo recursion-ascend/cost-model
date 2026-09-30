@@ -162,7 +162,7 @@ class UrmaCombine(CombineTransport):
     def __init__(self, parent: UrmaTransport):
         self.parent = parent
 
-    def on_gmm2_tile(self, builder, ctx, w, si, sl, t, label, ntile, core,
+    def on_gmm2_tile(self, builder, ctx, w, shape, si, sl, t, label, ntile, core,
                      gname, global_group, call_iteration):
         pass   # URMA 聚合按波批量; tail 名已由 gmm2 stage 登记进 gmm2_tail_by_group
 
@@ -212,8 +212,10 @@ class UrmaCombine(CombineTransport):
                 if core in self.parent.aiv1_last:
                     deps.append(self.parent.aiv1_last[core])
                 if dst == shape.rank_id:
-                    # 本地: 读 GMM2 输出 + MTE 写 combineSend (复用 MTE 标定公式)
-                    duration = builder.costs.combine_tile(m, h)
+                    # 本地: 读 GMM2 输出 + MTE 写 combineSend (复用 MTE 标定公式)。
+                    # 这一批按 dst 分好了, 全是写回本卡的行 → remote_rows=0;
+                    # 跨卡的批走下面的 URMA PUT 公式, 不进 combine_tile。
+                    duration = builder.costs.combine_tile(m, h, 0)
                 else:
                     # 远端: meta 读 + 批量 PUT (WQE 引擎直读 GMM2 输出, 无本地写)
                     duration = (

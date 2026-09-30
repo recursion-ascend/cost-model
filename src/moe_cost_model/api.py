@@ -49,7 +49,9 @@ def _rebind_costs_to_kernel(costs: PrimitiveCosts, kernel) -> PrimitiveCosts:
             and comb.combine_quant_mode != kernel.combine_quant_mode):
         new_c = AnalyticalCombineCosts(
             combine_quant_mode=kernel.combine_quant_mode,
-            bw_scatter_bytes_per_us=comb.bw)
+            bw_local_bytes_per_us=comb.bw_local,
+            bw_remote_bytes_per_us=comb.bw_remote,
+            meta_bytes_per_row=comb.meta_bytes)
         costs = dataclasses.replace(costs, combine_tile=new_c.tile)
     return costs
 

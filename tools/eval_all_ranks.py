@@ -106,6 +106,7 @@ def mk_costs(h):
         gmm2_tile=agc.gmm2_tile,
         activation_tile=act.tile,
         combine_tile=comb.tile,
+        combine_write_bytes_per_row=comb.write_bytes_per_row,
         count_table_prepare_us=T_COUNT_GATE,
     )
 

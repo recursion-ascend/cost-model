@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from typing import Callable, Optional, Tuple
 
 from .config.hardware import (
-    ACT_BYTES_PER_VEC, BW_L1_GM, BW_LOCAL_GM, BW_REMOTE_GM, BW_SCATTER, BW_UB,
+    ACT_BYTES_PER_VEC, BW_L1_GM, BW_LOCAL_GM, BW_REMOTE_GM, BW_REMOTE_WRITE,
+    BW_SCATTER, BW_UB,
     T_CALL_OH, T_COUNT_GATE, T_GMM1_OVERLAP, T_LAT_LOCAL, T_LAT_REMOTE,
     T_STARTUP_VEC,
     MXFP_DIVISOR_SIZE, MXFP_MULTI_BASE_SIZE_K, URMA_FLAG_BYTES, URMA_FLAG_WINDOW_TOKENS,
@@ -165,7 +166,13 @@ class PrimitiveCosts:
 
     # x = valid M rows; y = logical scheduler columns / TILE_N.
     activation_tile: Callable[[int, float], float]
-    combine_tile: Callable[[int, float], float]
+    # (m 行, 本窗列数, 其中目的卡 != 本卡的行数) -> us
+    # 第三参必填: 跨卡行是 COMBINE 的主导项 (实测占 95%), 缺了它公式会低估 10 倍.
+    combine_tile: Callable[[int, float, int], float]
+    # 本窗每行写出的字节数, 供 builder 折算片间信道流量.
+    # 必填 (不给零值缺省): 缺省 0 会让 COMBINE 的跨卡写悄悄不占片间资源 ——
+    # 手工构造 PrimitiveCosts 的调用点会与 build_analytical_costs 静默分叉。
+    combine_write_bytes_per_row: Callable[[float], float]
 
     # One-time per physical AIV1 before MoE waves.  Optional because profiler may
     # already fold it into another stage fit.
@@ -329,23 +336,40 @@ COMBINE_QUANT = 1
 class AnalyticalCombineCosts:
     """COMBINE (AIV1 配对消费 GMM2 tile) 物理公式, 按量化模式参数化.
 
-    每 (m-group, N-tile) 窗 (m 行 × logical_n 列) 的 GM 流量 = m×(e·logical_n + meta):
-      读侧 e_in: GMM2 输出 tile 经 workspace 读回 — 两种模式均 BF16 = 2B/元素
-        (配对握手 gmmToEpilogueFlag)
-      写侧 e_out: per-slot 部分和 (topk 归约在 UNPERMUTE, 非累加 rmw):
+    对应内核 Gmm2Aiv1EpilogueA8W4 (A8W8 + COMBINE_NO_QUANT 走 AIV1 epilogue,
+    与 trace 里 COMBINE↔GMM2 tile 1:1 吻合)。每 (m-group, N-tile) 窗三段流量:
+
+      1. 读回: Copy(copyGM2UB) 把整个 GMM2 tile 从 GM 读回 UB, 加 metaInfo。
+         m × (e_in·logical_n + meta) 字节, 本卡 HBM → BW_LOCAL_GM
+         e_in = BF16 = 2B/元素 (ElementC 一路追到 RunGmm2ByMode, 四个分支
+         全部显式传 bfloat16_t)
+      2. 本卡行写: CombineTokens 里目的卡 == 本卡的那些行 → BW_LOCAL_GM
+      3. 跨卡行写: 目的卡 != 本卡的行 → BW_REMOTE_WRITE (每核约 5.1 GB/s)
+
+    CombineTokens 对**每一行**发一次 DataCopyPad (blockLen = logical_n×e_out),
+    目标是 route.dstRankId 那张卡窗口里的 (tokenIdx·topK+topkIdx)·n + nLoc。
+    每行代价随字节走, 不是随次数走 —— 若按每行固定开销 (dispatch 远端段
+    0.9us/行) 算, 54 行跨卡要 50us, 与实测 5.7us 差 10 倍, 假设被否。
+
+    写侧每元素 e_out (per-slot 部分和, topk 归约在 UNPERMUTE, 非累加 rmw):
         NO_QUANT: BF16 = 2B/元素
         QUANT:    FP8 = 1B/元素 + MX scale 1B/32元素 = 1/32 B/元素
-      meta: 8B/行 = token 位置 int32 4B (metaInfo, constants.h INT32_PER_256B=8)
-                 + topk 权重 fp32 4B (probsGm)
-    → e = e_in + e_out + scale: NO_QUANT 推导值 4 (= 2读+2写); QUANT 推导值 3.03125
-    公式: T = m × (e×logical_n + meta) / BW_scatter
-    (旧公式 m×(4h+16) 的两处错误: 列数误用全 H ×24; meta 16B 无源码依据 → 8B)
-    待声明未建模: 散射写凸型 m 依赖 (超线性, 见 2026-09 对比记录)。
+    meta: 8B/行 = token 位置 int32 4B (metaInfo, constants.h INT32_PER_256B=8)
+               + topk 权重 fp32 4B (probsGm)
+
+    公式: T = m·(e_in·n + meta)/BW_local
+            + (m-remote)·e_out'·n/BW_local
+            + remote·e_out'·n/BW_remote        (e_out' = e_out + scale)
+
+    修订史: 旧公式 T = m×(4·n + 8)/BW_SCATTER 把跨卡写按本卡 HBM 计价
+    (BW_SCATTER 是 B=64 随机路由标定的本地口径), 且元素宽度用了 4B(读+写合并),
+    对 20260930 bs=36 run 低估 90.6%。见 memory/combine-cost-root-cause。
     """
     META_BYTES_PER_ROW = 8
 
     def __init__(self, combine_quant_mode: int = COMBINE_NO_QUANT,
-                 bw_scatter_bytes_per_us: float = BW_SCATTER,
+                 bw_local_bytes_per_us: float = BW_LOCAL_GM,
+                 bw_remote_bytes_per_us: float = BW_REMOTE_WRITE,
                  meta_bytes_per_row: int = META_BYTES_PER_ROW):
         if combine_quant_mode == COMBINE_NO_QUANT:
             self.in_elem_bytes = 2.0        # GMM2 输出 BF16
@@ -357,19 +381,38 @@ class AnalyticalCombineCosts:
             self.scale_bytes_per_elem = 1.0 / 32.0   # MX scale 每 32 元素 1B
         else:
             raise ValueError(f"未知 combine_quant_mode: {combine_quant_mode}")
+        if bw_local_bytes_per_us <= 0 or bw_remote_bytes_per_us <= 0:
+            raise ValueError("COMBINE 的本卡/跨卡带宽必须为正")
         self.combine_quant_mode = combine_quant_mode
-        self.bw = bw_scatter_bytes_per_us
+        self.bw_local = bw_local_bytes_per_us
+        self.bw_remote = bw_remote_bytes_per_us
         self.meta_bytes = meta_bytes_per_row
 
     @property
-    def per_elem_bytes(self) -> float:
-        """推导的每元素流量系数: NO_QUANT=4 (2读+2写); QUANT=3.03125 (2读+1写+1/32 scale)."""
-        return self.in_elem_bytes + self.out_elem_bytes + self.scale_bytes_per_elem
+    def write_bytes_per_elem(self) -> float:
+        """写侧每元素字节: NO_QUANT=2 (BF16); QUANT=1.03125 (FP8 + 1/32 scale)."""
+        return self.out_elem_bytes + self.scale_bytes_per_elem
 
-    def tile(self, m: int, logical_n: int = 256) -> float:
-        # logical_n = 本窗实际列数 (尾 N-tile 时 < 256), 调用期传入
-        data = m * (self.per_elem_bytes * logical_n + self.meta_bytes)
-        return data / self.bw
+    def read_us(self, m: int, logical_n: int) -> float:
+        """GMM2 tile 从 GM 读回 UB + metaInfo, 全在本卡."""
+        return m * (self.in_elem_bytes * logical_n + self.meta_bytes) / self.bw_local
+
+    def write_bytes_per_row(self, logical_n: float) -> float:
+        """一行写出的字节 (CombineTokens 的一次 DataCopyPad); 片间信道按它折算."""
+        return self.write_bytes_per_elem * logical_n
+
+    def tile(self, m: int, logical_n: int = 256, remote_rows: int = 0) -> float:
+        """logical_n = 本窗实际列数 (尾 N-tile 时 < 256), 调用期传入.
+
+        remote_rows = 本窗 m 行里目的卡 != 本卡的行数, 由 routing 精确算出
+        (第 r 卡第 e 专家的行按源卡分段, 源卡 != r 的就要跨卡写回)。
+        """
+        if not 0 <= remote_rows <= m:
+            raise ValueError(f"remote_rows={remote_rows} 必须落在 [0, m={m}]")
+        row_bytes = self.write_bytes_per_elem * logical_n
+        return (self.read_us(m, logical_n)
+                + (m - remote_rows) * row_bytes / self.bw_local
+                + remote_rows * row_bytes / self.bw_remote)
 
 
 def build_analytical_costs(
@@ -385,7 +428,8 @@ def build_analytical_costs(
     gmm1_tile_restart_us: float = 0.0,
     bw_ub: Optional[float] = None,
     t_startup_us: Optional[float] = None,
-    bw_scatter: Optional[float] = None,
+    bw_combine_local: Optional[float] = None,
+    bw_combine_remote: Optional[float] = None,
     count_table_prepare_us: float = T_COUNT_GATE,
 ) -> PrimitiveCosts:
     """按 (h, KernelConfig) 一致构建解析公式族, 消除 tile_n/l1_tile_k/h 漏配.
@@ -416,7 +460,9 @@ def build_analytical_costs(
     )
     comb = AnalyticalCombineCosts(
         combine_quant_mode=km.combine_quant_mode,
-        bw_scatter_bytes_per_us=bw_scatter if bw_scatter is not None else BW_SCATTER,
+        bw_local_bytes_per_us=bw_combine_local if bw_combine_local is not None else BW_LOCAL_GM,
+        bw_remote_bytes_per_us=(bw_combine_remote if bw_combine_remote is not None
+                                else BW_REMOTE_WRITE),
     )
     return PrimitiveCosts(
         dispatch_mechanistic=dispatch_mechanistic,
@@ -425,6 +471,7 @@ def build_analytical_costs(
         gmm2_tile=gmm.gmm2_tile,
         activation_tile=act.tile,
         combine_tile=comb.tile,
+        combine_write_bytes_per_row=comb.write_bytes_per_row,
         count_table_prepare_us=count_table_prepare_us,
         gmm1_fill_us=gmm1_fill_us,
     )

@@ -27,6 +27,7 @@ def _run(options=None, kernel=None, policy=None):
         gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
+        combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
         count_table_prepare_us=m.T_COUNT_GATE,
     )
     return m.simulate_routing_counts(
@@ -71,8 +72,14 @@ def test_default_pin():
     #   2) dispatch 回到"整个波的行按均衡+轮转分给全部核" (实测逐核 28 个数字命中)
     #   3) hiddenDim/p1 用 tiling 真值
     #   含尾段的 232.083 与事件数 659 回到仓库最初的锚点值 —— 回退已到位
-    assert abs(res["kernel_total_us"] - 217.433) < 0.01
-    assert abs(res["kernel_dag_end_us"] - 232.083) < 0.01
+    # 2026-09-30 COMBINE 改成按行归属分本卡/跨卡计费 (内核 CombineTokens 对每行
+    #   发一次 DataCopyPad, 目标是该行来源卡的窗口): 读回 + 本卡行写走
+    #   BW_LOCAL_GM, 跨卡行写走 BW_REMOTE_WRITE; 元素宽度改回 BF16 的 2B
+    #   (旧口径把读+写并成 4B 再整段按本地散射带宽算) → 217.433 → 220.403.
+    #   BW_REMOTE_WRITE 现为 assumed (取远端读对称值), 未标定 —— 实测 bs=36 单
+    #   tile 5.676 µs 而此处 1.189, 定这个常数要扫 m 或扫 tile_n 的 run
+    assert abs(res["kernel_total_us"] - 220.403) < 0.01
+    assert abs(res["kernel_dag_end_us"] - 235.053) < 0.01
     assert len(res["rank_results"][0]["events"]) == 659
     # 排队模型生效标志: 资源争用出现 (旧模型恒为 0)
     rq = sum(1 for e in res["rank_results"][0]["events"] if e.resource_queue_us > 0)
@@ -94,6 +101,7 @@ def test_gmm2_lag_waves_override():
         gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
+        combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
         count_table_prepare_us=m.T_COUNT_GATE,
     )
 
@@ -192,6 +200,7 @@ def _run_costs():
         gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         combine_tile=m.AnalyticalCombineCosts().tile,
+        combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
         count_table_prepare_us=m.T_COUNT_GATE,
     )
 
@@ -199,7 +208,7 @@ def _run_costs():
 def test_kl1_override_restores_legacy():
     """kL1=256 显式覆盖应恢复与 auto 相同值 (结构等价性自检)."""
     res = _run(options=m.ModelOptions(gmm2_kl1=256))
-    assert abs(res["kernel_total_us"] - 217.433) < 0.5
+    assert abs(res["kernel_total_us"] - 220.403) < 0.5
 
 
 def test_primitive_costs_requires_all():

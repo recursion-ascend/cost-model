@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Dict, Tuple
 
 from ...costs import DispatchDataLayout
+from ..base import rows_by_source_rank
 from ..context import BuildContext
 from .base import CombineTransport, DispatchTransport
 
@@ -117,20 +118,37 @@ class MteDispatch(DispatchTransport):
 
 class MteCombine(CombineTransport):
 
-    def on_gmm2_tile(self, builder, ctx: BuildContext, w, si, sl, t, label, ntile,
-                     core, gname, global_group, call_iteration):
+    def on_gmm2_tile(self, builder, ctx: BuildContext, w, shape, si, sl, t, label,
+                     ntile, core, gname, global_group, call_iteration):
         c = builder.costs
         q_aiv1 = (f"Q:aiv1:c{core}", 1)
         cname = f"W{w.index}.E{sl.expert}.S{si}.combine.{label}.c{core}"
+        # 本窗每行要写回它的来源卡: 行区间按源卡分段, 逐卡行数精确数出。
+        # 跨卡行是 COMBINE 的主导项, 所以 EP 摆放/本地亲和度会直接改 combine 代价。
+        abs_begin = sl.row_begin + t.row_begin
+        by_dst = rows_by_source_rank(shape.expert_source_tokens[sl.expert],
+                                     abs_begin, abs_begin + t.rows)
+        remote_rows = sum(n for d, n in enumerate(by_dst) if d != shape.rank_id)
+        # 片间信道: 逐目的卡一条边 (fab_src = 流量离开本卡, fab_dst = 到达对端),
+        # 与 dispatch 的方向语义一致。争用由速率服务器裁决, 不折进事件时长 ——
+        # 时长用无争用带宽, 28 个核同时写同一条 fab 的降速是调度出来的。
+        row_bytes = c.combine_write_bytes_per_row(t.cols)
+        bw_fab = c.dispatch_mechanistic.bw_remote_bytes_per_us
+        ch_bytes = tuple(
+            ch for d, n in enumerate(by_dst) if d != shape.rank_id and n
+            for ch in ((f"fab_src:{shape.rank_id}", n * row_bytes, bw_fab),
+                       (f"fab_dst:{d}", n * row_bytes, bw_fab)))
         builder._event(cname, (f"AIV1:{core}",),
-                       c.combine_tile(t.rows, t.cols) + c.combine_ack_us,
+                       c.combine_tile(t.rows, t.cols, remote_rows) + c.combine_ack_us,
                        deps=[gname], acquires=(q_aiv1,), releases=(q_aiv1,),
+                       channel_bytes=ch_bytes,
                        meta={"stage": "combine", "wave": w.index,
                              "call_iteration": call_iteration, "expert": sl.expert,
                              "slice": si, "mgroup": global_group, "ntile": ntile,
                              "col_begin": t.col_begin, "col_end": t.col_end,
                              "row_begin": t.row_begin, "row_end": t.row_end,
-                             "logical_n": t.cols, "core": core, "m_rows": t.rows})
+                             "logical_n": t.cols, "core": core, "m_rows": t.rows,
+                             "remote_rows": remote_rows, "rows_by_dst": by_dst})
         ctx.gmm2_combine_history[core].append(cname)
         ctx.last_combine_by_core[core] = cname
 
