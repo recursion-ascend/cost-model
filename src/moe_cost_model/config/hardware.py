@@ -57,7 +57,25 @@ BW_LOCAL_GM = SourcedValue(157000.0, 'measured:读本卡内存的带宽, dispatc
 # 标定: dispatch_transfer_raw.csv 1→2 行段差分.
 BW_REMOTE_GM = SourcedValue(31000.0, 'measured:读远端卡内存的带宽, dispatch 远端段用')
 # GMM1 计算与首个远端段部分重叠, 此为补偿项. 标定: w≥1 首位流差分.
+#
+# 待清理 (2026-09-30): 这一项有两个问题, 都是框架层面的, 不是数值层面的。
+#   1) 它把**跨 stage 的调度交互**写成了加在单事件时长上的常数。本项目的口径是
+#      把执行过程建成事件 DAG, 让 GMM1 与 dispatch 的重叠由依赖边和核资源互斥
+#      在离散事件引擎里自己走出来 —— 而不是折进 dispatch 事件的时长里。这是
+#      roofline 式补偿项的残留。
+#   2) 它的标定基于 segment_us 的旧形态 (λ + rows·b_row/BW, 把流水里重叠的行也
+#      串行计了)。2026-09-30 segment_us 改成 buffer_count 槽的行级软流水后, 它当初
+#      吸收的残差已经变了, 标定失效。
+#   实际影响不小: 20260930 bs=36 run 里它落在 61 个 dispatch 事件中的 44 个 (72%),
+#   模型单事件中位 3.330 vs 实测 2.779 (+19.8%); 去掉它是 2.430 (-12.6%)。
+#   两个数都不对 —— 说明要的是把重叠建成边, 不是换个常数。故先不动值, 只标明。
 T_GMM1_OVERLAP = SourcedValue(0.9, 'measured:dispatch 调用首个远端段的附加时长')
+# 来自 kernel/tiling: dispatchBufferConfig.bufferCount.
+# CopyTokensAndMetaForDispatch 是 bufferCount 槽的行级软流水: 前 bufferCount 行的
+# Fetch 背靠背发出 (模板参数 Wait=false), 只有 issueIdx >= bufferCount 才等
+# MTE3_MTE2 让槽腾出来。所以一段里不超过 bufferCount 行是重叠的, 段时长由一次
+# 往返延迟封底, 不随行数线性增长。缺省 6 = 20260930 run 的 tiling 真值。
+DISPATCH_BUFFER_COUNT = SourcedInt(6, 'kernel:dispatchBufferConfig.bufferCount, 行级软流水槽数')
 # 标定: COUNTS_EXPORT→首 dispatch span.
 T_COUNT_GATE = SourcedValue(53.9, 'measured:COUNTS_EXPORT 到首个 dispatch 的最短间隔')
 

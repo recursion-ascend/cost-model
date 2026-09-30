@@ -9,7 +9,7 @@ from typing import Callable, Optional, Tuple
 
 from .config.hardware import (
     ACT_BYTES_PER_VEC, BW_L1_GM, BW_LOCAL_GM, BW_REMOTE_GM, BW_REMOTE_WRITE,
-    BW_SCATTER, BW_UB,
+    BW_SCATTER, BW_UB, DISPATCH_BUFFER_COUNT,
     T_CALL_OH, T_COUNT_GATE, T_GMM1_OVERLAP, T_LAT_LOCAL, T_LAT_REMOTE,
     T_STARTUP_VEC,
     MXFP_DIVISOR_SIZE, MXFP_MULTI_BASE_SIZE_K, URMA_FLAG_BYTES, URMA_FLAG_WINDOW_TOKENS,
@@ -63,32 +63,37 @@ class DispatchMechanisticLatency:
     t_lat_remote_us: float = T_LAT_REMOTE
     bw_remote_bytes_per_us: float = BW_REMOTE_GM
     gmm1_overlap_us_per_call: float = T_GMM1_OVERLAP
+    # 行级软流水槽数 (tiling dispatchBufferCount); 槽内的行重叠, 不串行累加
+    buffer_count: int = DISPATCH_BUFFER_COUNT
 
     def call_base_us(self) -> float:
         return self.t_call_oh_us
 
-    def block_us(self, local_rows: int, remote_rows: int,
-                 layout: DispatchDataLayout = None) -> float:
-        """一个 (专家, m-group) 块整体搬运的时长.
+    def segment_us(self, src: int, dst: int, rows: int,
+                   layout: DispatchDataLayout = None) -> float:
+        """单段基础服务 (无争用), 按内核的行级软流水算.
 
-        块是 dispatch 的搬运单位, 固定延迟按块付一次 (块内有远端行就取远端延迟);
-        数据时间仍按每行自己的来源算 —— 本地行走本卡内存带宽, 远端行走片间带宽。
+        CopyTokensAndMetaForDispatch 用 buffer_count 个槽做 Fetch/Store 双段流水:
+        前 buffer_count 行的 Fetch 背靠背发出 (Wait=false), 只有 issueIdx >=
+        buffer_count 才等 MTE3_MTE2 腾槽。于是
+          rows <= buffer_count: 行在流水里重叠, 段时长 = max(一次往返 λ, 字节时间)
+          rows >  buffer_count: 多出来的行按每行稳态节拍串上去
+        字节仍要过互连, 但并发争用由片间信道的速率服务器裁决 —— 不折进这里
+        (这个容器的契约就是"无争用基础服务")。
+
+        旧式 λ + rows·b_row/BW 把重叠的行也串行计了, 对 20260930 run 的 dispatch
+        内层高估 32%: 实测 1~3 行是平台 (远端 2.17-2.42us, 与 T_LAT_REMOTE=2.43
+        吻合), 不是线性上升。同一份数据若直接按行数拟合, 会把争用当成每行常数。
         """
         if layout is None:
             layout = DispatchDataLayout()
-        b_row = self._bytes_row(layout)
-        lat = self.t_lat_remote_us if remote_rows > 0 else self.t_lat_local_us
-        return (lat + local_rows * b_row / self.bw_local_bytes_per_us
-                + remote_rows * b_row / self.bw_remote_bytes_per_us)
-
-    def segment_us(self, src: int, dst: int, rows: int,
-                   layout: DispatchDataLayout = None) -> float:
-        """单段基础服务 (无争用): λ_src + rows·b_row/BW_src."""
-        if layout is None:
-            layout = DispatchDataLayout()
-        if src == dst:
-            return self.t_lat_local_us + rows * self._bytes_row(layout) / self.bw_local_bytes_per_us
-        return self.t_lat_remote_us + rows * self._bytes_row(layout) / self.bw_remote_bytes_per_us
+        row_us = self._bytes_row(layout) / (self.bw_local_bytes_per_us if src == dst
+                                            else self.bw_remote_bytes_per_us)
+        lat = self.t_lat_local_us if src == dst else self.t_lat_remote_us
+        depth = max(1, int(self.buffer_count))
+        overlapped = min(max(rows, 0), depth)
+        serial = max(0, rows - depth)
+        return max(lat, overlapped * row_us) + serial * row_us
 
     def _bytes_row(self, layout: DispatchDataLayout) -> int:
         return layout.bytes_read_per_row()

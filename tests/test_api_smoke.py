@@ -78,8 +78,11 @@ def test_default_pin():
     #   (旧口径把读+写并成 4B 再整段按本地散射带宽算) → 217.433 → 220.403.
     #   BW_REMOTE_WRITE 现为 assumed (取远端读对称值), 未标定 —— 实测 bs=36 单
     #   tile 5.676 µs 而此处 1.189, 定这个常数要扫 m 或扫 tile_n 的 run
-    assert abs(res["kernel_total_us"] - 220.403) < 0.01
-    assert abs(res["kernel_dag_end_us"] - 235.053) < 0.01
+    # 2026-09-30 dispatch 段改成内核的行级软流水 (buffer_count=6 槽, 前 6 行的
+    #   Fetch 背靠背发出, 只有第 7 行起才等槽): rows<=6 的段不再按行串行累加,
+    #   由一次往返延迟封底 → 220.403 → 218.919
+    assert abs(res["kernel_total_us"] - 218.919) < 0.01
+    assert abs(res["kernel_dag_end_us"] - 233.569) < 0.01
     assert len(res["rank_results"][0]["events"]) == 659
     # 排队模型生效标志: 资源争用出现 (旧模型恒为 0)
     rq = sum(1 for e in res["rank_results"][0]["events"] if e.resource_queue_us > 0)
@@ -208,7 +211,7 @@ def _run_costs():
 def test_kl1_override_restores_legacy():
     """kL1=256 显式覆盖应恢复与 auto 相同值 (结构等价性自检)."""
     res = _run(options=m.ModelOptions(gmm2_kl1=256))
-    assert abs(res["kernel_total_us"] - 220.403) < 0.5
+    assert abs(res["kernel_total_us"] - 218.919) < 0.5
 
 
 def test_primitive_costs_requires_all():

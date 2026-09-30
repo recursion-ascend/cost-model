@@ -78,8 +78,10 @@ class BufferSlots:
     恒 0 (combineSyncSlotCountPerExpert 是 layered 内核专用字段).
     """
     gmm2_combine: Optional[int] = None  # GMM2→Combine 同步 slot (wave 路径无)
-    # 已解析暂无消费者 (dispatch 机制模型/UNPERMUTE 未接入, 防真值丢失):
+    # dispatch_window 的消费者: Scenario.build_costs 把它填进
+    # DispatchMechanisticLatency.buffer_count (行级软流水槽数)
     dispatch_window: int = 0            # tiling dispatchBufferConfig.bufferCount
+    # 以下已解析暂无消费者 (UNPERMUTE/sendMask 未接入, 防真值丢失):
     send_mask_with_extra: int = 0       # tiling sendMaskConfig.bufferCount (多专家核)
     send_mask_without_extra: int = 0    # (少专家核)
     unpermute_in: int = 0               # tiling unpermuteConfig.inputBufferCount

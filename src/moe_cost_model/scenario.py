@@ -250,9 +250,15 @@ class Scenario:
         extra = {}
         if cal.count_table_prepare_us is not None:
             extra["count_table_prepare_us"] = cal.count_table_prepare_us
+        # tiling 给了 dispatchBufferCount 就用真值覆盖行级软流水槽数
+        dispatch = cal.dispatch
+        pipe = self.options.pipeline
+        window = pipe.buffers.dispatch_window if pipe is not None else 0
+        if window > 0 and window != dispatch.buffer_count:
+            dispatch = dataclasses.replace(dispatch, buffer_count=window)
         return build_analytical_costs(
             h=self.h, kernel=self.kernel,
-            dispatch_mechanistic=cal.dispatch, urma_mechanistic=cal.urma,
+            dispatch_mechanistic=dispatch, urma_mechanistic=cal.urma,
             bw_l1_gm=cal.bw_l1_gm, bw_l1_gm_b_nz=cal.bw_l1_gm_b_nz,
             cube_mac_per_us=cal.cube_mac_per_us,
             gmm1_fill_us=cal.gmm1_fill_us,

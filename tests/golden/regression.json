@@ -1,15 +1,15 @@
 {
-  "comment": "典型配置输出快照 — 重构时确认数值未变. 与 test_api_smoke 锚点同源. GMM 公式含 B 流; Cube 速率取测试夹具值 2.7e7 (非标定, 实测域内计算不绑定). COMBINE 按行归属分本卡/跨卡两个带宽, 跨卡带宽 BW_REMOTE_WRITE 现为 assumed 未标定. kernel_total_us 记到最后一个 COMBINE 结束, kernel_dag_end_us 含尾段.",
+  "comment": "典型配置输出快照 — 重构时确认数值未变. 与 test_api_smoke 锚点同源. GMM 公式含 B 流; Cube 速率取测试夹具值 2.7e7 (非标定, 实测域内计算不绑定). COMBINE 按行归属分本卡/跨卡两个带宽, 跨卡带宽 BW_REMOTE_WRITE 现为 assumed 未标定. dispatch 段按内核行级软流水 (buffer_count 槽) 算, 不再按行串行累加. kernel_total_us 记到最后一个 COMBINE 结束, kernel_dag_end_us 含尾段.",
   "cases": {
     "deterministic_4rank_bs64": {
-      "kernel_total_us": 220.402773,
-      "kernel_dag_end_us": 235.053181,
+      "kernel_total_us": 218.919043,
+      "kernel_dag_end_us": 233.569452,
       "events_per_rank": 659,
-      "anchor": 220.403
+      "anchor": 218.919
     },
     "deterministic_4rank_bs64_lag1": {
-      "kernel_total_us": 236.732908,
-      "kernel_dag_end_us": 251.383317
+      "kernel_total_us": 234.689037,
+      "kernel_dag_end_us": 249.339446
     }
   }
 }
