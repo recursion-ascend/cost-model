@@ -131,18 +131,20 @@ class MteDispatch(DispatchTransport):
 
 class MteCombine(CombineTransport):
 
-    def on_gmm2_tile(self, builder, ctx: BuildContext, w, si, sl, mg, nt, core,
-                     m_rows, gmm2_logical_n, gname, global_group, call_iteration):
+    def on_gmm2_tile(self, builder, ctx: BuildContext, w, si, sl, t, label, ntile,
+                     core, gname, global_group, call_iteration):
         c = builder.costs
         q_aiv1 = (f"Q:aiv1:c{core}", 1)
-        cname = f"W{w.index}.E{sl.expert}.S{si}.combine.m{mg}.n{nt}.c{core}"
+        cname = f"W{w.index}.E{sl.expert}.S{si}.combine.{label}.c{core}"
         builder._event(cname, (f"AIV1:{core}",),
-                       c.combine_tile(m_rows, gmm2_logical_n) + c.combine_ack_us,
+                       c.combine_tile(t.rows, t.cols) + c.combine_ack_us,
                        deps=[gname], acquires=(q_aiv1,), releases=(q_aiv1,),
                        meta={"stage": "combine", "wave": w.index,
                              "call_iteration": call_iteration, "expert": sl.expert,
-                             "slice": si, "mgroup": global_group, "ntile": nt,
-                             "logical_n": gmm2_logical_n, "core": core, "m_rows": m_rows})
+                             "slice": si, "mgroup": global_group, "ntile": ntile,
+                             "col_begin": t.col_begin, "col_end": t.col_end,
+                             "row_begin": t.row_begin, "row_end": t.row_end,
+                             "logical_n": t.cols, "core": core, "m_rows": t.rows})
         ctx.gmm2_combine_history[core].append(cname)
         ctx.last_combine_by_core[core] = cname
 

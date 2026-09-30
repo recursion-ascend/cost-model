@@ -60,6 +60,8 @@ class MegaMoeShape:
     core_assignment: object = None  # CoreAssignment; None → StaticRoundRobin
     wave_packing: object = None     # WavePacking; None → SequentialGreedy
     scheduling_policy: object = None  # SchedulingPolicy; None → EarliestStart
+    tile_grid: object = None    # TileGrid; None → SwizzledTileGrid (kernel 现行为)
+    orchestration: object = None  # 建图器类; None → 按 kernel.topo_urma 自动选
     policy: object = None       # InstancePolicy; None → 默认实例
 
     def __post_init__(self) -> None:

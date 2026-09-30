@@ -3,7 +3,7 @@
 一个 BuildContext 的生命周期 = 一次 build() 调用. 五个状态字典是
 stage 之间的接口:
   dispatch_ready_event   dispatch 写 → gmm1 读        (expert, group) → 就绪标记名
-  activation_ready       gmm1 写  → gmm2 读           (expert, group) → [(ntile, ACT 名)]
+  activation_ready       gmm1 写  → gmm2 读           (expert, group) → [ActRecord]
   gmm1_act_history       gmm1 写  → 同核 gmm1 读      每核 ACT 名序列 (UB 缓冲依赖)
   gmm2_combine_history   gmm2 写  → combine credit 读 每核 COMBINE 名序列
   last_combine_by_core   gmm2 写  → 下一波 dispatch 读 核 → 该核最后 COMBINE 名
@@ -16,11 +16,26 @@ from typing import Dict, List, Tuple
 from ..shape import BlockCursor
 
 
+@dataclass(frozen=True)
+class ActRecord:
+    """一个 ACT tile 的产出范围 (切片内相对坐标) + 事件名.
+
+    GMM2 按行重叠与列区间挑依赖 —— 不按构建序, swizzle 蛇形遍历下构建序与
+    坐标不对应。
+    """
+
+    row_begin: int
+    row_end: int
+    col_begin: int
+    col_end: int
+    name: str
+
+
 @dataclass
 class BuildContext:
     cursor: BlockCursor
     dispatch_ready_event: Dict[Tuple[int, int], str] = field(default_factory=dict)
-    activation_ready: Dict[Tuple[int, int], List[Tuple[int, str]]] = field(default_factory=dict)
+    activation_ready: Dict[Tuple[int, int], List[ActRecord]] = field(default_factory=dict)
     gmm1_act_history: List[List[str]] = field(default_factory=list)
     gmm2_combine_history: List[List[str]] = field(default_factory=list)
     last_combine_by_core: Dict[int, str] = field(default_factory=dict)

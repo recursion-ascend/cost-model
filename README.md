@@ -105,14 +105,54 @@ res = simulate(sc)
 
 策略旋钮用名字引用：
 
-| 旋钮                  | 可选名字                                                          |
-| --------------------- | ----------------------------------------------------------------- |
-| `wave_packing`      | `sequential_greedy` / `longest_expert_first` / `balanced_waves` |
-| `core_assignment`   | `static_round_robin` / `greedy_least_busy` / `contiguous_block` |
-| `scheduling_policy` | `earliest_start` / `critical_path_first` / `priority_by_stage`  |
-| `restructure`       | `idle_core_stealing`                                              |
+| 旋钮                  | 可选名字                                                          | 管什么                   |
+| --------------------- | ----------------------------------------------------------------- | ------------------------ |
+| `tile_grid`         | `swizzled` / `split_rows`                                       | GMM1/GMM2 的 tile 怎么切 |
+| `wave_packing`      | `sequential_greedy` / `longest_expert_first` / `balanced_waves` | 专家怎么组成波           |
+| `core_assignment`   | `static_round_robin` / `greedy_least_busy` / `contiguous_block` | tile 分给哪个核          |
+| `scheduling_policy` | `earliest_start` / `critical_path_first` / `priority_by_stage`  | 就绪集里谁先跑           |
+| `restructure`       | `idle_core_stealing`                                              | 运行时图重构             |
+| `orchestration`     | `mte` / `layered` / `"包.模块:类"`                              | 用哪个建图器             |
 
-带参数时写成表：`{name = "priority_by_stage", stage_order = [...]}`。自定义策略用 `moe_cost_model.register(类别, 名字, 构造函数)` 注册。
+带参数时写成表：`{name = "split_rows", parts = 2}`。自定义策略用 `moe_cost_model.register(类别, 名字, 构造函数)` 注册。
+
+### 自定义切分方式
+
+`tile_grid` 决定一个专家切片的输出怎么切成 tile，按**行范围 × 列范围**给。写一个 `TileGrid` 子类注册进去，事件 DAG 随之重建，不用动建图源码：
+
+```python
+import moe_cost_model as m
+
+class SplitEveryGroup(m.TileGrid):
+    """把每个 m-group 的行再切两半, 让更多核参与 GMM1"""
+    def plan(self, *, stage, rows, cols, kernel):
+        out = []
+        for t in m.SwizzledTileGrid().plan(stage=stage, rows=rows, cols=cols, kernel=kernel):
+            half = t.row_begin + t.rows // 2
+            out.append(m.Tile(t.row_begin, half, t.col_begin, t.col_end))
+            out.append(m.Tile(half, t.row_end, t.col_begin, t.col_end))
+        return out
+
+m.register("tile_grid", "split_every_group", SplitEveryGroup)
+```
+
+场景文件里写 `tile_grid = "split_every_group"` 即可。坐标是切片内相对值，左闭右开：
+
+| 参数 | 含义 |
+| --- | --- |
+| `stage`  | `"gmm1"` 或 `"gmm2"` |
+| `rows`   | 该专家切片的行数 |
+| `cols`   | 输出列总数（GMM1 = `ceil(intermediate / 2)`，GMM2 = `h`） |
+| 返回     | `Tile(row_begin, row_end, col_begin, col_end)` 列表，顺序即建图序 |
+
+两条约束在建图时校验，违反了直接报错并指出缺口：
+
+- tile 必须无重叠地铺满 `rows × cols`；
+- 行范围不得跨越 m-group 边界（`tile_m` 行一组）。组内再切是允许的，这正是让更多核参与的办法。
+
+`orchestration` 决定用哪个建图器。继承 `MteEventBuilder` 改波主循环，注册后从场景引用；也可以直接写 `"包.模块:类"`。
+
+内置的 `split_rows` 就是组内切行的现成实现：bs=72 / 8 卡的例子里 GMM1 从 27 个 tile（核 27 空闲）变成 54 个（28 核全用上），执行时间 72.543 → 68.641 µs。
 
 ### GMM tile 时长公式
 
@@ -176,9 +216,9 @@ res = simulate(sc)
 | 阶段 | 一个块再怎么切 | 归属 |
 | --- | --- | --- |
 | dispatch | 按源卡切段 (不同源卡从不同的卡上读) | **一块归一个 AIV1 核**, 整块的行由该核搬完 |
-| GMM1 | 按输出列切 tile (`ceil(intermediate / 2 / tile_n)` 个) | 每个 tile 一个 AIC 核, 游标轮转 |
+| GMM1 | 按输出列切 tile (`ceil(intermediate / 2 / tile_n)` 个), 可换 `tile_grid` | 每个 tile 一个 AIC 核, 游标轮转 |
 | ACT | 一对一跟随 GMM1 tile | 同核的 AIV0 |
-| GMM2 | 按输出列切 tile (`ceil(h / tile_n)` 个), 每个 tile 要本块**全部** ACT 产出 | 每个 tile 一个 AIC 核, 游标轮转 |
+| GMM2 | 按输出列切 tile (`ceil(h / tile_n)` 个), 可换 `tile_grid`; 每个 tile 要行范围相交且覆盖整个 K 的 ACT | 每个 tile 一个 AIC 核, 游标轮转 |
 | COMBINE | 一对一跟随 GMM2 tile | 同核的 AIV1 |
 
 块号按全局 m-group 序对核数取模决定归属, 与波无关 —— 同一个块落在哪个波, 归属的核都不变。
@@ -256,7 +296,7 @@ res = simulate(sc)
 ```bash
 cd moe-cost-model
 pip install -e .          # 或直接 pytest (pyproject 已配 pythonpath)
-pytest tests/             # 134 项测试, 约 2 分钟
+pytest tests/             # 155 项测试, 约 2 分钟
 python examples/run_scenario.py    # 场景文件 + 改旋钮对比
 python examples/run_basic.py       # 底层入口
 ```
@@ -303,10 +343,11 @@ moe-cost-model/
 │   │   ├── events.py            #   Event / Channel / 速率服务器
 │   │   ├── engine.py            #   MultiResourceScheduler
 │   │   └── policies.py          #   EarliestStart / CriticalPathFirst / PriorityByStage
-│   ├── planning/                # 第 3 层: wave 规划
+│   ├── planning/                # 第 3 层: wave 规划 + tile 网格
 │   │   ├── waves.py             #   plan_waves / swizzle / Layered 波规划
 │   │   ├── core_assignment.py   #   StaticRoundRobin / GreedyLeastBusy / ContiguousBlock
 │   │   └── wave_packing.py      #   SequentialGreedy / LongestExpertFirst / BalancedWaves
+│   │   └── tile_grid.py         #   TileGrid: 行范围 x 列范围, 可自定义切分
 │   ├── builders/                # 第 4 层: 事件图构建
 │   │   ├── base.py              #   公共基类
 │   │   ├── context.py           #   BuildContext
@@ -321,7 +362,7 @@ moe-cost-model/
 │   │   └── pipeline_expand.py   #   相位拆分
 │   ├── model.py                 # 第 5 层: A8W8WaveCostModel 编排
 │   └── analysis/                # 第 6 层: 关键路径 / 空闲核任务转移
-├── tests/                       # 134 项 (引擎 / 建图 / API 锚点 / Layered / golden 指纹 / 场景)
+├── tests/                       # 155 项 (引擎 / 建图 / API 锚点 / Layered / golden 指纹 / 场景)
 ├── examples/                    # scenario_basic.toml + run_scenario.py + run_basic.py
 └── tools/                       # 分析脚本 (审计 / 诊断 / 全量对比 / golden 生成 / HTML 报告)
 ```

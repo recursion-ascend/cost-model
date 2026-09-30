@@ -162,8 +162,8 @@ class UrmaCombine(CombineTransport):
     def __init__(self, parent: UrmaTransport):
         self.parent = parent
 
-    def on_gmm2_tile(self, builder, ctx, w, si, sl, mg, nt, core, m_rows,
-                     gmm2_logical_n, gname, global_group, call_iteration):
+    def on_gmm2_tile(self, builder, ctx, w, si, sl, t, label, ntile, core,
+                     gname, global_group, call_iteration):
         pass   # URMA 聚合按波批量; tail 名已由 gmm2 stage 登记进 gmm2_tail_by_group
 
     def flush_wave(self, builder, ctx: BuildContext, w, shape, km, p):

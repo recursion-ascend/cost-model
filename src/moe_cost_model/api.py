@@ -65,6 +65,8 @@ def simulate_routing_counts(
     wave_packing=None,
     core_assignment=None,
     scheduling_policy=None,
+    tile_grid=None,
+    orchestration=None,
 ) -> Dict[str, object]:
     """Simulate directly from C[dst_rank][local_expert][src_rank].
 
@@ -78,8 +80,10 @@ def simulate_routing_counts(
     (ModelOptions.fabric_channels, default off) until an ablation benchmark
     justifies enabling it (see README 信道占位状态).
 
-    wave_packing / core_assignment / scheduling_policy: 策略对象, 对全部 rank
-    生效; None = 模型缺省 (SequentialGreedy / StaticRoundRobin / EarliestStart).
+    wave_packing / core_assignment / scheduling_policy / tile_grid: 策略对象,
+    对全部 rank 生效; None = 模型缺省 (SequentialGreedy / StaticRoundRobin /
+    EarliestStart / SwizzledTileGrid).
+    orchestration: 建图器类; None = 按 KernelConfig.topo_urma 自动选 MTE/Layered.
     """
     world = len(routing_counts)
     if world == 0:
@@ -127,6 +131,8 @@ def simulate_routing_counts(
             wave_packing=wave_packing,
             core_assignment=core_assignment,
             scheduling_policy=scheduling_policy,
+            tile_grid=tile_grid,
+            orchestration=orchestration,
         ))
     rank_results = model.simulate_multi(shapes, restructure=restructure)
     all_ready: List[Dict[str, object]] = []

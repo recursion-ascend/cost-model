@@ -1,5 +1,6 @@
 """第 4 层: GMM1 stage — GMM1 tile 事件 + 游标分核.
 
+tile 网格由 shape.tile_grid 给出 (缺省 SwizzledTileGrid = kernel 现行为)。
 依赖: 组就绪标记 (dispatch 产出) + 同核第 i-depth 个 ACT (UB 缓冲).
 流水填充经 PrimitiveCosts.gmm1_fill_us 按 tile 均摊.
 """
@@ -7,34 +8,26 @@ from __future__ import annotations
 
 from typing import List
 
-from ..config.hardware import ceil_div
 from ..costs import gmm1_phase_split
-from ..planning.waves import swizzle_coord
+from ..planning.tile_grid import STAGE_GMM1, validate_tiles
 from .activation import add_activation_tile
 from .context import BuildContext
+from .tiling import resolve_grid, tile_label
 
 
 def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                   policy, TILE_M, TILE_N, ACT_HALF) -> None:
     gmm1_sched_n = builder._gmm1_device_scheduler_n(shape, km.activation_n_half)
-    gmm1_n_tiles = ceil_div(gmm1_sched_n, TILE_N)
+    grid = resolve_grid(shape)
     cursor = ctx.cursor
     for si, sl in enumerate(w.slices):
-        tile_count = sl.m_groups * gmm1_n_tiles
+        tiles = grid.plan(stage=STAGE_GMM1, rows=sl.rows, cols=gmm1_sched_n, kernel=km)
+        validate_tiles(tiles, rows=sl.rows, cols=gmm1_sched_n, tile_m=TILE_M,
+                       where=f"GMM1 专家 {sl.expert}")
+        tile_count = len(tiles)
         fill_share = c.gmm1_fill_us / tile_count if tile_count else 0.0
-        # 预计算逐 tile 几何与时长 (分核策略按真实代价均衡, 不按个数)
-        tile_info = []
-        tile_costs = []
-        for tile_idx in range(tile_count):
-            mg, nt = swizzle_coord(tile_idx, sl.m_groups, gmm1_n_tiles,
-                                   km.swizzle_offset, km.swizzle_direction)
-            m_rows = builder._tile_rows(sl, mg, tile_m=km.tile_m)
-            logical_n = min(TILE_N, gmm1_sched_n - nt * TILE_N)
-            dur = c.gmm1_tile(m_rows, shape.h, logical_n)
-            dur += fill_share
-            tile_info.append((mg, nt, m_rows, logical_n, dur,
-                              gmm1_phase_split(c, m_rows, shape.h, logical_n)))
-            tile_costs.append(dur)
+        # 预计算逐 tile 时长 (分核策略按真实代价均衡, 不按个数)
+        tile_costs = [c.gmm1_tile(t.rows, shape.h, t.cols) + fill_share for t in tiles]
         if core_assign is not None:
             owners = core_assign.assign(tile_count, p, cursor.start,
                                         tile_costs=tile_costs)
@@ -44,7 +37,9 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
         first_owned = [True] * p
 
         for tile_idx, core in enumerate(owners):
-            mg, nt, m_rows, logical_n, duration, phases = tile_info[tile_idx]
+            t = tiles[tile_idx]
+            duration = tile_costs[tile_idx]
+            mg = t.row_begin // TILE_M
             global_group = sl.row_begin // TILE_M + mg
 
             deps: List[str] = []
@@ -63,17 +58,22 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                 duration += c.gmm1_problem_startup_us
                 first_owned[core] = False
 
+            ntile = t.col_begin // TILE_N
             meta = {"stage": "gmm1", "wave": w.index, "expert": sl.expert,
-                    "slice": si, "mgroup": global_group, "ntile": nt,
-                    "logical_n": logical_n, "core": core, "m_rows": m_rows,
+                    "slice": si, "mgroup": global_group, "ntile": ntile,
+                    "col_begin": t.col_begin, "col_end": t.col_end,
+                    "row_begin": t.row_begin, "row_end": t.row_end,
+                    "logical_n": t.cols, "core": core, "m_rows": t.rows,
                     "cursor_tile": tile_idx,
                     "dispatch_ready_event": ready_name}
+            phases = gmm1_phase_split(c, t.rows, shape.h, t.cols)
             if phases is not None:
                 # 相位流水按这组数拆 load/cube 相位并折算 GM→L1 信道字节
                 meta["load_us"], meta["compute_us"] = phases
-            gname = f"W{w.index}.E{sl.expert}.S{si}.gmm1.m{mg}.n{nt}.c{core}"
+            label = tile_label(t, sl.rows, gmm1_sched_n, TILE_M, TILE_N)
+            gname = f"W{w.index}.E{sl.expert}.S{si}.gmm1.{label}.c{core}"
             builder._event(gname, (f"AIC:{core}",), duration, deps=deps,
                            acquires=(q_aic,), releases=(q_aic,), meta=meta)
 
-            add_activation_tile(builder, ctx, w, si, sl, mg, nt, core,
-                                m_rows, logical_n, global_group, gname)
+            add_activation_tile(builder, ctx, w, si, sl, t, label, ntile, core,
+                                global_group, gname)

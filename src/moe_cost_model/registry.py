@@ -5,15 +5,21 @@
   {name = "priority_by_stage", stage_order = [...]}  名字 + 构造参数
   BalancedWaves()                                   Python 里直接给对象
 
+orchestration (建图器) 不实例化, 取的是类, 另外支持 "包.模块:类" 直接引用:
+  orchestration = "mte"
+  orchestration = "my_pkg.my_builder:MyBuilder"
+
 新增策略: register("wave_packing", "my_packing", MyPacking).
 """
 from __future__ import annotations
 
 import difflib
+import importlib
 from typing import Callable, Dict, List
 
 from .analysis.stealing import idle_core_stealing
 from .planning.core_assignment import ContiguousBlock, GreedyLeastBusy, StaticRoundRobin
+from .planning.tile_grid import SplitRowsTileGrid, SwizzledTileGrid
 from .planning.wave_packing import BalancedWaves, LongestExpertFirst, SequentialGreedy
 from .scheduler.policies import CriticalPathFirst, EarliestStart, PriorityByStage
 
@@ -36,9 +42,19 @@ _REGISTRY: Dict[str, Dict[str, Callable[..., object]]] = {
     "restructure": {
         "idle_core_stealing": idle_core_stealing,
     },
+    "tile_grid": {
+        "swizzled": SwizzledTileGrid,
+        "split_rows": SplitRowsTileGrid,
+    },
 }
 
-KINDS = tuple(_REGISTRY)
+# 建图器: 值是类的引用路径, 用时才导入 (避免与 builders 的导入环)
+_ORCHESTRATION: Dict[str, str] = {
+    "mte": "moe_cost_model.builders.mte:MteEventBuilder",
+    "layered": "moe_cost_model.builders.layered:LayeredEventBuilder",
+}
+
+KINDS = tuple(_REGISTRY) + ("orchestration",)
 
 
 def suggest(word: str, choices) -> str:
@@ -48,20 +64,46 @@ def suggest(word: str, choices) -> str:
 
 
 def register(kind: str, name: str, factory: Callable[..., object]) -> None:
+    """注册一个策略. kind="orchestration" 时 factory 是建图器类 (不实例化)."""
+    if kind == "orchestration":
+        _ORCHESTRATION[name] = factory
+        return
     if kind not in _REGISTRY:
         raise ValueError(f"未知策略类别 '{kind}'; 可选: {', '.join(KINDS)}")
     _REGISTRY[kind][name] = factory
 
 
 def names(kind: str) -> List[str]:
-    return sorted(_REGISTRY[kind])
+    return sorted(_ORCHESTRATION if kind == "orchestration" else _REGISTRY[kind])
+
+
+def builder_class(spec, where: str = "orchestration"):
+    """建图器: 注册名 / "包.模块:类" / 直接给类. None 表示按 kernel 自动选."""
+    if spec is None or isinstance(spec, type):
+        return spec
+    if not isinstance(spec, str):
+        raise ValueError(f"{where}: 应为注册名、\"包.模块:类\" 或建图器类, 得到 {spec!r}")
+    if ":" in spec:
+        module, _, cls = spec.partition(":")
+        try:
+            return getattr(importlib.import_module(module), cls)
+        except (ImportError, AttributeError) as exc:
+            raise ValueError(f"{where}: 无法从 '{spec}' 取到建图器类 — {exc}") from None
+    target = _ORCHESTRATION.get(spec)
+    if target is None:
+        raise ValueError(f"{where}: 未知建图器 '{spec}'{suggest(spec, _ORCHESTRATION)}; "
+                         f"可选: {', '.join(names('orchestration'))}, "
+                         "或写 \"包.模块:类\"")
+    return target if isinstance(target, type) else builder_class(target, where)
 
 
 def resolve(kind: str, spec, where: str = ""):
     """策略写法 → 策略对象. None 原样返回 (模型缺省); 非 str/dict 视为现成对象."""
+    where = where or kind
+    if kind == "orchestration":
+        return builder_class(spec, where)      # 取类, 不实例化
     if spec is None or not isinstance(spec, (str, dict)):
         return spec
-    where = where or kind
     if isinstance(spec, str):
         name, kwargs = spec, {}
     else:

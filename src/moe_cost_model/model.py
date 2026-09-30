@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
+from . import registry
 from .builders.mte import MteEventBuilder
 from .config.hardware import KernelConfig, BW_WINDOW, ceil_div
 from .config.policy import InstancePolicy
@@ -73,14 +74,16 @@ class A8W8WaveCostModel:
                           tile_m=km.tile_m)
 
     def build_events(self, shape: MegaMoeShape) -> Tuple[List[Event], List[CursorTrace]]:
+        """建图器: shape.orchestration 优先, 未给时按 kernel.topo_urma 自动选."""
         km = self._kernel_cfg(shape)
-        if km.topo_urma:
-            from .builders.layered import LayeredEventBuilder
-            builder = LayeredEventBuilder(self.costs, self.options)
-        else:
-            builder = MteEventBuilder(self.costs, self.options)
-        waves = self.waves(shape)
-        return builder.build(shape, waves)
+        cls = registry.builder_class(getattr(shape, "orchestration", None))
+        if cls is None:
+            if km.topo_urma:
+                from .builders.layered import LayeredEventBuilder
+                cls = LayeredEventBuilder
+            else:
+                cls = MteEventBuilder
+        return cls(self.costs, self.options).build(shape, self.waves(shape))
 
     def dispatch_ir(self, shape: MegaMoeShape) -> List:
         from .builders.base import DispatchCallIR

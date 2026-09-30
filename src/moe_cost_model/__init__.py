@@ -51,6 +51,9 @@ from .planning.waves import (
 from .planning.core_assignment import (
     ContiguousBlock, CoreAssignment, GreedyLeastBusy, StaticRoundRobin,
 )
+from .planning.tile_grid import (
+    SplitRowsTileGrid, SwizzledTileGrid, Tile, TileGrid, validate_tiles,
+)
 from .planning.wave_packing import (
     BalancedWaves, LongestExpertFirst, SequentialGreedy, WavePacking,
 )

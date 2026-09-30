@@ -166,8 +166,10 @@ class Calibration:
 class Scenario:
     """一次仿真的完整输入.
 
-    策略字段 (wave_packing / core_assignment / scheduling_policy / restructure)
-    接受注册名、{name=..., 参数} 表或现成对象, 见 registry.py; None = 模型缺省.
+    策略字段 (wave_packing / core_assignment / scheduling_policy / restructure /
+    tile_grid / orchestration) 接受注册名、{name=..., 参数} 表或现成对象, 见
+    registry.py; None = 模型缺省。tile_grid 决定 GMM1/GMM2 的 tile 怎么切,
+    orchestration 决定用哪个建图器 (还能写 "包.模块:类" 引用自己的实现)。
     default_channels: 为相位流水启用默认 L2 信道 (每核应得速率 × 核数), 随
     aic_num 与标定带宽自动取值; 与 options.pipeline.channels 显式列表互斥.
     costs: 显式给出的公式容器; 给定时 calibration 不生效.
@@ -189,6 +191,8 @@ class Scenario:
     core_assignment: object = None
     scheduling_policy: object = None
     restructure: object = None
+    tile_grid: object = None
+    orchestration: object = None
     costs: Optional[PrimitiveCosts] = None
 
     def __post_init__(self) -> None:
@@ -283,6 +287,8 @@ def simulate(scenario: Scenario) -> Dict[str, object]:
         wave_packing=registry.resolve("wave_packing", scenario.wave_packing),
         core_assignment=registry.resolve("core_assignment", scenario.core_assignment),
         scheduling_policy=registry.resolve("scheduling_policy", scenario.scheduling_policy),
+        tile_grid=registry.resolve("tile_grid", scenario.tile_grid),
+        orchestration=registry.resolve("orchestration", scenario.orchestration),
     )
     result["scenario"] = scenario
     return result
