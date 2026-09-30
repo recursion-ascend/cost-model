@@ -301,11 +301,12 @@ def _expand_aiv(
     # 共享旧名 QUEUE:vec:c{core} 会把同核 ACT/COMBINE 错误串行.
     eng = "aiv0" if vec else "aiv1"
     vec_queue = (f"QUEUE:vec:{eng}:c{core}", 1)
-    if stage == _STAGE_COMBINE:
-        ch = ((CH_HBM_WRITE, base_dur * BW_SCATTER, BW_SCATTER),) \
-            if CH_HBM_WRITE in channels and base_dur > 0 else ()
-    else:
-        ch = ()
+    # 保留建图器自己申报的字节 (ACT 的 GM 写出、COMBINE 的片间写), 只在这里**追加**
+    # COMBINE 的散射写。原先这里是直接覆盖 —— ACT 的写信道字节与 COMBINE 的
+    # fab_* 字节都会在启用相位流水时被悄悄丢掉。
+    ch = ev.channel_bytes
+    if stage == _STAGE_COMBINE and CH_HBM_WRITE in channels and base_dur > 0:
+        ch = ch + ((CH_HBM_WRITE, base_dur * BW_SCATTER, BW_SCATTER),)
 
     need_split = load_bw is not None and base_dur > 0
     if not need_split:

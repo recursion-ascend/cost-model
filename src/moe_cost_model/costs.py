@@ -12,7 +12,8 @@ from .config.hardware import (
     BW_SCATTER, BW_UB, DISPATCH_BUFFER_COUNT,
     T_CALL_OH, T_COUNT_GATE, T_GMM1_OVERLAP, T_LAT_LOCAL, T_LAT_REMOTE,
     T_STARTUP_VEC,
-    MXFP_DIVISOR_SIZE, MXFP_MULTI_BASE_SIZE_K, URMA_FLAG_BYTES, URMA_FLAG_WINDOW_TOKENS,
+    MXFP_DIVISOR_SIZE, MXFP_MULTI_BASE_SIZE, MXFP_MULTI_BASE_SIZE_K,
+    URMA_FLAG_BYTES, URMA_FLAG_WINDOW_TOKENS,
     URMA_GET_BW_SINGLE, URMA_GET_LAT_US, URMA_PUT_BW_SINGLE, URMA_PUT_LAT_US,
     VEC_ELEM_FP32,
 )
@@ -193,6 +194,8 @@ class PrimitiveCosts:
 
     # x = valid M rows; y = logical scheduler columns / TILE_N.
     activation_tile: Callable[[int, float], float]
+    # 本窗写出到 GM 的字节 (fp8 + MX scale), 供 builder 折算写信道流量
+    activation_store_bytes: Callable[[int, float], float]
     # (m 行, 本窗列数, 其中目的卡 != 本卡的行数) -> us
     # 第三参必填: 跨卡行是 COMBINE 的主导项 (实测占 95%), 缺了它公式会低估 10 倍.
     combine_tile: Callable[[int, float, int], float]
@@ -328,32 +331,72 @@ def gmm2_phase_split(costs: PrimitiveCosts, m: int, k2: int,
 class AnalyticalActCosts:
     """ACT (SwiGLU + MX量化) 的物理公式.
 
+    profile 区间 = 内核 Gmm1Aiv0EpilogueTileGeneric 一次调用 (stage/
+    mega_moe_gmm1_activation.h 的 MOE_PROFILE_BEGIN(ACT_QUANT)), 纯计算+写出:
+    WaitForCube 在前一个 WAIT_ACT_INPUT 区间里, NotifyCube 在区间外。
+    非 prefetch 路径下输入已由 AIC 落在 UB, 区间内**没有 GM→UB 读**。
+
     每 tile (m行 × tileN列) 的向量操作数:
         n_vec = m * tileN / VEC_ELEM  (VEC_ELEM = 64 FP32/向量)
 
-    每向量的 UB 流量 (从源码精确计数):
-        读: gate(BF16) 128B + up(BF16) 128B + bf16中间重读 128B = 384B
-        写: bf16中间 128B + fp8 64B + scale 4B = 196B
-        总: 580B/向量
-
     公式:
-        T = T_startup + n_vec * 580 / BW_ub
+        T = T_startup + n_vec * BYTES_PER_VEC / BW_ub
 
-    硬件参数 (单点测量, 非拟合):
-        BW_ub: UB 读+写饱和带宽 (从大 m tile 一次实测)
-        T_startup: 向量流水启动+排空 (从空/极小 tile 一次实测)
+    ---- 已知的三处偏差 (2026-09-30 对 20260930 run 审计; 都没改, 理由见下) ----
+
+    1. BYTES_PER_VEC = 580 与源码不符, 但**单改它是变相拟合**。
+       源码真值 (blaze/epilogue/block_epilogue_activation_mx_quant.h): bf16 中间
+       缓冲被**整体流三遍** —— SwiGLU 写一遍, ComputeMaxExp 读一遍,
+       ComputeFp8Data 再读一遍。模型只算了一次重读, 漏了 128B/向量; 另有
+       maxExp/inverseMxScale 各 uint16 的往返约 14B。UB 侧真值 722B/向量, 其中
+       66B (fp8 64 + scale 2) 其实是 GM 流量而非 UB。
+       但 (T_startup, BW_ub) 当初是**用 580 在两个 ACT 点上联合拟合**的 (截距取
+       小 m tile, 斜率取大 m tile), 所以只有比值 BYTES_PER_VEC/BW_ub 可观测:
+       把字节改成 722 再同两点重拟合会得到 BW_ub = 93000x722/580 = 115769,
+       预测**逐位不变**。故字节数的错是"结构上错、数值上惰性", 单改它没有信息,
+       要分开只能扫 m 或扫 tileN (本 run 全部 54 个 tile 形状相同, 零信息)。
+
+    2. 写出是 GM 而非 UB, 且代价随 m 走而不是随 m*cols 走 (待建模)。
+       StoreQuantOutput 发 blockCount = m 次、每次 cols*1B(fp8) 的带 stride 突发;
+       StoreQuantScaleCompact 发 m 次、每次 ceil(cols/MXFP_DIVISOR)*MXFP_MULTI_BASE
+       = 8B 的突发。8B 远低于任何 GM 突发粒度, 那一路的代价由 m 次请求发射决定,
+       不由 576 字节决定。现行公式把两者都按 m*cols 记在 BW_ub 上。
+       正确形态多一项 m*(每行发射代价), 它让 T 依赖 tile 的行列长宽比 —— 本配置
+       m 恒为 72, 与截距不可分, 要扫 m 才能测出来。
+
+    3. 缺并发项 —— 这是本 run 能证明的那一条, 但它的归宿是 DAG 不是公式。
+       实测同一个专家的 tile: 28 个 ACT 并发时中位 3.899us, 8~10 个并发时 3.554us
+       (+9.7%)。受控对比: 专家1 的 tile 0~9 落在 28 并发窗、tile 10~17 落在 8 并发
+       窗, 形状与输出区域完全相同。区间内唯一的片外流量就是那两次 UB→GM
+       DataCopyPad, 所以本模型把这两次的字节申报到写信道上 (store_bytes), 让降速
+       由速率服务器算出来, 而不是在公式里加常数 —— 与 dispatch 的处理同口径。
+       信道缺省不启用时字节被过滤, 预测不变。
     """
     VEC_ELEM = VEC_ELEM_FP32
     BYTES_PER_VEC = ACT_BYTES_PER_VEC
 
-    def __init__(self, bw_ub_bytes_per_us=BW_UB, t_startup_us=T_STARTUP_VEC):
+    def __init__(self, bw_ub_bytes_per_us=BW_UB, t_startup_us=T_STARTUP_VEC,
+                 mxfp_divisor: int = MXFP_DIVISOR_SIZE,
+                 mxfp_scale_bytes: int = MXFP_MULTI_BASE_SIZE):
         # 几何量 (每窗列数) 调用期传入 — 同 GMM, 消除 tile_n 双份来源
         self.bw_ub = bw_ub_bytes_per_us
         self.t_startup = t_startup_us
+        self.mxfp_divisor = int(mxfp_divisor)
+        self.mxfp_scale_bytes = int(mxfp_scale_bytes)
 
     def tile(self, m: int, cols: int) -> float:
         n_vec = m * cols / self.VEC_ELEM
         return self.t_startup + n_vec * self.BYTES_PER_VEC / self.bw_ub
+
+    def store_bytes(self, m: int, cols: int) -> float:
+        """本 tile 写出到 GM 的字节: m 行 x (fp8 cols x 1B + MX scale).
+
+        对应 StoreQuantOutput + StoreQuantScaleCompact 两次 UB→GM DataCopyPad,
+        各 blockCount = m 次带 stride 的突发。只供信道折算流量; tile 时长仍走
+        上面的 UB 口径 (两者的关系见类注释第 2、3 条)。
+        """
+        scale = -(-int(cols) // self.mxfp_divisor) * self.mxfp_scale_bytes
+        return m * (int(cols) * 1.0 + scale)
 
 
 COMBINE_NO_QUANT = 0
@@ -497,6 +540,7 @@ def build_analytical_costs(
         gmm1_tile=gmm.gmm1_tile,
         gmm2_tile=gmm.gmm2_tile,
         activation_tile=act.tile,
+        activation_store_bytes=act.store_bytes,
         combine_tile=comb.tile,
         combine_write_bytes_per_row=comb.write_bytes_per_row,
         count_table_prepare_us=count_table_prepare_us,
