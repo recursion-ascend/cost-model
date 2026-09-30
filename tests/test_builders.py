@@ -174,6 +174,50 @@ def test_idle_core_stealing_active_and_effective():
     assert stolen > 0, "rank 前缀不匹配时任务转移静默失效 (旧 bug)"
     assert r_steal["kernel_total_us"] != r_plain["kernel_total_us"]
 
+def test_dispatch_segment_splits_by_route_batch():
+    """段内再按 routeItemsPerBatch 分批, 一批一个事件 (内核每批一次 PROFILE 区间).
+
+    内核 DispatchRankTokens 的 while 批循环: 每批一次
+    CopyTokensAndMetaForDispatch, 而 MOE_PROFILE_BEGIN/END 在那个函数里 —— 所以
+    一批就是实测 trace 里的一个 DISPATCH_XFER/LOCAL 事件, 各付自己的 λ 与流水
+    填充/排空, 不是一段一个事件。
+    """
+    # aic=1 让单核吃下整波; mgw=3 -> 768 行; 两个源卡各 400 行 -> 段 400/368 行
+    res = m.simulate_routing_counts(
+        routing_counts=[[[400, 400]], [[400, 400]]], token_num_per_rank=800,
+        h=6144, hidden_dim=4096, aic_num=1, topk=2,
+        costs=m.build_analytical_costs(
+            h=6144, dispatch_mechanistic=m.DispatchMechanisticLatency()),
+        p1_override=48, p2_override=1)
+    d = [e for e in res["rank_results"][0]["events"] if e.meta.get("stage") == "dispatch"]
+    # 400 -> 256+144, 368 -> 256+112, 32 -> 32
+    got = sorted((e.meta["wave"], e.meta["src_rank"], e.meta["row_begin"],
+                  e.meta["row_end"]) for e in d)
+    assert got == [(0, 0, 0, 256), (0, 0, 256, 400),
+                   (0, 1, 400, 656), (0, 1, 656, 768), (1, 1, 768, 800)]
+    assert max(e.meta["rows"] for e in d) == 256      # 不超过 routeItemsPerBatch
+    # 行数守恒: 分批后每个 (专家, m-group) 门仍然收齐
+    for e in res["rank_results"][0]["events"]:
+        if e.meta.get("stage") == "dispatch_ready":
+            assert e.meta["contributed_rows"] == e.meta["required_rows"]
+
+
+def test_dispatch_single_batch_keeps_segment_granularity():
+    """段不超过一批时事件与未分批时逐字节一致 (bs=36 全部段 1~6 行, 远小于 256)."""
+    res = m.simulate_routing_counts(
+        routing_counts=[[[18] * 4 for _ in range(3)] for _ in range(4)],
+        token_num_per_rank=36, h=5120, hidden_dim=9216, aic_num=28,
+        costs=_costs(), topk=6, p1_override=2, p2_override=1)
+    d = [e for e in res["rank_results"][0]["events"] if e.meta.get("stage") == "dispatch"]
+    # 实测 rank0: 47 个 DISPATCH_XFER + 14 个 DISPATCH_LOCAL = 61, 行数直方图逐桶相同
+    assert len(d) == 61
+    hist = {}
+    for e in d:
+        hist[e.meta["rows"]] = hist.get(e.meta["rows"], 0) + 1
+    assert hist == {1: 2, 2: 15, 3: 19, 4: 2, 5: 19, 6: 4}
+    assert sum(e.meta["rows"] for e in d) == 36 * 6
+
+
 def test_combine_remote_rows_come_from_routing():
     """每个 COMBINE 窗的跨卡行数由 routing 逐行数出, 不是按比例摊.
 

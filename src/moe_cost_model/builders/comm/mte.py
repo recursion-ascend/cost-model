@@ -5,13 +5,29 @@ combine 为配对 tile, 每 GMM2 tail 一个同核 AIV1 事件.
 """
 from __future__ import annotations
 
-from typing import Dict, Tuple
+from typing import Dict, Iterator, Tuple
 
 from ...costs import DispatchDataLayout
 from ..base import rows_by_source_rank
 from ..context import BuildContext
 from ..pipeline_expand import CH_DISPATCH_READ, CH_DISPATCH_WRITE
 from .base import CombineTransport, DispatchTransport
+
+
+def _route_batches(row_begin: int, rows: int, batch_rows: int) -> Iterator[Tuple[int, int]]:
+    """把一段的行区间按 routeItemsPerBatch 切批, 产出 (批起始行, 批行数).
+
+    对应内核 DispatchRankTokens 的 while 批循环: 每批一次
+    CopyTokensAndMetaForDispatch, 而 PROFILE 区间在那个函数里 —— 所以一批就是
+    实测 trace 里的一个 DISPATCH_XFER/LOCAL 事件。段不超过一批时只产出一个,
+    起止行与整段相同, 事件名与 meta 因此与未分批时逐字节一致。
+    """
+    step = max(1, int(batch_rows))
+    off = 0
+    while off < rows:
+        n = min(step, rows - off)
+        yield row_begin + off, n
+        off += n
 
 
 class MteDispatch(DispatchTransport):
@@ -47,6 +63,7 @@ class MteDispatch(DispatchTransport):
             expert_ir_by_id = {e.expert: e for e in call_ir.experts}
             b_row = layout0.bytes_read_per_row()
             b_write = layout0.bytes_written_per_row()
+            batch_rows = layout0.route_items_per_batch
             first_remote = True
             for sl in w.slices:
                 ob = max(cb, sl.global_row_begin)
@@ -60,47 +77,49 @@ class MteDispatch(DispatchTransport):
                     seg_end = seg_start + rows
                     if rows <= 0:
                         continue
-                    name = f"W{w.index}.dispatch.c{core}.e{sl.expert}.s{si}.r{seg_start}_{seg_end}"
-                    resources = [f"AIV1:{core}"]
-                    if builder.options.serialize_dispatch_comm and src != shape.rank_id:
-                        resources.append("DISPATCH_COMM")
-                    duration = c.dispatch_mechanistic.segment_us(
-                        src, shape.rank_id, rows, layout0) + c.dispatch_ready_publish_us
-                    # 每行: 读 rowBytes (源卡窗口) + 写 b_write (本卡 workspace)
                     rate_r = (c.dispatch_mechanistic.bw_local_bytes_per_us if src == shape.rank_id
                               else c.dispatch_mechanistic.bw_remote_bytes_per_us)
                     bw_loc = c.dispatch_mechanistic.bw_local_bytes_per_us
-                    rx, wx = rows * b_row, rows * b_write
-                    # 读侧 dispatch_read, 写侧 dispatch_write。原先 dispatch 只申报
-                    # 远端读的片间字节, 本卡读与全部写在调度器眼里根本不存在 ——
-                    # DAG 里少了一整条访存通路。
-                    ch_bytes = [(CH_DISPATCH_READ, rx, rate_r),
-                                (CH_DISPATCH_WRITE, wx, bw_loc)]
-                    if src != shape.rank_id:
-                        if first_remote:
-                            # T_GMM1_OVERLAP 暂时留着: dispatch 与 GMM1 抢访存的机制
-                            # 要靠"两者并到同一条聚合为整卡访存带宽的信道"才能算出来,
-                            # 而整卡聚合带宽尚无实测 (不能拿每核速率x核数当整卡值)。
-                            # 那一天到了, 这一项必须同时删掉, 否则就是双重计费。
-                            duration += c.dispatch_mechanistic.gmm1_overlap_us_per_call
-                            first_remote = False
-                        ch_bytes += [
-                            (f"fab_src:{src}", rx, c.dispatch_mechanistic.bw_remote_bytes_per_us),
-                            (f"fab_dst:{shape.rank_id}", rx, c.dispatch_mechanistic.bw_remote_bytes_per_us),
-                        ]
-                    ch_bytes = tuple(ch_bytes)
-                    meta = {"stage": "dispatch", "wave": w.index, "core": core,
-                            "expert": sl.expert, "src_rank": src,
-                            "row_begin": seg_start, "row_end": seg_end, "rows": rows}
-                    ev = builder._event(name, resources, duration, deps=deps,
-                                        meta=meta, channel_bytes=ch_bytes)
-                    for grp in range(seg_start // TILE_M, (seg_end - 1) // TILE_M + 1):
-                        gb = grp * TILE_M
-                        ge = min(gb + TILE_M, shape.expert_tokens[sl.expert])
-                        rows_g = max(0, min(seg_end, ge) - max(seg_start, gb))
-                        if rows_g:
-                            wave_contrib.setdefault((sl.expert, grp), []).append(
-                                (ev, rows_g, core, call_name))
+                    bw_rem = c.dispatch_mechanistic.bw_remote_bytes_per_us
+                    for b_begin, b_rows in _route_batches(seg_start, rows, batch_rows):
+                        b_end = b_begin + b_rows
+                        name = (f"W{w.index}.dispatch.c{core}.e{sl.expert}.s{si}"
+                                f".r{b_begin}_{b_end}")
+                        resources = [f"AIV1:{core}"]
+                        if builder.options.serialize_dispatch_comm and src != shape.rank_id:
+                            resources.append("DISPATCH_COMM")
+                        duration = c.dispatch_mechanistic.segment_us(
+                            src, shape.rank_id, b_rows, layout0) + c.dispatch_ready_publish_us
+                        # 每行: 读 rowBytes (源卡窗口) + 写 b_write (本卡 workspace)。
+                        # 读侧 dispatch_read, 写侧 dispatch_write。原先 dispatch 只申报
+                        # 远端读的片间字节, 本卡读与全部写在调度器眼里根本不存在 ——
+                        # DAG 里少了一整条访存通路。
+                        rx, wx = b_rows * b_row, b_rows * b_write
+                        ch_bytes = [(CH_DISPATCH_READ, rx, rate_r),
+                                    (CH_DISPATCH_WRITE, wx, bw_loc)]
+                        if src != shape.rank_id:
+                            if first_remote:
+                                # T_GMM1_OVERLAP 暂时留着: dispatch 与 GMM1 抢访存的
+                                # 机制要靠"两者并到同一条聚合为整卡访存带宽的信道"
+                                # 才能算出来, 而整卡聚合带宽尚无实测 (不能拿每核速率
+                                # x核数当整卡值)。那天到了这一项必须同时删掉, 否则
+                                # 就是双重计费。
+                                duration += c.dispatch_mechanistic.gmm1_overlap_us_per_call
+                                first_remote = False
+                            ch_bytes += [(f"fab_src:{src}", rx, bw_rem),
+                                         (f"fab_dst:{shape.rank_id}", rx, bw_rem)]
+                        meta = {"stage": "dispatch", "wave": w.index, "core": core,
+                                "expert": sl.expert, "src_rank": src,
+                                "row_begin": b_begin, "row_end": b_end, "rows": b_rows}
+                        ev = builder._event(name, resources, duration, deps=deps,
+                                            meta=meta, channel_bytes=tuple(ch_bytes))
+                        for grp in range(b_begin // TILE_M, (b_end - 1) // TILE_M + 1):
+                            gb = grp * TILE_M
+                            ge = min(gb + TILE_M, shape.expert_tokens[sl.expert])
+                            rows_g = max(0, min(b_end, ge) - max(b_begin, gb))
+                            if rows_g:
+                                wave_contrib.setdefault((sl.expert, grp), []).append(
+                                    (ev, rows_g, core, call_name))
                     seg_start = seg_end
 
         for sl in w.slices:

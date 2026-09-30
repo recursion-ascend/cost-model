@@ -33,6 +33,10 @@ def _align(x: int, a: int) -> int:
 
 @dataclass(frozen=True)
 class DispatchDataLayout:
+    #: 内核 dispatchBufferConfig.routeItemsPerBatch (tiling 真值 256).
+    #: DispatchRankTokens 把一个 (核,专家,源卡) 段再按它分批, 每批一次
+    #: CopyTokensAndMetaForDispatch —— 而 MOE_PROFILE_BEGIN/END 就在那个函数里,
+    #: 所以**一批就是一个 trace 事件**, 各付自己的 λ 与流水填充/排空。
     route_items_per_batch: int = 256
     rev_token_elem_cnt: int = 6144   # = H, 1 byte/elem after E5M2 quant
     rev_scale_elem_cnt: int = 192    # = ceil(H/32)
