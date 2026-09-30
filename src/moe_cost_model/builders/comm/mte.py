@@ -17,8 +17,10 @@ from .base import CombineTransport, DispatchTransport
 class MteDispatch(DispatchTransport):
     """按 (专家, m-group) 分块, 一块归一个 AIV1 核.
 
-    切分层级: 先按专家, 每个专家内再按 m-group (tile_m 行一组). 一个块的全部行
-    由同一个核搬运, 块内再按源卡切段 (不同源卡要从不同的卡上读)。
+    切分层级: 先按专家, 每个专家内再按 m-group. 块的行数由该专家的行数与 tile_m
+    算出 — min(tile_m, 专家行数 - 组起点), 末组不足 tile_m 时就是剩下的行数。
+    一个块整体一次搬运: 固定延迟按块付一次, 块内各源卡的行按各自带宽计数据时间
+    (本地走本卡内存, 远端走片间互连)。
 
     核号按全局 m-group 序轮转 —— 同一个块无论落在哪个波, 归属的核都不变。
     块数 = Σ_e ceil(专家 e 的行数 / tile_m); 块数少于核数时, 多出来的核在
@@ -69,37 +71,38 @@ class MteDispatch(DispatchTransport):
                     expert=sl.expert, dst_rank=shape.rank_id,
                     source_counts=shape.expert_source_tokens[sl.expert],
                     row_begin=row_begin, row_end=row_end, layout=layout0)
-                seg_start = row_begin
-                for si, (src, rows) in enumerate(expert_ir.segments):
-                    seg_end = seg_start + rows
-                    if rows <= 0:
-                        continue
-                    name = (f"W{w.index}.dispatch.c{core}.e{sl.expert}.g{group}"
-                            f".s{si}.r{seg_start}_{seg_end}")
-                    resources = [f"AIV1:{core}"]
-                    if builder.options.serialize_dispatch_comm and src != shape.rank_id:
-                        resources.append("DISPATCH_COMM")
-                    duration = c.dispatch_mechanistic.segment_us(
-                        src, shape.rank_id, rows, layout0) + c.dispatch_ready_publish_us
-                    ch_bytes = ()
-                    if src != shape.rank_id:
-                        if first_remote:
-                            duration += c.dispatch_mechanistic.gmm1_overlap_us_per_call
-                            first_remote = False
-                        bx = rows * b_row
-                        ch_bytes = (
-                            (f"fab_src:{src}", bx, c.dispatch_mechanistic.bw_remote_bytes_per_us),
-                            (f"fab_dst:{shape.rank_id}", bx, c.dispatch_mechanistic.bw_remote_bytes_per_us),
-                        )
-                    meta = {"stage": "dispatch", "wave": w.index, "core": core,
-                            "expert": sl.expert, "mgroup": group, "src_rank": src,
-                            "row_begin": seg_start, "row_end": seg_end, "rows": rows}
-                    ev = builder._event(name, resources, duration, deps=deps,
-                                        meta=meta, channel_bytes=ch_bytes)
-                    # 一个块整体归一个核, 段必然落在本 m-group 内
-                    wave_contrib.setdefault((sl.expert, group), []).append(
-                        (ev, rows, core, call_name))
-                    seg_start = seg_end
+                rows = expert_ir.rows
+                if rows <= 0:
+                    continue
+                # 整块一次搬完: 固定延迟付一次, 数据时间按各源卡自己的带宽
+                local_rows = sum(r for s, r in expert_ir.segments if s == shape.rank_id)
+                remote_rows = rows - local_rows
+                mech = c.dispatch_mechanistic
+                duration = mech.block_us(local_rows, remote_rows, layout0)                     + c.dispatch_ready_publish_us
+                resources = [f"AIV1:{core}"]
+                if builder.options.serialize_dispatch_comm and remote_rows:
+                    resources.append("DISPATCH_COMM")
+                ch_bytes = ()
+                if remote_rows:
+                    if first_remote:
+                        duration += mech.gmm1_overlap_us_per_call
+                        first_remote = False
+                    ch_bytes = tuple(
+                        (f"fab_src:{s}", r * b_row, mech.bw_remote_bytes_per_us)
+                        for s, r in expert_ir.segments if s != shape.rank_id and r > 0
+                    ) + ((f"fab_dst:{shape.rank_id}", remote_rows * b_row,
+                          mech.bw_remote_bytes_per_us),)
+                name = (f"W{w.index}.dispatch.c{core}.e{sl.expert}.g{group}"
+                        f".r{row_begin}_{row_end}")
+                meta = {"stage": "dispatch", "wave": w.index, "core": core,
+                        "expert": sl.expert, "mgroup": group,
+                        "row_begin": row_begin, "row_end": row_end, "rows": rows,
+                        "local_rows": local_rows, "remote_rows": remote_rows,
+                        "src_ranks": tuple(s for s, r in expert_ir.segments if r > 0)}
+                ev = builder._event(name, resources, duration, deps=deps,
+                                    meta=meta, channel_bytes=ch_bytes)
+                wave_contrib.setdefault((sl.expert, group), []).append(
+                    (ev, rows, core, call_name))
 
         for sl in w.slices:
             fg = sl.row_begin // TILE_M

@@ -215,7 +215,7 @@ m.register("tile_grid", "split_every_group", SplitEveryGroup)
 
 | 阶段 | 一个块再怎么切 | 归属 |
 | --- | --- | --- |
-| dispatch | 按源卡切段 (不同源卡从不同的卡上读) | **一块归一个 AIV1 核**, 整块的行由该核搬完 |
+| dispatch | 不再切, 整块一次搬运 | **一块归一个 AIV1 核** |
 | GMM1 | 按输出列切 tile (`ceil(intermediate / 2 / tile_n)` 个), 可换 `tile_grid` | 每个 tile 一个 AIC 核, 游标轮转 |
 | ACT | 一对一跟随 GMM1 tile | 同核的 AIV0 |
 | GMM2 | 按输出列切 tile (`ceil(h / tile_n)` 个), 可换 `tile_grid`; 每个 tile 要行范围相交且覆盖整个 K 的 ACT | 每个 tile 一个 AIC 核, 游标轮转 |

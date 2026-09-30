@@ -66,6 +66,20 @@ class DispatchMechanisticLatency:
     def call_base_us(self) -> float:
         return self.t_call_oh_us
 
+    def block_us(self, local_rows: int, remote_rows: int,
+                 layout: DispatchDataLayout = None) -> float:
+        """一个 (专家, m-group) 块整体搬运的时长.
+
+        块是 dispatch 的搬运单位, 固定延迟按块付一次 (块内有远端行就取远端延迟);
+        数据时间仍按每行自己的来源算 —— 本地行走本卡内存带宽, 远端行走片间带宽。
+        """
+        if layout is None:
+            layout = DispatchDataLayout()
+        b_row = self._bytes_row(layout)
+        lat = self.t_lat_remote_us if remote_rows > 0 else self.t_lat_local_us
+        return (lat + local_rows * b_row / self.bw_local_bytes_per_us
+                + remote_rows * b_row / self.bw_remote_bytes_per_us)
+
     def segment_us(self, src: int, dst: int, rows: int,
                    layout: DispatchDataLayout = None) -> float:
         """单段基础服务 (无争用): λ_src + rows·b_row/BW_src."""
