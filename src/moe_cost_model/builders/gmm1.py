@@ -27,7 +27,14 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
         tile_count = len(tiles)
         fill_share = c.gmm1_fill_us / tile_count if tile_count else 0.0
         # 预计算逐 tile 时长 (分核策略按真实代价均衡, 不按个数)
-        tile_costs = [c.gmm1_tile(t.rows, shape.h, t.cols) + fill_share for t in tiles]
+        # B 复用: 切片内只有首个 m-group 付自己列块的 B 流。
+        # 未开复用时按三参调用 —— 自定义 gmm1_tile callable 只需接三个参数。
+        b_load = [not km.gmm1_b_reuse or t.row_begin < TILE_M for t in tiles]
+        if km.gmm1_b_reuse:
+            tile_costs = [c.gmm1_tile(t.rows, shape.h, t.cols, b_load[i]) + fill_share
+                          for i, t in enumerate(tiles)]
+        else:
+            tile_costs = [c.gmm1_tile(t.rows, shape.h, t.cols) + fill_share for t in tiles]
         if core_assign is not None:
             owners = core_assign.assign(tile_count, p, cursor.start,
                                         tile_costs=tile_costs)
@@ -66,7 +73,7 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                     "logical_n": t.cols, "core": core, "m_rows": t.rows,
                     "cursor_tile": tile_idx,
                     "dispatch_ready_event": ready_name}
-            phases = gmm1_phase_split(c, t.rows, shape.h, t.cols)
+            phases = gmm1_phase_split(c, t.rows, shape.h, t.cols, b_load[tile_idx])
             if phases is not None:
                 # 相位流水按这组数拆 load/cube 相位并折算 GM→L1 信道字节
                 meta["load_us"], meta["compute_us"] = phases

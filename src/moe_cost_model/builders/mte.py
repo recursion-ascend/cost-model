@@ -41,7 +41,7 @@ class MteEventBuilder(EventBuilderBase):
 
         # ---- stage 波偏移 (InstancePolicy.effective_wave_offsets) ----
         # 以 GMM1 的波为锚: dispatch 超前 offs.dispatch 个波, GMM2 滞后
-        # |offs.gmm2| 个波. 缺省由 la/lag 推导, 与旧硬编码循环逐字节一致.
+        # |offs.gmm2| 个波. 缺省由 la/lag 推导.
         offs = policy.effective_wave_offsets(shape.token_num)
         n_waves = len(waves)
         dispatched: set = set()

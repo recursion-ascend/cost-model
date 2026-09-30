@@ -66,11 +66,14 @@ def test_default_pin():
     # 2026-09 dispatch 改为按 (专家, m-group) 分块, 一块归一个 AIV1 核:
     #   原先 432 行全局均分到 28 核, 现在块数 (本例 5 块) 决定用几个核 →
     #   dispatch 并行度下降, 68.431 → 113.382
-    # 2026-09 dispatch 一个块整体一次搬运 (原先块内按源卡切成多段串行):
-    #   固定延迟由每段一次改为每块一次 → 113.382 → 106.742
-    assert abs(res["kernel_total_us"] - 106.742) < 0.01
-    assert abs(res["kernel_dag_end_us"] - 121.393) < 0.01
-    assert len(res["rank_results"][0]["events"]) == 596
+    # 2026-09-30 按 bs=36 实测 (20260930 run) 回退三处口径:
+    #   1) GMM 公式恢复 B 流 (GMM1 = max(A流+B流, 计算), GMM2 = max(B流, 计算))
+    #   2) dispatch 回到"整个波的行按均衡+轮转分给全部核" (实测逐核 28 个数字命中)
+    #   3) hiddenDim/p1 用 tiling 真值
+    #   含尾段的 232.083 与事件数 659 回到仓库最初的锚点值 —— 回退已到位
+    assert abs(res["kernel_total_us"] - 217.433) < 0.01
+    assert abs(res["kernel_dag_end_us"] - 232.083) < 0.01
+    assert len(res["rank_results"][0]["events"]) == 659
     # 排队模型生效标志: 资源争用出现 (旧模型恒为 0)
     rq = sum(1 for e in res["rank_results"][0]["events"] if e.resource_queue_us > 0)
     assert rq > 100, f"resource_queue>0 仅 {rq} 次, 排队模型未生效"
@@ -196,7 +199,7 @@ def _run_costs():
 def test_kl1_override_restores_legacy():
     """kL1=256 显式覆盖应恢复与 auto 相同值 (结构等价性自检)."""
     res = _run(options=m.ModelOptions(gmm2_kl1=256))
-    assert abs(res["kernel_total_us"] - 106.742) < 0.5
+    assert abs(res["kernel_total_us"] - 217.433) < 0.5
 
 
 def test_primitive_costs_requires_all():

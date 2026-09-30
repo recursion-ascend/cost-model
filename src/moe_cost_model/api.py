@@ -26,9 +26,18 @@ def _rebind_costs_to_kernel(costs: PrimitiveCosts, kernel) -> PrimitiveCosts:
     g1 = getattr(costs.gmm1_tile, "__self__", None)
     if isinstance(g1, AnalyticalGmmCosts):
         if (g1.serial != (kernel.l1_buf_num == 1)
-                or g1._k_l1 != kernel.l1_tile_k):
+                or g1._k_l1 != kernel.l1_tile_k
+                or g1.weight_nz != kernel.weight_nz):
+            if kernel.weight_nz and not g1.weight_nz:
+                raise ValueError(
+                    "KernelConfig.weight_nz=True 但 gmm1 公式按 Z 布局构造, "
+                    "NZ 路径带宽无法从 Z 标定推导. 显式给: "
+                    "build_analytical_costs(bw_l1_gm_b_nz=...) 或 "
+                    "AnalyticalGmmCosts(weight_nz=True, bw_b_nz_bytes_per_us=...)")
             new_g = AnalyticalGmmCosts(
                 bw_bytes_per_us=g1.bw,
+                weight_nz=kernel.weight_nz,
+                bw_b_nz_bytes_per_us=(g1.bw_b if g1.weight_nz else 0.0),
                 l1_buf_num=kernel.l1_buf_num,
                 cube_mac_per_us=g1.cube_rate,
                 tile_restart_us=g1.chunk_restart,

@@ -171,19 +171,9 @@ tr.is-tail td { color: var(--ink-2); }
 <div class="wrap">
   <header>
     <div class="eyebrow">MegaMoE 成本模型 · DAG 调度结果</div>
-    <h1>8 卡 · 每卡 72 token · topk 6 · 均匀路由</h1>
-    <p class="lede">下面的时刻都是 DAG 调度器排出来的事件起止时间。执行时间记到最后一个 COMBINE 结束，尾段照常调度但不计入。8 张卡的调度完全相同，图里画的是其中一张。</p>
-    <dl class="spec">
-      <div><dt>卡数</dt><dd class="num">8</dd></div>
-      <div><dt>每卡 token (bs)</dt><dd class="num">72</dd></div>
-      <div><dt>topk</dt><dd class="num">6</dd></div>
-      <div><dt>每卡专家</dt><dd class="num">3（共 24）</dd></div>
-      <div><dt>AIC 核</dt><dd class="num">28</dd></div>
-      <div><dt>h</dt><dd class="num">5120</dd></div>
-      <div><dt>intermediate</dt><dd class="num">4608</dd></div>
-      <div><dt>编排</dt><dd>MTE 波循环</dd></div>
-      <div><dt>p1 / p2</dt><dd class="num">2 / 1</dd></div>
-    </dl>
+    <h1 id="head-title"></h1>
+    <p class="lede" id="head-lede"></p>
+    <dl class="spec" id="head-spec"></dl>
   </header>
 
   <section class="panel" aria-labelledby="h-sum">
@@ -274,19 +264,13 @@ tr.is-tail td { color: var(--ink-2); }
   <section class="panel" aria-labelledby="h-route">
     <div class="panel-head">
       <h2 id="h-route">路由矩阵</h2>
-      <p>每格是行数。8 张目的卡的矩阵完全相同，这里显示其中一张。</p>
+      <p id="route-note"></p>
     </div>
     <div class="two">
       <div class="scroll">
         <table class="matrix" id="matrix"></table>
       </div>
-      <ul class="facts">
-        <li><span>每张源卡发出</span><span>72 × 6 = 432 行</span></li>
-        <li><span>均分到</span><span>8 × 3 = 24 个专家</span></li>
-        <li><span>每格 C[目的卡][专家][源卡]</span><span>18 行</span></li>
-        <li><span>每个专家共收</span><span>18 × 8 = 144 行</span></li>
-        <li><span>每张卡共收</span><span>432 行</span></li>
-      </ul>
+      <ul class="facts" id="route-facts"></ul>
     </div>
   </section>
 
@@ -376,6 +360,22 @@ function tickStep(range) {
 }
 
 function buildStatic() {
+  $("head-title").textContent = DATA.spec.title;
+  $("head-lede").textContent = DATA.spec.lede;
+  const spec = $("head-spec");
+  DATA.spec.rows.forEach(([k, v]) => {
+    const d = el("div");
+    d.append(el("dt", {}, k), el("dd", { class: "num" }, v));
+    spec.appendChild(d);
+  });
+  $("route-note").textContent = DATA.spec.routeNote;
+  const facts = $("route-facts");
+  DATA.spec.facts.forEach(([k, v]) => {
+    const li = el("li");
+    li.append(el("span", {}, k), el("span", {}, v));
+    facts.appendChild(li);
+  });
+
   const seg = $("seg");
   DATA.rates.forEach((r, i) => {
     const b = el("button", { type: "button", id: "rate-" + i }, rateLabel(r.rate));

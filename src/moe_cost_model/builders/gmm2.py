@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import List
 
 from ..config.hardware import _gmm2_head_tail_fractions, select_kl1
+from ..costs import gmm2_phase_split
 from ..planning.tile_grid import STAGE_GMM2, validate_tiles
 from .context import BuildContext
 from .tiling import resolve_grid, tile_label
@@ -73,14 +74,23 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                     "row_begin": t.row_begin, "row_end": t.row_end,
                     "logical_n": t.cols, "core": core, "m_rows": t.rows,
                     "cursor_tile": tile_idx}
+            # head/tail 是同一个 tile 的两段: 各按时长占比分摊本 tile 的 B 流,
+            # 信道字节才不会在计算绑定时被整段时长放大。
+            phases = gmm2_phase_split(c, t.rows, k_gmm2, t.cols)
+            head_meta = dict(meta, part="head")
+            tail_meta = dict(meta, part="tail")
+            if phases is not None:
+                load_us, compute_us = phases
+                head_meta["load_us"] = load_us * head_frac
+                head_meta["compute_us"] = compute_us * head_frac
+                tail_meta["load_us"] = load_us * tail_frac
+                tail_meta["compute_us"] = compute_us * tail_frac
             gname = f"W{w.index}.E{sl.expert}.S{si}.gmm2.{label}.c{core}"
             builder._event(gname + ".h", (f"AIC:{core}",), duration * head_frac,
                            deps=deps + head_acts,
-                           acquires=(q_aic2,), releases=(q_aic2,),
-                           meta=dict(meta, part="head"))
+                           acquires=(q_aic2,), releases=(q_aic2,), meta=head_meta)
             builder._event(gname, (f"AIC:{core}",), duration * tail_frac,
-                           deps=[gname + ".h"] + tail_acts,
-                           meta=dict(meta, part="tail"))
+                           deps=[gname + ".h"] + tail_acts, meta=tail_meta)
             builder.gmm2_tail_by_group.setdefault((sl.expert, global_group), []).append(gname)
 
             # combine 走传输后端钩子: MTE 配对 tile / URMA 记录待批

@@ -10,12 +10,11 @@
 GMM 口径 (与 costs.AnalyticalGmmCosts 一致). 占用与计时是两回事:
   L1 缓冲 (MTE 队列) 是容量约束. A 与 B 都经 L1 进 L0, 所以 GMM1 与 GMM2 的
         tile 都占一个 L1 缓冲槽 — B 流不计时, 但权重仍在 L1 里占着位置.
-  gm_to_l1 信道与时长只计 A 流: B 流搬运不建模 (认为被其他任务的执行掩盖),
-        既不进 tile 时长, 也不计入信道流量.
-  GMM1  A 流走 GM→L1: 占 L1 缓冲槽 + gm_to_l1 信道; 计算占 Cube 队列.
+  gm_to_l1 信道字节按各 stage 的载入相位时长折算 (GMM1 = A流+B流, GMM2 = B流).
+  GMM1  载入走 GM→L1: 占 L1 缓冲槽 + gm_to_l1 信道; 计算占 Cube 队列.
         load / cube 相位时长取事件 meta 的 load_us / compute_us (公式分解).
-  GMM2  时长 = 纯计算 (A 从 UB 直达 L0A): 占 L1 缓冲槽 (B 权重) + Cube 队列,
-        无信道流量.
+  GMM2  B 权重流走 GM→L1: 占 L1 缓冲槽 + gm_to_l1 信道 + Cube 队列
+        (A 已在片上, 不计 GM 流量).
 """
 from __future__ import annotations
 
@@ -93,7 +92,8 @@ def apply_pipeline(
         if stage == _STAGE_GMM1:
             new_events.extend(_expand_gmm1(ev, cons, split_gmm1, channels, by_name, h, km))
         elif stage == _STAGE_GMM2:
-            new_events.extend(_annotate(ev, queues=("QUEUE:mte_aic", "QUEUE:cube")))
+            new_events.extend(_annotate(ev, channels,
+                                        queues=("QUEUE:mte_aic", "QUEUE:cube")))
         elif stage == _STAGE_ACT:
             new_events.extend(_expand_aiv(
                 ev, cons, channels, by_name, vec=True, km=km,
@@ -139,18 +139,27 @@ def apply_pipeline(
 
 def _annotate(
     ev: Event,
+    channels: Dict[str, Channel],
     *,
     queues: Tuple[str, ...],
 ) -> List[Event]:
-    """GMM2 head/tail: 保留原结构, 挂队列计数信号量 (L1 缓冲槽 + Cube). 无信道需求."""
+    """GMM2 head/tail: 保留原结构, 挂队列计数信号量 (L1 缓冲槽 + Cube) 与 B 流信道.
+
+    head/tail 是同一个 tile 的两段, 各按自己的时长占比分摊该 tile 的 B 流字节。
+    """
     core = ev.meta.get("core")
     qs = tuple((f"{queue}:c{core}", 1) for queue in queues)
+    ch = ()
+    load_us = ev.meta.get("load_us")      # 该事件自己的载入份额, 不是整段时长
+    if CH_GM_TO_L1 in channels and load_us:
+        ch = ((CH_GM_TO_L1, load_us * BW_L1_GM, BW_L1_GM),)
     return [Event(
         name=ev.name, resources=ev.resources, duration_us=ev.duration_us,
         deps=ev.deps, order=ev.order, meta=dict(ev.meta),
         dep_latency_us=ev.dep_latency_us,
         dep_latency_overrides=ev.dep_latency_overrides,
         acquires=ev.acquires + qs, releases=ev.releases + qs,
+        channel_bytes=ch,
     )]
 
 

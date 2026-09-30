@@ -140,14 +140,14 @@ def _freeze_counts(counts) -> tuple:
 class Calibration:
     """解析公式的标定参数. None = 取 config/hardware.py 的实测常数.
 
-    cube_mac_per_us (Cube 计算速率, MAC/µs) 例外: 必填, 无缺省 — GMM1 =
-    max(A流, 计算), GMM2 = 纯计算, 而 Cube 速率没有标定常数.
-    其余字段与 build_analytical_costs 的参数一一对应; dispatch / urma 是两条
-    传输路径的机制延迟参数.
+    字段与 build_analytical_costs 的参数一一对应; dispatch / urma 是两条传输
+    路径的机制延迟参数。cube_mac_per_us 缺省 0 = 不计计算项 —— 实测域内
+    GMM1/GMM2 都是权重载入绑定, 计算远小于载入。
     """
 
-    cube_mac_per_us: Optional[float] = None
+    cube_mac_per_us: float = 0.0
     bw_l1_gm: Optional[float] = None
+    bw_l1_gm_b_nz: float = 0.0
     gmm1_fill_us: float = 0.0
     gmm1_tile_restart_us: float = 0.0     # 单缓冲下 L1 换块停顿; 只作用于 GMM1
     bw_ub: Optional[float] = None
@@ -243,17 +243,14 @@ class Scenario:
         if self.costs is not None:
             return self.costs
         cal = self.calibration
-        if cal.cube_mac_per_us is None:
-            raise ValueError(
-                "calibration.cube_mac_per_us 必填 (Cube 计算速率, MAC/µs), 无缺省值: "
-                "场景文件在 [calibration] 表里写 cube_mac_per_us = <实测值>")
         extra = {}
         if cal.count_table_prepare_us is not None:
             extra["count_table_prepare_us"] = cal.count_table_prepare_us
         return build_analytical_costs(
             h=self.h, kernel=self.kernel,
             dispatch_mechanistic=cal.dispatch, urma_mechanistic=cal.urma,
-            bw_l1_gm=cal.bw_l1_gm, cube_mac_per_us=cal.cube_mac_per_us,
+            bw_l1_gm=cal.bw_l1_gm, bw_l1_gm_b_nz=cal.bw_l1_gm_b_nz,
+            cube_mac_per_us=cal.cube_mac_per_us,
             gmm1_fill_us=cal.gmm1_fill_us,
             gmm1_tile_restart_us=cal.gmm1_tile_restart_us, bw_ub=cal.bw_ub,
             t_startup_us=cal.t_startup_us, bw_scatter=cal.bw_scatter, **extra)

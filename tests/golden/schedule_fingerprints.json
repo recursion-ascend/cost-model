@@ -2,260 +2,260 @@
  "comment": "调度指纹快照: 每事件起止/等待/关键父事件的 sha256. 重构与提速必须逐位一致; 由 tools/gen_golden.py 生成.",
  "cases": {
   "core_contiguous_block": {
-   "kernel_total_us": 106.74231197153517,
-   "slowest_rank": 3,
+   "kernel_total_us": 217.43267511964697,
+   "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 94.46079283881215,
-     "dag_end_us": 109.11120125986479,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225823,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.3881290322573,
+      "dispatch": 253.24209204848992,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.9993813333332,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953753,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 11,
-     "schedule_sha256": "93ba2ef97c4ff81f5a25a051d8ea362b46974fbace7c34b7aeb5fb23958173c4"
+     "critical_path_len": 15,
+     "schedule_sha256": "86a4e376fce1ecd16887bd494675cfe474d235b61903f5b3ddda326ab197f226"
     },
     {
      "rank": 1,
-     "total_us": 101.4970836878103,
-     "dag_end_us": 116.14749210886293,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 56.336000000000006,
+      "combine": 112.3881290322573,
+      "dispatch": 312.95353523731256,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.999381333333,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953753,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 12,
-     "schedule_sha256": "417afc2ef06887485d95725b9402016c1809b19f81735cf8085992d4395be3a8"
+     "critical_path_len": 15,
+     "schedule_sha256": "240a6893a01102a9f96270dfb96ab484d24e8f2cab2bbd5928a018ff073e286f"
     },
     {
      "rank": 2,
-     "total_us": 101.4970836878103,
-     "dag_end_us": 116.14749210886293,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.3881290322573,
+      "dispatch": 311.56756564618865,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.999381333333,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953753,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 12,
-     "schedule_sha256": "99a36340f2c36884a55f7e6bf0bb3fee42519dec54416d14d8f1e67e6d167ab7"
+     "critical_path_len": 15,
+     "schedule_sha256": "5c0884fda003e0351c6f9f465237784d0568b0b20fdaed4076a7be1d41649691"
     },
     {
      "rank": 3,
-     "total_us": 106.74231197153517,
-     "dag_end_us": 121.3927203925878,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225823,
-      "dispatch": 126.43368728169304,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.3881290322573,
+      "dispatch": 312.8736872816931,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333333,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953753,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "443f4989c9a632862c528d6f237d73b0dabe9402aa406c26722332bea3c51458"
+     "critical_path_len": 15,
+     "schedule_sha256": "af6436095d381bebed5a1c1d5e0cd72c12a5b2623db935ffb673cc61bfe85212"
     }
    ]
   },
   "core_greedy_least_busy": {
-   "kernel_total_us": 103.31024454614447,
-   "slowest_rank": 3,
+   "kernel_total_us": 217.43267511964697,
+   "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 91.02872541342145,
-     "dag_end_us": 104.14017429690183,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225823,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 253.24209204848992,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333325,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 10,
-     "schedule_sha256": "90f0e7056d7c3c5112d71caa2ae3245f420d69845714430274b70a99682aac23"
+     "critical_path_len": 15,
+     "schedule_sha256": "6a08044e398c435f6130235743adba1edb49cbc3d9e36ceed370c8204d441124"
     },
     {
      "rank": 1,
-     "total_us": 99.42126632102419,
-     "dag_end_us": 114.07167474207682,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548402,
-      "combine": 112.38812903225823,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 56.336000000000006,
+      "combine": 112.38812903225734,
+      "dispatch": 312.95353523731256,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 9,
-     "schedule_sha256": "9407341437b196de64b5827fccb486d0a7eb0c193f6c863cabf63522134efcaf"
+     "critical_path_len": 15,
+     "schedule_sha256": "7c8c4dad2bdf2b204a07aa61722ede90035cfa449fd44d5beebddf82a0d62d22"
     },
     {
      "rank": 2,
-     "total_us": 99.42126632102419,
-     "dag_end_us": 114.07167474207682,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225823,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 311.56756564618865,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 9,
-     "schedule_sha256": "019ce6e107cd801d0af7a4f6daf34d48244c87010dd037f5f04102e5c33804d1"
+     "critical_path_len": 15,
+     "schedule_sha256": "f60c3d34708baadfbf573e893768a6111c9d2b444a7fb5cfba351bca31030e7c"
     },
     {
      "rank": 3,
-     "total_us": 103.31024454614447,
-     "dag_end_us": 117.9606529671971,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225823,
-      "dispatch": 126.43368728169304,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 312.8736872816931,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.99938133333313,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 12,
-     "schedule_sha256": "cfc3a70ddc764cb3371c9dce5bf761b3d9219188887076347bd256bb3ced156a"
+     "critical_path_len": 15,
+     "schedule_sha256": "00d1f0e8ca39c4b96f964cf29c0b99b7d99ea7c8c5da19aa8118f03612cab9e6"
     }
    ]
   },
   "fabric_channels_on": {
-   "kernel_total_us": 16653.24425780115,
+   "kernel_total_us": 2341.42302762816,
    "slowest_rank": 3,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 1425.0596545879343,
-     "dag_end_us": 1439.710063008987,
-     "events": 596,
+     "total_us": 375.66568905247846,
+     "dag_end_us": 390.3160974735311,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548254,
-      "combine": 112.38812903225542,
-      "dispatch": 1438.8139169369797,
+      "activation": 185.5277419354838,
+      "combine": 112.38812903225866,
+      "dispatch": 1226.164011391655,
       "dispatch_call": 56.336000000000006,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052589,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333282,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953788,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 14,
-     "schedule_sha256": "8c8f4d0a8658f3e57c929f00d13f1d261ea2bd9a678c080d4cce145a8cb7c753"
+     "critical_path_len": 11,
+     "schedule_sha256": "2c1b0dea808907bb4406b93a21e2e94afc9b9125021ceba43957cb9f42557520"
     },
     {
      "rank": 1,
-     "total_us": 16646.0269198106,
-     "dag_end_us": 16660.677328231654,
-     "events": 596,
+     "total_us": 298.34553749333867,
+     "dag_end_us": 312.9959459143913,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.5277419354917,
-      "combine": 112.38812903224891,
-      "dispatch": 18215.454786773997,
+      "activation": 185.5277419354838,
+      "combine": 112.38812903225883,
+      "dispatch": 1189.4510481877123,
       "dispatch_call": 56.336000000000006,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421053726,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333774,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.226589595379,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 10,
-     "schedule_sha256": "9dc727d9cf8315744b808d2cf91cb7848bd036d1df7633be8eeaa0e9c8847d9d"
+     "critical_path_len": 17,
+     "schedule_sha256": "2cc4c56e0fe23d94d7c02a5070d9658e9f90dd48b4857918bb9eb5a22820e1ea"
     },
     {
      "rank": 2,
-     "total_us": 16646.0269198106,
-     "dag_end_us": 16660.677328231654,
-     "events": 596,
+     "total_us": 350.58301974789566,
+     "dag_end_us": 365.2334281689483,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.5277419354917,
-      "combine": 112.38812903224891,
-      "dispatch": 18217.0031025262,
+      "activation": 185.52774193548385,
+      "combine": 112.38812903225804,
+      "dispatch": 991.9398082623807,
       "dispatch_call": 56.336000000000006,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421053726,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333774,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3023.937109826589,
+      "gmm2": 1212.226589595378,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 10,
-     "schedule_sha256": "45d0cc5a882f654ce7079c11b262c82da3a1e06abd52b337b5c0c6448776453e"
+     "critical_path_len": 17,
+     "schedule_sha256": "a1892c1f2d424c5ce5bc69a8e27a59c2880d73a8d82b2ca1cff163b7f29e3543"
     },
     {
      "rank": 3,
-     "total_us": 16653.24425780115,
-     "dag_end_us": 16667.894666222204,
-     "events": 596,
+     "total_us": 2341.42302762816,
+     "dag_end_us": 2356.0734360492124,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193549226,
-      "combine": 112.38812903225245,
-      "dispatch": 16922.356723284633,
+      "activation": 185.52774193548623,
+      "combine": 112.38812903227138,
+      "dispatch": 3640.114456062779,
       "dispatch_call": 56.336000000000006,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421053726,
-      "gmm1": 599.4839306358383,
-      "gmm2": 294.99938133338173,
+      "epilogue": 14.650408421052362,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953615,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 15,
-     "schedule_sha256": "e8b8ade85ed2c4772fdfef7d2fb3dbe1dfdb4c1a988f8a7513faab9b538475f1"
+     "critical_path_len": 14,
+     "schedule_sha256": "ff9b16bb0bc6c1c92008f88a925319e4e254f8b5ad054aefaf6563ae1f06e726"
     }
    ]
   },
@@ -276,13 +276,13 @@
       "dispatch_ready": 0.0,
       "dispatch_recv": 2951.6412734330165,
       "epilogue": 37.0016336842109,
-      "gmm1": 1939.5625433526002,
-      "gmm2": 954.4371768888268,
+      "gmm1": 9697.812716763001,
+      "gmm2": 3879.125086705226,
       "mask_scan": 0.05870063694347714,
       "moe_stage_done": 0.0
      },
      "critical_path_len": 36,
-     "schedule_sha256": "cd9904fd77cf19c54653549b79003b833e87b50cd0028b5ea065d261570db715"
+     "schedule_sha256": "a69395fc275a117577ce1a79d0f843eb6d30b7e25257e5f5522fb5ab2642645b"
     },
     {
      "rank": 1,
@@ -297,13 +297,13 @@
       "dispatch_ready": 0.0,
       "dispatch_recv": 2951.6412734330165,
       "epilogue": 37.0016336842109,
-      "gmm1": 1939.5625433526002,
-      "gmm2": 954.4371768888268,
+      "gmm1": 9697.812716763001,
+      "gmm2": 3879.125086705226,
       "mask_scan": 0.05870063694347714,
       "moe_stage_done": 0.0
      },
      "critical_path_len": 36,
-     "schedule_sha256": "8001b51ff29cfc063abd4b39cae24e6d6b4d8f03f1b24f0ef7ffe403ba0ab2b0"
+     "schedule_sha256": "bfd1cb2276b14eaaa19f3890b53d1cabe217ff021e413ff038efe1d82d00fecc"
     }
    ]
   },
@@ -324,13 +324,13 @@
       "dispatch_ready": 0.0,
       "dispatch_recv": 2951.6412734330165,
       "epilogue": 37.0016336842109,
-      "gmm1": 1939.5625433526002,
-      "gmm2": 954.4371768888268,
+      "gmm1": 9697.812716763001,
+      "gmm2": 3879.125086705226,
       "mask_scan": 0.05870063694347714,
       "moe_stage_done": 0.0
      },
      "critical_path_len": 36,
-     "schedule_sha256": "cd9904fd77cf19c54653549b79003b833e87b50cd0028b5ea065d261570db715"
+     "schedule_sha256": "a69395fc275a117577ce1a79d0f843eb6d30b7e25257e5f5522fb5ab2642645b"
     },
     {
      "rank": 1,
@@ -345,87 +345,87 @@
       "dispatch_ready": 0.0,
       "dispatch_recv": 2951.6412734330165,
       "epilogue": 37.0016336842109,
-      "gmm1": 1939.5625433526002,
-      "gmm2": 954.4371768888268,
+      "gmm1": 9697.812716763001,
+      "gmm2": 3879.125086705226,
       "mask_scan": 0.05870063694347714,
       "moe_stage_done": 0.0
      },
      "critical_path_len": 36,
-     "schedule_sha256": "8001b51ff29cfc063abd4b39cae24e6d6b4d8f03f1b24f0ef7ffe403ba0ab2b0"
+     "schedule_sha256": "bfd1cb2276b14eaaa19f3890b53d1cabe217ff021e413ff038efe1d82d00fecc"
     }
    ]
   },
   "layered_skewed": {
-   "kernel_total_us": 2483.2620084416812,
+   "kernel_total_us": 2529.5021038171153,
    "slowest_rank": 1,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 1050.5458048609357,
-     "dag_end_us": 1065.1962132819883,
+     "total_us": 1179.1349767916263,
+     "dag_end_us": 1193.7853852126789,
      "events": 455,
      "wave_count": 1,
      "stage_busy_us": {
       "activation": 185.52774193548385,
-      "combine": 1926.3073007158641,
+      "combine": 1926.3073007158637,
       "dispatch_local": 23.729732484076433,
       "dispatch_ready": 0.0,
       "dispatch_recv": 1007.1881227747293,
       "epilogue": 14.650408421052589,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333331,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953742,
       "mask_scan": 0.009783439490446286,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 15,
-     "schedule_sha256": "0499288015512aecac4517c683ebcf171de2defe7e84de25838ea2aa769c08b6"
+     "critical_path_len": 16,
+     "schedule_sha256": "125b12d724899c98fb04b3ad9dd598ca60cd18e6c1956367b0157883368e6c26"
     },
     {
      "rank": 1,
-     "total_us": 2483.2620084416812,
-     "dag_end_us": 2497.9124168627336,
+     "total_us": 2529.5021038171153,
+     "dag_end_us": 2544.1525122381677,
      "events": 456,
      "wave_count": 1,
      "stage_busy_us": {
       "activation": 185.52774193548385,
-      "combine": 2879.5756879083333,
+      "combine": 2879.5756879083337,
       "dispatch_local": 9.28203821656051,
       "dispatch_ready": 0.0,
       "dispatch_recv": 1528.5394712329776,
       "epilogue": 14.650408421052362,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.99938133333717,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.226589595372,
       "mask_scan": 0.009783439490446286,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 10,
-     "schedule_sha256": "856d728daab3eca13038058c20a4680f77262f58b872d33aaf9abecbee83476f"
+     "critical_path_len": 15,
+     "schedule_sha256": "82a65cd8668db6ca39b6165c27a2ea765b29667aa950836363788ba61cd88fe0"
     },
     {
      "rank": 2,
-     "total_us": 2483.2620084416812,
-     "dag_end_us": 2497.9124168627336,
+     "total_us": 2529.5021038171153,
+     "dag_end_us": 2544.1525122381677,
      "events": 456,
      "wave_count": 1,
      "stage_busy_us": {
       "activation": 185.52774193548385,
-      "combine": 2884.8537235909725,
+      "combine": 2884.853723590973,
       "dispatch_local": 9.201324840764332,
       "dispatch_ready": 0.0,
       "dispatch_recv": 1531.351925387523,
       "epilogue": 14.650408421052362,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.99938133333717,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.226589595372,
       "mask_scan": 0.009783439490446286,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 10,
-     "schedule_sha256": "d3a1d29f5f0098a55ed0577ece497eda8b7dcc5c776f832be14898f4ba5547e2"
+     "critical_path_len": 15,
+     "schedule_sha256": "5407e0e815cb4e039bb0d08deb927bf5e542814fc561e3061868ab807c953846"
     },
     {
      "rank": 3,
-     "total_us": 2483.2620084416812,
-     "dag_end_us": 2497.9124168627336,
+     "total_us": 2529.5021038171153,
+     "dag_end_us": 2544.1525122381677,
      "events": 457,
      "wave_count": 1,
      "stage_busy_us": {
@@ -435,1995 +435,1995 @@
       "dispatch_ready": 0.0,
       "dispatch_recv": 1542.601742005705,
       "epilogue": 14.650408421052362,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333384,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953715,
       "mask_scan": 0.009783439490446286,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 10,
-     "schedule_sha256": "cbf701fbcf948dfa793196a55d3bf789cac7df82548dea61472de5a0ae54b446"
+     "critical_path_len": 15,
+     "schedule_sha256": "52977c6b7813a328ebf43a3059b18543146176d22bdbe6ccdd2db6c0676e2fb4"
     }
    ]
   },
   "layered_uniform_bs64": {
-   "kernel_total_us": 1088.3302682507174,
+   "kernel_total_us": 2237.7217609200416,
    "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 1088.3302682507174,
-     "dag_end_us": 1102.98067667177,
+     "total_us": 2237.7217609200416,
+     "dag_end_us": 2252.372169341094,
      "events": 4829,
      "wave_count": 1,
      "stage_busy_us": {
-      "activation": 859.9397849462521,
-      "combine": 2142.4951501622345,
+      "activation": 859.9397849462439,
+      "combine": 2142.49515016224,
       "dispatch_local": 10.331312101910836,
       "dispatch_ready": 0.0,
       "dispatch_recv": 1133.7485597292782,
-      "epilogue": 14.650408421052589,
-      "gmm1": 484.89063583815005,
-      "gmm2": 238.60929422223126,
+      "epilogue": 14.650408421052362,
+      "gmm1": 31517.891329479964,
+      "gmm2": 15516.500346821049,
       "mask_scan": 0.15653503184712858,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 135,
-     "schedule_sha256": "865b3c9b57f9ddc147177ad7cae434f0ff3c715ffedb5cc9d38b2e884e4c01c1"
+     "critical_path_len": 158,
+     "schedule_sha256": "09650087fd255d3a9f3ea7fa58c136cb028d090018ca3ede2fbcb54515ff97a8"
     },
     {
      "rank": 1,
-     "total_us": 1088.3302682507174,
-     "dag_end_us": 1102.98067667177,
+     "total_us": 2237.7217609200416,
+     "dag_end_us": 2252.372169341094,
      "events": 4829,
      "wave_count": 1,
      "stage_busy_us": {
-      "activation": 859.9397849462521,
-      "combine": 2142.4951501622345,
+      "activation": 859.9397849462439,
+      "combine": 2142.49515016224,
       "dispatch_local": 10.331312101910836,
       "dispatch_ready": 0.0,
       "dispatch_recv": 1133.7485597292782,
-      "epilogue": 14.650408421052589,
-      "gmm1": 484.89063583815005,
-      "gmm2": 238.60929422223126,
+      "epilogue": 14.650408421052362,
+      "gmm1": 31517.891329479964,
+      "gmm2": 15516.500346821049,
       "mask_scan": 0.15653503184712858,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 135,
-     "schedule_sha256": "5a5b28607f4bfa2e7cef1418c39874b3c08a7e625aa546b6cc993a0deda5d6b1"
+     "critical_path_len": 158,
+     "schedule_sha256": "23996ac2b77b282bb2bacabe1aa7a92c99d8bb4a65805ac53a9c1f95e86cf4c3"
     },
     {
      "rank": 2,
-     "total_us": 1088.3302682507174,
-     "dag_end_us": 1102.98067667177,
+     "total_us": 2237.7217609200416,
+     "dag_end_us": 2252.372169341094,
      "events": 4829,
      "wave_count": 1,
      "stage_busy_us": {
-      "activation": 859.9397849462521,
-      "combine": 2142.4951501622345,
+      "activation": 859.9397849462439,
+      "combine": 2142.49515016224,
       "dispatch_local": 10.331312101910836,
       "dispatch_ready": 0.0,
       "dispatch_recv": 1133.7485597292782,
-      "epilogue": 14.650408421052589,
-      "gmm1": 484.89063583815005,
-      "gmm2": 238.60929422223126,
+      "epilogue": 14.650408421052362,
+      "gmm1": 31517.891329479964,
+      "gmm2": 15516.500346821049,
       "mask_scan": 0.15653503184712858,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 135,
-     "schedule_sha256": "bf6dd2fd0192b2cc3758f5ae6a16a972abdf3705ce63ee4c0795167c980a4403"
+     "critical_path_len": 158,
+     "schedule_sha256": "12a2593ac66772d7ceddbf557658dc2572a04b11d2d8f9bf0ad29339cc3a35f0"
     },
     {
      "rank": 3,
-     "total_us": 1088.3302682507174,
-     "dag_end_us": 1102.98067667177,
+     "total_us": 2237.7217609200416,
+     "dag_end_us": 2252.372169341094,
      "events": 4829,
      "wave_count": 1,
      "stage_busy_us": {
-      "activation": 859.9397849462521,
-      "combine": 2142.4951501622345,
+      "activation": 859.9397849462439,
+      "combine": 2142.49515016224,
       "dispatch_local": 10.331312101910836,
       "dispatch_ready": 0.0,
       "dispatch_recv": 1133.7485597292782,
-      "epilogue": 14.650408421052589,
-      "gmm1": 484.89063583815005,
-      "gmm2": 238.60929422223126,
+      "epilogue": 14.650408421052362,
+      "gmm1": 31517.891329479964,
+      "gmm2": 15516.500346821049,
       "mask_scan": 0.15653503184712858,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 135,
-     "schedule_sha256": "f0579ef76068ea440d802bb93e590d740edfc1291403e8f35ace21dcc49bf9bb"
+     "critical_path_len": 158,
+     "schedule_sha256": "09b6541484edb1f9766ed4a60c0f95c84f09de25bf4673c37b1702503012f03e"
     }
    ]
   },
   "mte_3wave_lag0": {
-   "kernel_total_us": 287.19209203958536,
+   "kernel_total_us": 497.6371406709416,
    "slowest_rank": 1,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 286.1718572589194,
-     "dag_end_us": 352.9751246273404,
-     "events": 1254,
+     "total_us": 490.21890931692474,
+     "dag_end_us": 557.0221766853458,
+     "events": 1335,
      "wave_count": 3,
      "stage_busy_us": {
-      "activation": 755.1587096774201,
-      "combine": 545.4286451612843,
-      "dispatch": 406.5864532566263,
-      "dispatch_call": 84.50400000000002,
+      "activation": 755.15870967742,
+      "combine": 545.428645161292,
+      "dispatch": 615.8664532566261,
+      "dispatch_call": 84.50399999999999,
       "dispatch_ready": 0.0,
-      "epilogue": 66.80326736842102,
-      "gmm1": 2909.3438150289007,
-      "gmm2": 1431.6557653333257,
+      "epilogue": 66.80326736842107,
+      "gmm1": 8728.031445086703,
+      "gmm2": 2909.3438150288944,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 23,
-     "schedule_sha256": "a4440e6b1a1352c08abb55fcd8cdd45f976730fdfb3d1ca8c3579620096e9ca3"
+     "critical_path_len": 27,
+     "schedule_sha256": "9834e5c10a1bba99bf81d16b9e2fbdb2e00c2c2f9b1e306dddb00992364aaa74"
     },
     {
      "rank": 1,
-     "total_us": 287.19209203958536,
-     "dag_end_us": 353.9953594080064,
-     "events": 1254,
+     "total_us": 497.6371406709416,
+     "dag_end_us": 564.4404080393626,
+     "events": 1335,
      "wave_count": 3,
      "stage_busy_us": {
-      "activation": 755.1587096774201,
-      "combine": 545.4286451612854,
-      "dispatch": 406.5864532566263,
+      "activation": 755.1587096774199,
+      "combine": 545.4286451612918,
+      "dispatch": 611.2164532566262,
       "dispatch_call": 84.50400000000002,
       "dispatch_ready": 0.0,
       "epilogue": 66.80326736842102,
-      "gmm1": 2909.3438150289003,
-      "gmm2": 1431.6557653333246,
+      "gmm1": 8728.031445086703,
+      "gmm2": 2909.3438150289003,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 20,
-     "schedule_sha256": "7eb8aca6097c257c9b97c1e9507fa81c16aa4f0f0d4ff1c55c0f0e486cafcc30"
+     "critical_path_len": 31,
+     "schedule_sha256": "d65233db1ff558cbdb3b2f141f04b7d821f20783011a10386880ee607b5c4c61"
     }
    ]
   },
   "mte_3wave_lag2": {
-   "kernel_total_us": 239.0045642403021,
-   "slowest_rank": 0,
+   "kernel_total_us": 489.16056038287053,
+   "slowest_rank": 1,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 239.0045642403021,
-     "dag_end_us": 305.8078316087231,
-     "events": 1254,
+     "total_us": 486.14088085027066,
+     "dag_end_us": 552.9441482186917,
+     "events": 1335,
      "wave_count": 3,
      "stage_busy_us": {
-      "activation": 755.1587096774201,
-      "combine": 545.4286451612835,
-      "dispatch": 406.58645325662627,
-      "dispatch_call": 84.504,
+      "activation": 755.15870967742,
+      "combine": 545.4286451612934,
+      "dispatch": 615.8664532566261,
+      "dispatch_call": 84.50400000000002,
       "dispatch_ready": 0.0,
       "epilogue": 66.80326736842102,
-      "gmm1": 2909.3438150289003,
-      "gmm2": 1431.6557653333255,
+      "gmm1": 8728.031445086703,
+      "gmm2": 2909.3438150288985,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 26,
-     "schedule_sha256": "81d6299aa6189fc291f163563953745329f6328b35fdefdf20134da11192e845"
+     "critical_path_len": 29,
+     "schedule_sha256": "f3851dc41c4b32e5199832afdef985fe3ab8daf7d772f0d62a54561fc7f4623b"
     },
     {
      "rank": 1,
-     "total_us": 236.51905075882064,
-     "dag_end_us": 303.32231812724166,
-     "events": 1254,
+     "total_us": 489.16056038287053,
+     "dag_end_us": 555.9638277512915,
+     "events": 1335,
      "wave_count": 3,
      "stage_busy_us": {
-      "activation": 755.1587096774201,
-      "combine": 545.4286451612833,
-      "dispatch": 406.58645325662627,
-      "dispatch_call": 84.504,
+      "activation": 755.1587096774199,
+      "combine": 545.4286451612934,
+      "dispatch": 611.2164532566263,
+      "dispatch_call": 84.50400000000002,
       "dispatch_ready": 0.0,
       "epilogue": 66.80326736842102,
-      "gmm1": 2909.3438150289003,
-      "gmm2": 1431.6557653333236,
+      "gmm1": 8728.031445086703,
+      "gmm2": 2909.3438150288994,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 22,
-     "schedule_sha256": "f3b2cba8c7aa5b78f3dafcc3c6a510f1a023dd743d0a8345f04abd5a82512ed1"
+     "critical_path_len": 26,
+     "schedule_sha256": "21cc578e88456aa131650c469273bf6add60e88e2cae96bec0e225bd2c83e5fa"
     }
    ]
   },
   "mte_3wave_lookahead3": {
-   "kernel_total_us": 247.28049691413727,
+   "kernel_total_us": 493.23858884952466,
    "slowest_rank": 1,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 241.91061354087876,
-     "dag_end_us": 308.7138809092998,
-     "events": 1254,
+     "total_us": 488.9561732860962,
+     "dag_end_us": 555.7594406545172,
+     "events": 1335,
      "wave_count": 3,
      "stage_busy_us": {
-      "activation": 755.1587096774201,
-      "combine": 545.4286451612837,
-      "dispatch": 406.58645325662627,
-      "dispatch_call": 84.504,
+      "activation": 755.15870967742,
+      "combine": 545.428645161292,
+      "dispatch": 615.8664532566261,
+      "dispatch_call": 84.50400000000002,
       "dispatch_ready": 0.0,
-      "epilogue": 66.80326736842105,
-      "gmm1": 2909.3438150289007,
-      "gmm2": 1431.6557653333257,
+      "epilogue": 66.80326736842102,
+      "gmm1": 8728.031445086703,
+      "gmm2": 2909.343815028901,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 24,
-     "schedule_sha256": "cc9c9d2761b9d0ae721d3488adca74c0cb6d7621fd4031d9ff2ee4915e7a9e59"
+     "critical_path_len": 26,
+     "schedule_sha256": "8cb1da71828b6731cd4582bc158a391e4fc72b0003e816cbd70c8f47ee9f18b0"
     },
     {
      "rank": 1,
-     "total_us": 247.28049691413727,
-     "dag_end_us": 314.0837642825583,
-     "events": 1254,
+     "total_us": 493.23858884952466,
+     "dag_end_us": 560.0418562179457,
+     "events": 1335,
      "wave_count": 3,
      "stage_busy_us": {
-      "activation": 755.1587096774201,
-      "combine": 545.4286451612834,
-      "dispatch": 406.58645325662627,
-      "dispatch_call": 84.504,
+      "activation": 755.1587096774199,
+      "combine": 545.4286451612918,
+      "dispatch": 611.2164532566263,
+      "dispatch_call": 84.50400000000002,
       "dispatch_ready": 0.0,
-      "epilogue": 66.80326736842105,
-      "gmm1": 2909.3438150289003,
-      "gmm2": 1431.6557653333243,
+      "epilogue": 66.80326736842102,
+      "gmm1": 8728.031445086703,
+      "gmm2": 2909.3438150289016,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 22,
-     "schedule_sha256": "660d0b635d596a63692d1e5d2cdadc90151a93a7609c4e868672a81e7b997766"
+     "critical_path_len": 24,
+     "schedule_sha256": "cc99d4c88f1dd2be6176bccab8d84c6067f54dbaeb89687cf43b3765d6c160fb"
     }
    ]
   },
   "mte_3wave_offsets_2_m2": {
-   "kernel_total_us": 239.0045642403021,
-   "slowest_rank": 0,
+   "kernel_total_us": 489.16056038287053,
+   "slowest_rank": 1,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 239.0045642403021,
-     "dag_end_us": 305.8078316087231,
-     "events": 1254,
+     "total_us": 486.14088085027066,
+     "dag_end_us": 552.9441482186917,
+     "events": 1335,
      "wave_count": 3,
      "stage_busy_us": {
-      "activation": 755.1587096774201,
-      "combine": 545.4286451612835,
-      "dispatch": 406.58645325662627,
-      "dispatch_call": 84.504,
+      "activation": 755.15870967742,
+      "combine": 545.4286451612934,
+      "dispatch": 615.8664532566261,
+      "dispatch_call": 84.50400000000002,
       "dispatch_ready": 0.0,
       "epilogue": 66.80326736842102,
-      "gmm1": 2909.3438150289003,
-      "gmm2": 1431.6557653333255,
+      "gmm1": 8728.031445086703,
+      "gmm2": 2909.3438150288985,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 26,
-     "schedule_sha256": "e2d62a9eee06776d1368adb9866b211ce5912344ca158a6120e77ab81f59c5ae"
+     "critical_path_len": 29,
+     "schedule_sha256": "420bf8e95237b77605e45221663d50e571c107daaaf649af133175b67153df02"
     },
     {
      "rank": 1,
-     "total_us": 236.51905075882064,
-     "dag_end_us": 303.32231812724166,
-     "events": 1254,
+     "total_us": 489.16056038287053,
+     "dag_end_us": 555.9638277512915,
+     "events": 1335,
      "wave_count": 3,
      "stage_busy_us": {
-      "activation": 755.1587096774201,
-      "combine": 545.4286451612833,
-      "dispatch": 406.58645325662627,
-      "dispatch_call": 84.504,
+      "activation": 755.1587096774199,
+      "combine": 545.4286451612934,
+      "dispatch": 611.2164532566263,
+      "dispatch_call": 84.50400000000002,
       "dispatch_ready": 0.0,
       "epilogue": 66.80326736842102,
-      "gmm1": 2909.3438150289003,
-      "gmm2": 1431.6557653333236,
+      "gmm1": 8728.031445086703,
+      "gmm2": 2909.3438150288994,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 22,
-     "schedule_sha256": "b292857e7008cfd697194ae24486a7917b1889f1ffcfdd25fdb0f560e485520a"
+     "critical_path_len": 26,
+     "schedule_sha256": "e3948a3b00f6c8dde855d0081802f05c39630b36c8a2c076bbe6af908919218e"
     }
    ]
   },
   "mte_3wave_p1_4": {
-   "kernel_total_us": 242.30946995117435,
-   "slowest_rank": 1,
+   "kernel_total_us": 493.41627596494504,
+   "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 240.6570170957382,
-     "dag_end_us": 307.46028446415926,
-     "events": 1226,
+     "total_us": 493.41627596494504,
+     "dag_end_us": 560.2195433333661,
+     "events": 1274,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 755.1587096774201,
-      "combine": 545.4286451612835,
-      "dispatch": 406.5864532566263,
-      "dispatch_call": 56.336000000000006,
+      "activation": 755.1587096774199,
+      "combine": 545.4286451612904,
+      "dispatch": 529.2264532566262,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 66.80326736842105,
-      "gmm1": 2909.3438150289007,
-      "gmm2": 1431.655765333326,
+      "epilogue": 66.80326736842107,
+      "gmm1": 8728.031445086703,
+      "gmm2": 2909.3438150288953,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 23,
-     "schedule_sha256": "74e3b2fc454508c66d8fae555f42d4b5699580a004e022ee64626ed6989df857"
+     "critical_path_len": 25,
+     "schedule_sha256": "a6babd600fafad350acd02186e4c2b24bf0e8a90615dddb15cb56d78ba82a958"
     },
     {
      "rank": 1,
-     "total_us": 242.30946995117435,
-     "dag_end_us": 309.1127373195954,
-     "events": 1226,
+     "total_us": 490.6009835291194,
+     "dag_end_us": 557.4042508975405,
+     "events": 1274,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 755.15870967742,
-      "combine": 545.4286451612832,
-      "dispatch": 406.5864532566262,
-      "dispatch_call": 56.336000000000006,
+      "activation": 755.1587096774199,
+      "combine": 545.4286451612911,
+      "dispatch": 529.2264532566262,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 66.80326736842105,
-      "gmm1": 2909.3438150289007,
-      "gmm2": 1431.6557653333243,
+      "epilogue": 66.80326736842107,
+      "gmm1": 8728.031445086703,
+      "gmm2": 2909.34381502889,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 20,
-     "schedule_sha256": "114a6350fd36ce5169e8c07f9ca905b4f157c9fb0a8d9a6edb1cefccb02a91d0"
+     "critical_path_len": 28,
+     "schedule_sha256": "9e7ac633e64494ff101a39bd812ced3b3f6a08d8525f9e465cd7ae71aeb594e1"
     }
    ]
   },
   "mte_act_depth2_credit2": {
-   "kernel_total_us": 267.1099703287132,
-   "slowest_rank": 0,
+   "kernel_total_us": 498.5314591961198,
+   "slowest_rank": 1,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 267.1099703287132,
-     "dag_end_us": 333.9132376971342,
-     "events": 1254,
+     "total_us": 489.78845570320834,
+     "dag_end_us": 556.5917230716294,
+     "events": 1335,
      "wave_count": 3,
      "stage_busy_us": {
-      "activation": 755.1587096774201,
-      "combine": 545.4286451612845,
-      "dispatch": 406.5864532566263,
-      "dispatch_call": 84.50400000000002,
+      "activation": 755.15870967742,
+      "combine": 545.4286451612918,
+      "dispatch": 615.866453256626,
+      "dispatch_call": 84.50399999999996,
       "dispatch_ready": 0.0,
-      "epilogue": 66.80326736842102,
-      "gmm1": 2909.3438150289003,
-      "gmm2": 1431.6557653333261,
+      "epilogue": 66.80326736842107,
+      "gmm1": 8728.031445086703,
+      "gmm2": 2909.3438150288875,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 17,
-     "schedule_sha256": "123eb0b3cc7ba464d0b27bc4dc6c222bb26b9a9c44525d2b2c5e7745b4d7e8a7"
+     "critical_path_len": 31,
+     "schedule_sha256": "287a3c67cd2650cc4a86bdee7421e58191ab5fb3408bfb8f119c337c8f9eba23"
     },
     {
      "rank": 1,
-     "total_us": 235.82745355607196,
-     "dag_end_us": 302.630720924493,
-     "events": 1254,
+     "total_us": 498.5314591961198,
+     "dag_end_us": 565.3347265645408,
+     "events": 1335,
      "wave_count": 3,
      "stage_busy_us": {
-      "activation": 755.1587096774201,
-      "combine": 545.4286451612836,
-      "dispatch": 406.58645325662627,
-      "dispatch_call": 84.50400000000002,
+      "activation": 755.1587096774199,
+      "combine": 545.4286451612916,
+      "dispatch": 611.2164532566264,
+      "dispatch_call": 84.50399999999996,
       "dispatch_ready": 0.0,
-      "epilogue": 66.80326736842105,
-      "gmm1": 2909.3438150289007,
-      "gmm2": 1431.6557653333255,
+      "epilogue": 66.80326736842102,
+      "gmm1": 8728.031445086703,
+      "gmm2": 2909.343815028882,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 28,
-     "schedule_sha256": "b937f53a454316dc3a4df5a9c29c1d2585b61765c973235a7401b866c0d3b59a"
+     "critical_path_len": 32,
+     "schedule_sha256": "65a955db79cbe11514b67f2769c35f453cd0fdecc84fcb907509d158c2900202"
     }
    ]
   },
   "mte_aic16": {
-   "kernel_total_us": 368.3371815695526,
+   "kernel_total_us": 780.5046365871682,
    "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 368.3371815695526,
-     "dag_end_us": 435.14044893797364,
-     "events": 1230,
+     "total_us": 780.5046365871682,
+     "dag_end_us": 847.3079039555893,
+     "events": 1314,
      "wave_count": 6,
      "stage_busy_us": {
       "activation": 755.1587096774201,
-      "combine": 545.4286451612886,
-      "dispatch": 406.5864532566264,
-      "dispatch_call": 96.5759999999998,
+      "combine": 545.4286451612861,
+      "dispatch": 621.206453256626,
+      "dispatch_call": 96.57599999999866,
       "dispatch_ready": 0.0,
-      "epilogue": 66.80326736842102,
-      "gmm1": 2909.3438150289007,
-      "gmm2": 1431.6557653333261,
+      "epilogue": 66.80326736842107,
+      "gmm1": 8728.0314450867,
+      "gmm2": 2909.3438150288835,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 41,
-     "schedule_sha256": "0e1cd1ed5cc1d46acc3d587e00a22d584651a66330de27ca87b12f62bb0a4bee"
+     "critical_path_len": 52,
+     "schedule_sha256": "c5724a7c5c58bee666a376dd7410e2e7751ad5f76acd2cd3d49d2562ebb9f402"
     },
     {
      "rank": 1,
-     "total_us": 364.9558745920924,
-     "dag_end_us": 431.75914196051343,
-     "events": 1230,
+     "total_us": 780.5046365871682,
+     "dag_end_us": 847.3079039555893,
+     "events": 1314,
      "wave_count": 6,
      "stage_busy_us": {
       "activation": 755.1587096774201,
-      "combine": 545.4286451612893,
-      "dispatch": 406.5864532566262,
-      "dispatch_call": 96.57599999999975,
+      "combine": 545.4286451612861,
+      "dispatch": 621.206453256626,
+      "dispatch_call": 96.57599999999866,
       "dispatch_ready": 0.0,
-      "epilogue": 66.80326736842102,
-      "gmm1": 2909.3438150289003,
-      "gmm2": 1431.6557653333277,
+      "epilogue": 66.80326736842107,
+      "gmm1": 8728.0314450867,
+      "gmm2": 2909.3438150288835,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 47,
-     "schedule_sha256": "00c8f0cd444e11c1305a8c024925ad48a6bcf7483a47df9fd9110b0717da0e73"
+     "critical_path_len": 52,
+     "schedule_sha256": "47feb44c82bae2936af6fc674a7646b0547ee03b7c469dac8f03a195e0d5a966"
     }
    ]
   },
   "mte_b_reuse": {
-   "kernel_total_us": 287.19209203958536,
+   "kernel_total_us": 485.02910752727786,
    "slowest_rank": 1,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 286.1718572589194,
-     "dag_end_us": 352.9751246273404,
-     "events": 1254,
+     "total_us": 479.27484893464845,
+     "dag_end_us": 546.0781163030695,
+     "events": 1335,
      "wave_count": 3,
      "stage_busy_us": {
-      "activation": 755.1587096774201,
-      "combine": 545.4286451612843,
-      "dispatch": 406.5864532566263,
+      "activation": 755.15870967742,
+      "combine": 545.4286451612913,
+      "dispatch": 615.866453256626,
       "dispatch_call": 84.50400000000002,
       "dispatch_ready": 0.0,
       "epilogue": 66.80326736842102,
-      "gmm1": 2909.3438150289007,
-      "gmm2": 1431.6557653333257,
+      "gmm1": 5818.6876300578015,
+      "gmm2": 2909.3438150288944,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 23,
-     "schedule_sha256": "a4440e6b1a1352c08abb55fcd8cdd45f976730fdfb3d1ca8c3579620096e9ca3"
+     "critical_path_len": 29,
+     "schedule_sha256": "72f69c02e472d173459800812e14dd3d2b107c593894e1414e19329b4da8a70b"
     },
     {
      "rank": 1,
-     "total_us": 287.19209203958536,
-     "dag_end_us": 353.9953594080064,
-     "events": 1254,
+     "total_us": 485.02910752727786,
+     "dag_end_us": 551.8323748956989,
+     "events": 1335,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 755.1587096774201,
-      "combine": 545.4286451612854,
-      "dispatch": 406.5864532566263,
+      "combine": 545.4286451612913,
+      "dispatch": 611.216453256626,
       "dispatch_call": 84.50400000000002,
       "dispatch_ready": 0.0,
       "epilogue": 66.80326736842102,
-      "gmm1": 2909.3438150289003,
-      "gmm2": 1431.6557653333246,
+      "gmm1": 5818.6876300578015,
+      "gmm2": 2909.343815028895,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 20,
-     "schedule_sha256": "7eb8aca6097c257c9b97c1e9507fa81c16aa4f0f0d4ff1c55c0f0e486cafcc30"
+     "critical_path_len": 36,
+     "schedule_sha256": "06c8fcc21ac9762935b54dcdd4a7002fa8dfd6d70a87bd39d40e70d26722a9db"
     }
    ]
   },
   "mte_gmm2_kl1_256": {
-   "kernel_total_us": 106.77386634190555,
-   "slowest_rank": 3,
+   "kernel_total_us": 217.43267511964697,
+   "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 94.46079283881215,
-     "dag_end_us": 104.14017429690183,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225823,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 253.24209204848992,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.9993813333332,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.226589595377,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 11,
-     "schedule_sha256": "4dc7cef7abba9aa4426f5dea2cbfb77e307ddbe60db0f291c506fcea07b38b02"
+     "critical_path_len": 15,
+     "schedule_sha256": "cfb1867d4bc50a3764ef60b67fd52197395b0cfb1c4d7f0c964669af4913f6f2"
     },
     {
      "rank": 1,
-     "total_us": 99.55652835135695,
-     "dag_end_us": 114.20693677240958,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 56.336000000000006,
+      "combine": 112.38812903225734,
+      "dispatch": 312.95353523731256,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953753,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "99982ea95472738a928a04274ed152a0c01b9b2f9ed8273e289e451e71c893fb"
+     "critical_path_len": 15,
+     "schedule_sha256": "34b4b5462e99287ad65b6801080f76dce9216c9dab8899091848d40a10293ab3"
     },
     {
      "rank": 2,
-     "total_us": 99.55652835135695,
-     "dag_end_us": 114.20693677240958,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 311.56756564618865,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.226589595377,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "82c66cf5e3004c37c95921fb0e0151301779073c7c3c7d88fa931631c90fce89"
+     "critical_path_len": 15,
+     "schedule_sha256": "c59eec195cdb7e7cc0d36d41f4a692df2078a93780404171ff5762d7530cc316"
     },
     {
      "rank": 3,
-     "total_us": 106.77386634190555,
-     "dag_end_us": 121.42427476295818,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 126.43368728169304,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 312.8736872816931,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333331,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.226589595377,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "00a2df63131165a096676f2565f8d62a85fb589986f643b3af4f5c026d254156"
+     "critical_path_len": 15,
+     "schedule_sha256": "6081ee243b7b38b93eab6976dd77c1c8c45a9b7b8595854bf246ce8b7419fb3e"
     }
    ]
   },
   "mte_l1_tile_k512": {
-   "kernel_total_us": 106.74231197153522,
-   "slowest_rank": 3,
+   "kernel_total_us": 216.1699390888184,
+   "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 94.46079283881218,
-     "dag_end_us": 104.14017429690185,
-     "events": 596,
+     "total_us": 216.1699390888184,
+     "dag_end_us": 230.82034750987103,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225823,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 253.24209204848992,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333353,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 11,
-     "schedule_sha256": "51fa5d4f236a9d57d5db21e7440fb48e583a8fd9056164c630a27b76f57b45c8"
+     "critical_path_len": 15,
+     "schedule_sha256": "02d1e11421298ac58803bcfd6a74b2f3bb41a8d2f5c10413e991668a8d527728"
     },
     {
      "rank": 1,
-     "total_us": 99.52497398098662,
-     "dag_end_us": 114.17538240203925,
-     "events": 596,
+     "total_us": 216.1699390888184,
+     "dag_end_us": 230.82034750987103,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 56.336000000000006,
+      "combine": 112.38812903225734,
+      "dispatch": 312.95353523731256,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333376,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "a85df11d605052b0e7bd8bde09f4591092bdb7576e9c594c9d598b37396c8265"
+     "critical_path_len": 15,
+     "schedule_sha256": "4241a46cca37c526e10aedbb3a973744be3fb2f5b8f4686ef6c99ffb9ef4bb79"
     },
     {
      "rank": 2,
-     "total_us": 99.52497398098662,
-     "dag_end_us": 114.17538240203925,
-     "events": 596,
+     "total_us": 216.1699390888184,
+     "dag_end_us": 230.82034750987103,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 311.56756564618865,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333376,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "ab626dee392b2104f1e70655d64f5a238437c977eda159ad1d2834411733fc63"
+     "critical_path_len": 15,
+     "schedule_sha256": "aee76c7d08e0dea09cdba5babeb13e1f38197aa3000ebf64348168d147999b28"
     },
     {
      "rank": 3,
-     "total_us": 106.74231197153522,
-     "dag_end_us": 121.39272039258785,
-     "events": 596,
+     "total_us": 216.1699390888184,
+     "dag_end_us": 230.82034750987103,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 126.43368728169304,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 312.8736872816931,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.99938133333353,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "8bdea05e41d7287921a1785d9d1bda6bbd59c46ba89dc29a7929342efa998913"
+     "critical_path_len": 15,
+     "schedule_sha256": "1825ec75344662d99724bd187083c7b8afb82e3882cace95c8856cada750c0fe"
     }
    ]
   },
   "mte_l1buf1_quant1": {
-   "kernel_total_us": 136.11336263820183,
-   "slowest_rank": 3,
+   "kernel_total_us": 261.56146208261,
+   "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 123.80873239436771,
-     "dag_end_us": 133.4881138524574,
-     "events": 596,
+     "total_us": 261.56146208261,
+     "dag_end_us": 276.2118705036626,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548402,
-      "combine": 85.3801290322584,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
+      "combine": 85.38012903225783,
+      "dispatch": 253.24209204848992,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 1189.4826933025042,
-      "gmm2": 294.9993813333332,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3613.935872493258,
+      "gmm2": 1507.2259709287127,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 11,
-     "schedule_sha256": "ea4d0157c9bda3238b9333a6261365798fee30574493d529b575c6d40d22788e"
+     "critical_path_len": 15,
+     "schedule_sha256": "372cf8eab58cbb0a977a8fc515456a85e177d9b6dad57f9dc10377ec80894917"
     },
     {
      "rank": 1,
-     "total_us": 128.89602464765323,
-     "dag_end_us": 143.54643306870585,
-     "events": 596,
+     "total_us": 261.56146208261,
+     "dag_end_us": 276.2118705036626,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548402,
-      "combine": 85.38012903225808,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 56.336000000000006,
+      "combine": 85.38012903225783,
+      "dispatch": 312.95353523731256,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052617,
-      "gmm1": 1189.4826933025042,
-      "gmm2": 294.9993813333331,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3613.935872493258,
+      "gmm2": 1507.2259709287127,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "4db2273a0388357f1bac05c1a5a959a7197cc65f8a6fefda319d821862713eb3"
+     "critical_path_len": 15,
+     "schedule_sha256": "e1e1fd4442a77f79377a9a81765253b0e1f2e4ccadaa5e6bd42ef107b9bee5e4"
     },
     {
      "rank": 2,
-     "total_us": 128.89602464765323,
-     "dag_end_us": 143.54643306870585,
-     "events": 596,
+     "total_us": 261.56146208261,
+     "dag_end_us": 276.2118705036626,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548402,
-      "combine": 85.38012903225808,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
+      "combine": 85.38012903225783,
+      "dispatch": 311.56756564618865,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052617,
-      "gmm1": 1189.4826933025042,
-      "gmm2": 294.9993813333331,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3613.935872493258,
+      "gmm2": 1507.2259709287127,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "f60d728fb90a85323abe5c93894b9f14cd26e8c737efbbb8ec5467b24a7a3a06"
+     "critical_path_len": 15,
+     "schedule_sha256": "32fa2bd7bea8873df3dbf7c3f9d52fd304cacc85a02d79b5a467acc0f8acf13f"
     },
     {
      "rank": 3,
-     "total_us": 136.11336263820183,
-     "dag_end_us": 150.76377105925445,
-     "events": 596,
+     "total_us": 261.56146208261,
+     "dag_end_us": 276.2118705036626,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548402,
-      "combine": 85.38012903225803,
-      "dispatch": 126.43368728169304,
-      "dispatch_call": 56.336000000000006,
+      "combine": 85.38012903225783,
+      "dispatch": 312.8736872816931,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052617,
-      "gmm1": 1189.4826933025042,
-      "gmm2": 294.9993813333331,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3613.935872493258,
+      "gmm2": 1507.225970928713,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "4fc51ccb8d3e0d34aa64f16057ade4a5b20fdb193b3d910f496f47c2f44a670d"
+     "critical_path_len": 15,
+     "schedule_sha256": "c3cceeb284b1e5d40206f361c3374c7b77287de718dbbf5c8942618499862287"
     }
    ]
   },
   "mte_lag_by_threshold": {
-   "kernel_total_us": 1761.8876621340457,
+   "kernel_total_us": 4496.794901858407,
    "slowest_rank": 1,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 1736.2678785087169,
-     "dag_end_us": 2220.2940174560854,
-     "events": 12506,
+     "total_us": 4489.175776729991,
+     "dag_end_us": 4973.2019156773595,
+     "events": 13274,
      "wave_count": 32,
      "stage_busy_us": {
-      "activation": 8055.026236559249,
-      "combine": 5817.905548386528,
-      "dispatch": 4336.922168070679,
-      "dispatch_call": 901.3760000000149,
+      "activation": 8055.026236559242,
+      "combine": 5817.905548386912,
+      "dispatch": 6299.162168070676,
+      "dispatch_call": 901.3759999999677,
       "dispatch_ready": 0.0,
-      "epilogue": 484.0261389473685,
-      "gmm1": 31033.000693641603,
-      "gmm2": 15270.994830222651,
+      "epilogue": 484.02613894736805,
+      "gmm1": 93099.00208092268,
+      "gmm2": 31033.000693640533,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 195,
-     "schedule_sha256": "d2050e5faf3227d90f64ae2a624e52e485608a3d417408d5fac4b1d078234d15"
+     "critical_path_len": 262,
+     "schedule_sha256": "74b2c2b9265462daff35468462fa9b4dcba14cb1ca58059bbccdd7b0ba512ce3"
     },
     {
      "rank": 1,
-     "total_us": 1761.8876621340457,
-     "dag_end_us": 2245.913801081414,
-     "events": 12506,
+     "total_us": 4496.794901858407,
+     "dag_end_us": 4980.821040805775,
+     "events": 13274,
      "wave_count": 32,
      "stage_busy_us": {
-      "activation": 8055.026236559249,
-      "combine": 5817.905548386528,
-      "dispatch": 4336.922168070678,
-      "dispatch_call": 901.3760000000171,
+      "activation": 8055.026236559241,
+      "combine": 5817.905548386923,
+      "dispatch": 6299.162168070674,
+      "dispatch_call": 901.3759999999622,
       "dispatch_ready": 0.0,
-      "epilogue": 484.0261389473683,
-      "gmm1": 31033.000693641603,
-      "gmm2": 15270.994830222691,
+      "epilogue": 484.02613894736805,
+      "gmm1": 93099.00208092268,
+      "gmm2": 31033.000693640533,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 234,
-     "schedule_sha256": "6812ad9647cc09c25bed3d83ee3ddeb6352d6d5c98e6e395d11e92efa713e96b"
+     "critical_path_len": 262,
+     "schedule_sha256": "efb90c6b2394a3662f660dc9eb9c404492544c0d7600db7fc6b5c4208a2f3fa1"
     }
    ]
   },
   "mte_shared_expert": {
-   "kernel_total_us": 117.3952872962912,
-   "slowest_rank": 3,
+   "kernel_total_us": 288.6969799241718,
+   "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 105.11376816356818,
-     "dag_end_us": 117.03406120010217,
-     "events": 638,
+     "total_us": 288.6969799241718,
+     "dag_end_us": 314.27709974974726,
+     "events": 701,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548396,
-      "combine": 112.38812903225806,
-      "dispatch": 97.80209204848984,
+      "activation": 185.52774193548385,
+      "combine": 112.38812903225835,
+      "dispatch": 253.2420920484898,
       "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
       "epilogue": 15.478231578947373,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.9993813333332,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953788,
       "moe_stage_done": 0.0,
-      "shared_act": 24.612473118279567,
-      "shared_gmm1": 60.61132947976877,
-      "shared_gmm2": 29.826161777777884,
+      "shared_act": 24.61247311827958,
+      "shared_gmm1": 545.5019653179189,
+      "shared_gmm2": 242.44531791907457,
       "shared_head_done": 0.0
      },
-     "critical_path_len": 14,
-     "schedule_sha256": "eaecc03caa934749036e0b94417ce8492b3ae718c93c6e5e8f24203e148daf39"
+     "critical_path_len": 18,
+     "schedule_sha256": "fee3f4a798d5272e9db0563829ba3c2a8133f5a122fd47eb9cd617ba6481962c"
     },
     {
      "rank": 1,
-     "total_us": 110.1779493057426,
-     "dag_end_us": 126.89893762543072,
-     "events": 638,
+     "total_us": 288.6969799241718,
+     "dag_end_us": 314.27709974974726,
+     "events": 701,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548385,
-      "combine": 112.38812903225808,
-      "dispatch": 127.1635352373125,
+      "combine": 112.38812903225826,
+      "dispatch": 312.9535352373123,
       "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
       "epilogue": 15.478231578947373,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.226589595378,
       "moe_stage_done": 0.0,
-      "shared_act": 24.612473118279567,
-      "shared_gmm1": 60.61132947976877,
-      "shared_gmm2": 29.826161777777884,
+      "shared_act": 24.61247311827958,
+      "shared_gmm1": 545.5019653179189,
+      "shared_gmm2": 242.44531791907457,
       "shared_head_done": 0.0
      },
-     "critical_path_len": 16,
-     "schedule_sha256": "f4acfc6bc8e89e32f73fd313e807e609e6c3f1e3e937a40fe8bfe05535ab169c"
+     "critical_path_len": 18,
+     "schedule_sha256": "cbbf70d190fabc182213ffe5a8117bffb80371b392fbd2a520f706b564a60011"
     },
     {
      "rank": 2,
-     "total_us": 110.1779493057426,
-     "dag_end_us": 126.89893762543072,
-     "events": 638,
+     "total_us": 288.6969799241718,
+     "dag_end_us": 314.27709974974726,
+     "events": 701,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548385,
-      "combine": 112.38812903225808,
-      "dispatch": 127.32756564618862,
+      "combine": 112.38812903225835,
+      "dispatch": 311.5675656461883,
       "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
       "epilogue": 15.478231578947373,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.226589595378,
       "moe_stage_done": 0.0,
-      "shared_act": 24.612473118279567,
-      "shared_gmm1": 60.61132947976877,
-      "shared_gmm2": 29.826161777777884,
+      "shared_act": 24.61247311827958,
+      "shared_gmm1": 545.5019653179189,
+      "shared_gmm2": 242.44531791907457,
       "shared_head_done": 0.0
      },
-     "critical_path_len": 16,
-     "schedule_sha256": "d5edf90186aa1280dd85ba54f965c581d712a77f128ab93592ffd8a4f4365fab"
+     "critical_path_len": 18,
+     "schedule_sha256": "f2e3120cf68f2e85eea84ba26f882a03e2408e9f1fc298019fef389683e2c61a"
     },
     {
      "rank": 3,
-     "total_us": 117.3952872962912,
-     "dag_end_us": 134.1162756159793,
-     "events": 638,
+     "total_us": 288.6969799241718,
+     "dag_end_us": 314.27709974974726,
+     "events": 701,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225815,
-      "dispatch": 126.43368728169304,
+      "activation": 185.52774193548385,
+      "combine": 112.38812903225835,
+      "dispatch": 312.8736872816927,
       "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 15.478231578947359,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333331,
+      "epilogue": 15.478231578947373,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953783,
       "moe_stage_done": 0.0,
-      "shared_act": 24.612473118279567,
-      "shared_gmm1": 60.61132947976877,
-      "shared_gmm2": 29.826161777777884,
+      "shared_act": 24.61247311827958,
+      "shared_gmm1": 545.5019653179189,
+      "shared_gmm2": 242.44531791907457,
       "shared_head_done": 0.0
      },
-     "critical_path_len": 16,
-     "schedule_sha256": "b08b7a3d1a720615cbf274eca75827a1613812bc3d61015cdb018fa780a7723f"
+     "critical_path_len": 18,
+     "schedule_sha256": "394e26f81b1e92013979f6702d4b7e0d6df1db235af791a1136d23977680f48e"
     }
    ]
   },
   "mte_skewed_default": {
-   "kernel_total_us": 106.74231197153517,
-   "slowest_rank": 3,
+   "kernel_total_us": 217.43267511964697,
+   "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 94.46079283881215,
-     "dag_end_us": 104.14017429690183,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225823,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 253.24209204848992,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.9993813333332,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 11,
-     "schedule_sha256": "08b7a6a9dc7178faa4562a00817613c3895c2605e78844e555658d2bd4f0221c"
+     "critical_path_len": 15,
+     "schedule_sha256": "6a08044e398c435f6130235743adba1edb49cbc3d9e36ceed370c8204d441124"
     },
     {
      "rank": 1,
-     "total_us": 99.52497398098657,
-     "dag_end_us": 114.1753824020392,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 56.336000000000006,
+      "combine": 112.38812903225734,
+      "dispatch": 312.95353523731256,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "bf945f3072b2ef6eeb68e8973e110198b6b570c25d94079a901abbdfb191b07b"
+     "critical_path_len": 15,
+     "schedule_sha256": "7c8c4dad2bdf2b204a07aa61722ede90035cfa449fd44d5beebddf82a0d62d22"
     },
     {
      "rank": 2,
-     "total_us": 99.52497398098657,
-     "dag_end_us": 114.1753824020392,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 311.56756564618865,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "af4c89aad05a65437c3612ee8c9db2bdbb719299cbd2f8abc3123d3c10e869b8"
+     "critical_path_len": 15,
+     "schedule_sha256": "f60c3d34708baadfbf573e893768a6111c9d2b444a7fb5cfba351bca31030e7c"
     },
     {
      "rank": 3,
-     "total_us": 106.74231197153517,
-     "dag_end_us": 121.3927203925878,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 126.43368728169304,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 312.8736872816931,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333332,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "c7a767da200e0eb2a9bf784ea08065f0f2cb6b123c627b412c66156e5ff0811e"
+     "critical_path_len": 15,
+     "schedule_sha256": "00d1f0e8ca39c4b96f964cf29c0b99b7d99ea7c8c5da19aa8118f03612cab9e6"
     }
    ]
   },
   "mte_skewed_lag1": {
-   "kernel_total_us": 134.16145475204084,
-   "slowest_rank": 3,
+   "kernel_total_us": 233.76281024302315,
+   "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 126.94411676149225,
-     "dag_end_us": 141.59452518254486,
-     "events": 596,
+     "total_us": 233.76281024302315,
+     "dag_end_us": 248.41321866407577,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.3881290322582,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225732,
+      "dispatch": 253.24209204848992,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052603,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333325,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.226589595376,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 9,
-     "schedule_sha256": "b4b25993d12df5b321ccc2840905e1fbd5e50c0aa39fc4b29b7b0a392f61539f"
+     "critical_path_len": 15,
+     "schedule_sha256": "a913886d72a8a077aef56c2589995b7fe27506bcd521a39c83dbf478139c3fc3"
     },
     {
      "rank": 1,
-     "total_us": 126.94411676149225,
-     "dag_end_us": 141.59452518254486,
-     "events": 596,
+     "total_us": 233.55842314624894,
+     "dag_end_us": 248.20883156730156,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 56.336000000000006,
+      "combine": 112.38812903225732,
+      "dispatch": 312.95353523731256,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052603,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.9993813333331,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953763,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 9,
-     "schedule_sha256": "40b74c9d2157e72f3849b0b528efd1e6b21474881e4be59450fc8ec8a3e35015"
+     "critical_path_len": 15,
+     "schedule_sha256": "7674995c4999cb5b4e2b1cfa0b5ee6bb0792ac0b4ee5bbdc0da1d2f20cc2cd67"
     },
     {
      "rank": 2,
-     "total_us": 126.94411676149225,
-     "dag_end_us": 141.59452518254486,
-     "events": 596,
+     "total_us": 233.76281024302315,
+     "dag_end_us": 248.41321866407577,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225732,
+      "dispatch": 311.56756564618865,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052603,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.9993813333331,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.226589595376,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 9,
-     "schedule_sha256": "fa3802a2b299256b7f55a386655d8b62182a8b141a297f27a36c0562cc4d2e8f"
+     "critical_path_len": 15,
+     "schedule_sha256": "cd7b975b21b0cd6edad063fadba3d032d6783253323e51159f2c8b12d7b70dd0"
     },
     {
      "rank": 3,
-     "total_us": 134.16145475204084,
-     "dag_end_us": 148.81186317309346,
-     "events": 596,
+     "total_us": 233.76281024302315,
+     "dag_end_us": 248.41321866407577,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225788,
-      "dispatch": 126.43368728169304,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225732,
+      "dispatch": 312.8736872816931,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
       "epilogue": 14.650408421052617,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333331,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953765,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 9,
-     "schedule_sha256": "cc297bfcaa9489f17a3243d2a76a1c741230ce0d1476cd4f71b657b5962a5da5"
+     "critical_path_len": 15,
+     "schedule_sha256": "c01b5554bd6d6b59f5e4edb45e807f01dea12c3ae398c17544ceab6d515029fb"
     }
    ]
   },
   "mte_tile_m128": {
-   "kernel_total_us": 89.17796867634888,
-   "slowest_rank": 2,
+   "kernel_total_us": 282.74311380446267,
+   "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 87.03106589020793,
-     "dag_end_us": 101.68147431126056,
-     "events": 776,
+     "total_us": 282.74311380446267,
+     "dag_end_us": 297.3935222255153,
+     "events": 837,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 209.20774193548402,
-      "combine": 112.38812903225782,
-      "dispatch": 102.91209204848984,
-      "dispatch_call": 56.336000000000006,
+      "activation": 209.20774193548408,
+      "combine": 112.38812903225723,
+      "dispatch": 255.69209204848985,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.99938133333285,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3993.718381502889,
+      "gmm2": 1697.1172254335293,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "b8db95341930dd422653026f9ae1500dea4c2d7b5e56f38ed866d1e5c164afc2"
+     "critical_path_len": 17,
+     "schedule_sha256": "61ea1c15983ca4b0ee984b473d85f6f94006ca78856dfcbab750e5aa02834ecc"
     },
     {
      "rank": 1,
-     "total_us": 83.42239689493363,
-     "dag_end_us": 98.07280531598626,
-     "events": 776,
+     "total_us": 282.74311380446267,
+     "dag_end_us": 297.3935222255153,
+     "events": 837,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 209.20774193548402,
-      "combine": 112.38812903225784,
-      "dispatch": 133.8235352373125,
-      "dispatch_call": 56.336000000000006,
+      "activation": 209.20774193548408,
+      "combine": 112.38812903225728,
+      "dispatch": 311.4035352373127,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333334,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3993.718381502889,
+      "gmm2": 1697.1172254335286,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "60750adf835a8d65744b6ebd485361a9267bac0a98c0309a89f97c4e901f7ada"
+     "critical_path_len": 17,
+     "schedule_sha256": "55cd6394f494f4ff4815c7343115ba55a6dade16df9944b0118b52b028d7d9e4"
     },
     {
      "rank": 2,
-     "total_us": 89.17796867634888,
-     "dag_end_us": 103.82837709740151,
-     "events": 776,
+     "total_us": 282.74311380446267,
+     "dag_end_us": 297.3935222255153,
+     "events": 837,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 209.20774193548402,
-      "combine": 112.38812903225792,
-      "dispatch": 133.9875656461886,
-      "dispatch_call": 56.336000000000006,
+      "activation": 209.20774193548408,
+      "combine": 112.38812903225724,
+      "dispatch": 311.5675656461887,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333334,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3993.718381502889,
+      "gmm2": 1697.1172254335293,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 18,
-     "schedule_sha256": "abdb5e421777bee6a9ad9e5e5cdd518223edcf81b24eb2e9789f216232c28a5a"
+     "critical_path_len": 17,
+     "schedule_sha256": "f0658d4e7632a32c40a088d9a26963e0cb1f08aeea457cb0926d1a95f141b373"
     },
     {
      "rank": 3,
-     "total_us": 87.03106589020793,
-     "dag_end_us": 101.68147431126056,
-     "events": 776,
+     "total_us": 282.74311380446267,
+     "dag_end_us": 297.3935222255153,
+     "events": 837,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 209.20774193548402,
-      "combine": 112.38812903225782,
-      "dispatch": 133.09368728169304,
-      "dispatch_call": 56.336000000000006,
+      "activation": 209.20774193548408,
+      "combine": 112.38812903225724,
+      "dispatch": 312.87368728169315,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333334,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3993.718381502889,
+      "gmm2": 1697.1172254335293,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "594633f30972968b801d1ea01d996a5e501311753eaeab9f34a3ff3ec700a503"
+     "critical_path_len": 17,
+     "schedule_sha256": "843cbe2d18d1075e2ea9d830932752adc04bf4206afc2efeae4942dac56e4c62"
     }
    ]
   },
   "mte_tile_n128": {
-   "kernel_total_us": 187.4169147619945,
-   "slowest_rank": 3,
+   "kernel_total_us": 217.70179692129201,
+   "slowest_rank": 1,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 150.0179815382427,
-     "dag_end_us": 164.66838995929533,
-     "events": 1064,
-     "wave_count": 3,
-     "stage_busy_us": {
-      "activation": 244.727741935484,
-      "combine": 113.25935483870899,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 84.50400000000002,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052617,
-      "gmm1": 1198.967861271676,
-      "gmm2": 294.9993813333348,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 20,
-     "schedule_sha256": "79616c835e49a372eea847b42b054cd14a439ff555459199c2d37f1f056e60a3"
-    },
-    {
-     "rank": 1,
-     "total_us": 179.5434551359415,
-     "dag_end_us": 194.19386355699413,
-     "events": 1064,
-     "wave_count": 3,
-     "stage_busy_us": {
-      "activation": 244.727741935484,
-      "combine": 113.25935483870899,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 84.50400000000002,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052617,
-      "gmm1": 1198.967861271676,
-      "gmm2": 294.9993813333348,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 20,
-     "schedule_sha256": "e7a0457ac57b27d7621d73d10d9e762ec9c71ebb059fde84c428b21735738f3a"
-    },
-    {
-     "rank": 2,
-     "total_us": 179.5434551359415,
-     "dag_end_us": 194.19386355699413,
-     "events": 1064,
-     "wave_count": 3,
-     "stage_busy_us": {
-      "activation": 244.727741935484,
-      "combine": 113.25935483870899,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 84.50400000000002,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052617,
-      "gmm1": 1198.967861271676,
-      "gmm2": 294.9993813333348,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 20,
-     "schedule_sha256": "5f8131bcdfbc71ee7484abe9c62a3b678a2fbd13b909bdfd78e3437bb2550083"
-    },
-    {
-     "rank": 3,
-     "total_us": 187.4169147619945,
-     "dag_end_us": 202.0673231830471,
-     "events": 1064,
+     "total_us": 215.24516609691923,
+     "dag_end_us": 229.89557451797185,
+     "events": 1152,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 244.72774193548406,
-      "combine": 113.25935483870899,
-      "dispatch": 126.43368728169303,
+      "combine": 113.25935483870832,
+      "dispatch": 328.9920920484897,
+      "dispatch_call": 84.50399999999993,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3623.421040462427,
+      "gmm2": 1212.226589595374,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 23,
+     "schedule_sha256": "c1e7a99c3a5bed107a72506e2132e06aeb492d266b207d1c2d3b8fa1ba8eea65"
+    },
+    {
+     "rank": 1,
+     "total_us": 217.70179692129201,
+     "dag_end_us": 232.35220534234463,
+     "events": 1152,
+     "wave_count": 3,
+     "stage_busy_us": {
+      "activation": 244.72774193548406,
+      "combine": 113.25935483870835,
+      "dispatch": 387.15353523731244,
+      "dispatch_call": 84.50399999999996,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3623.421040462427,
+      "gmm2": 1212.2265895953726,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 27,
+     "schedule_sha256": "29fed2be447bbb20492e872a3aa9c2d6ad019071250fb2e1f6ebba3b8b7c0370"
+    },
+    {
+     "rank": 2,
+     "total_us": 217.70179692129201,
+     "dag_end_us": 232.35220534234463,
+     "events": 1152,
+     "wave_count": 3,
+     "stage_busy_us": {
+      "activation": 244.72774193548406,
+      "combine": 113.25935483870832,
+      "dispatch": 387.31756564618865,
+      "dispatch_call": 84.50399999999993,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3623.421040462427,
+      "gmm2": 1212.2265895953724,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 27,
+     "schedule_sha256": "102d009e98ee716da3470ef79db8f6232c570e6c186c996c4b4a5d2ce3f69372"
+    },
+    {
+     "rank": 3,
+     "total_us": 214.511492832531,
+     "dag_end_us": 229.1619012535836,
+     "events": 1152,
+     "wave_count": 3,
+     "stage_busy_us": {
+      "activation": 244.72774193548406,
+      "combine": 113.25935483870835,
+      "dispatch": 388.6236872816929,
       "dispatch_call": 84.50400000000002,
       "dispatch_ready": 0.0,
       "epilogue": 14.650408421052617,
-      "gmm1": 1198.9678612716762,
-      "gmm2": 294.9993813333348,
+      "gmm1": 3623.421040462427,
+      "gmm2": 1212.226589595372,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 20,
-     "schedule_sha256": "e2ace92f40203c6f2b20adaab9665ff79e2111804fda0d59f19daf494d4c40eb"
+     "critical_path_len": 27,
+     "schedule_sha256": "11be35948b7c37b2b95a188828548d9616d9d41deebd5b50ffacc33e711d7a3b"
     }
    ]
   },
   "mte_uniform_bs64": {
-   "kernel_total_us": 89.43016348144906,
+   "kernel_total_us": 1734.851381689351,
    "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 89.43016348144906,
-     "dag_end_us": 104.08057190250169,
-     "events": 6298,
+     "total_us": 1734.851381689351,
+     "dag_end_us": 1749.5017901104036,
+     "events": 6682,
      "wave_count": 16,
      "stage_busy_us": {
-      "activation": 859.939784946235,
-      "combine": 90.90477419355042,
-      "dispatch": 296.7703012122454,
-      "dispatch_call": 450.68799999999464,
+      "activation": 859.9397849462428,
+      "combine": 90.90477419353647,
+      "dispatch": 1401.890301212245,
+      "dispatch_call": 450.68800000000545,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 484.89063583815005,
-      "gmm2": 238.60929422222483,
+      "epilogue": 14.650408421052589,
+      "gmm1": 31517.891329479964,
+      "gmm2": 15516.500346821127,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 84,
-     "schedule_sha256": "5a9a5b2ccc2fc6974b94c9bd317adefee7f07eeb3ec7c71dab27bab563262263"
+     "critical_path_len": 136,
+     "schedule_sha256": "73fb4ac00ff3981c439a6b334feab751d72f5b22b16190ee226fd4208011bc0e"
     },
     {
      "rank": 1,
-     "total_us": 89.43016348144906,
-     "dag_end_us": 104.08057190250169,
-     "events": 6298,
+     "total_us": 1734.851381689351,
+     "dag_end_us": 1749.5017901104036,
+     "events": 6682,
      "wave_count": 16,
      "stage_busy_us": {
-      "activation": 859.939784946235,
-      "combine": 90.90477419355042,
-      "dispatch": 296.7703012122454,
-      "dispatch_call": 450.68799999999464,
+      "activation": 859.9397849462428,
+      "combine": 90.90477419353647,
+      "dispatch": 1401.890301212245,
+      "dispatch_call": 450.68800000000545,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 484.89063583815005,
-      "gmm2": 238.60929422222483,
+      "epilogue": 14.650408421052589,
+      "gmm1": 31517.891329479964,
+      "gmm2": 15516.500346821127,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 84,
-     "schedule_sha256": "72ee03ca489da2e1a5977811134f7279496b08ce2bf86a9ef44bce24c9318647"
+     "critical_path_len": 136,
+     "schedule_sha256": "c1797cf30738b571ee4974589f8bb50c50f454a2d8a84553088a95c04e8ee1c1"
     },
     {
      "rank": 2,
-     "total_us": 89.43016348144906,
-     "dag_end_us": 104.08057190250169,
-     "events": 6298,
+     "total_us": 1734.851381689351,
+     "dag_end_us": 1749.5017901104036,
+     "events": 6682,
      "wave_count": 16,
      "stage_busy_us": {
-      "activation": 859.939784946235,
-      "combine": 90.90477419355042,
-      "dispatch": 296.7703012122454,
-      "dispatch_call": 450.68799999999464,
+      "activation": 859.9397849462428,
+      "combine": 90.90477419353647,
+      "dispatch": 1401.8903012122448,
+      "dispatch_call": 450.68800000000545,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 484.89063583815005,
-      "gmm2": 238.60929422222483,
+      "epilogue": 14.650408421052589,
+      "gmm1": 31517.891329479964,
+      "gmm2": 15516.500346821127,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 84,
-     "schedule_sha256": "9a07e20a69878e469984d707d06db65a59ba90ddc8c89c86759e7ff9f028e6be"
+     "critical_path_len": 136,
+     "schedule_sha256": "bb304884d441ec4c90517746eaaf406844bb0c039b4dd330ad63c135a56dd32b"
     },
     {
      "rank": 3,
-     "total_us": 89.43016348144906,
-     "dag_end_us": 104.08057190250169,
-     "events": 6298,
+     "total_us": 1734.851381689351,
+     "dag_end_us": 1749.5017901104036,
+     "events": 6682,
      "wave_count": 16,
      "stage_busy_us": {
-      "activation": 859.939784946235,
-      "combine": 90.90477419355042,
-      "dispatch": 296.7703012122454,
-      "dispatch_call": 450.68799999999464,
+      "activation": 859.9397849462428,
+      "combine": 90.90477419353647,
+      "dispatch": 1401.8903012122448,
+      "dispatch_call": 450.68800000000545,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 484.89063583815005,
-      "gmm2": 238.60929422222483,
+      "epilogue": 14.650408421052589,
+      "gmm1": 31517.891329479964,
+      "gmm2": 15516.500346821127,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 84,
-     "schedule_sha256": "e8d69678c994f18cd9cf49d752304238af5731bf639fab89031279773cb300f9"
+     "critical_path_len": 136,
+     "schedule_sha256": "afe8898fa8cf77de6571afd855e7168b2166e05cabbb9876fed873ae6dbf02e9"
     }
    ]
   },
   "packing_balanced": {
-   "kernel_total_us": 106.80542071227592,
-   "slowest_rank": 3,
-   "ranks": [
-    {
-     "rank": 0,
-     "total_us": 94.46079283881215,
-     "dag_end_us": 105.84202041034027,
-     "events": 596,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.3881290322582,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.9993813333333,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 11,
-     "schedule_sha256": "2823300346222faff111ac70bacdb0f4dbedf3f2de3b216d1f09f2c0868650cd"
-    },
-    {
-     "rank": 1,
-     "total_us": 99.58808272172732,
-     "dag_end_us": 114.23849114277995,
-     "events": 596,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.16353523731252,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333325,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 14,
-     "schedule_sha256": "d8c53053981d89ce40f2cfd6936896c57af5af4d8a9f53d02282b785af9cec47"
-    },
-    {
-     "rank": 2,
-     "total_us": 99.58808272172732,
-     "dag_end_us": 114.23849114277995,
-     "events": 596,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333325,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 14,
-     "schedule_sha256": "2dc1408eb31c566f828aa414a53ca82061339e0c6ac18fa329f29e3a49865882"
-    },
-    {
-     "rank": 3,
-     "total_us": 106.80542071227592,
-     "dag_end_us": 121.45582913332855,
-     "events": 596,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 126.43368728169303,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333333,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 14,
-     "schedule_sha256": "020e740127f7c3f350af8c2c996973479332edc37d775b90ec1fe723abe3965c"
-    }
-   ]
-  },
-  "packing_longest_first": {
-   "kernel_total_us": 109.72800937992325,
-   "slowest_rank": 3,
-   "ranks": [
-    {
-     "rank": 0,
-     "total_us": 97.44347238340094,
-     "dag_end_us": 109.23763107446554,
-     "events": 596,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548396,
-      "combine": 112.38812903225832,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358382,
-      "gmm2": 294.999381333334,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 10,
-     "schedule_sha256": "a48ae6e54fc117d29ae5bf3c0a4076b02c5cddb3edd5d20ab315fafe938b2e2c"
-    },
-    {
-     "rank": 1,
-     "total_us": 102.51067138937465,
-     "dag_end_us": 117.16107981042728,
-     "events": 596,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225832,
-      "dispatch": 127.16353523731252,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358382,
-      "gmm2": 294.999381333334,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 13,
-     "schedule_sha256": "ee7d862cdc47eccfc1aa9384207a6ca4cbd6c01868820b78298213242f81a3ab"
-    },
-    {
-     "rank": 2,
-     "total_us": 102.51067138937465,
-     "dag_end_us": 117.16107981042728,
-     "events": 596,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225832,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358382,
-      "gmm2": 294.999381333334,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 13,
-     "schedule_sha256": "032b50c9a2e70d988054bbd037125f4f23a94836f0ed5cd5713ac13c49d57d20"
-    },
-    {
-     "rank": 3,
-     "total_us": 109.72800937992325,
-     "dag_end_us": 124.37841780097588,
-     "events": 596,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548396,
-      "combine": 112.38812903225832,
-      "dispatch": 126.43368728169303,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358383,
-      "gmm2": 294.999381333334,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 13,
-     "schedule_sha256": "424c5935c810f16c6d0fdc124a5a626086b1ed48399d5352eb055d25d84614ab"
-    }
-   ]
-  },
-  "pipeline_channels_only": {
-   "kernel_total_us": 106.74231197153517,
-   "slowest_rank": 3,
-   "ranks": [
-    {
-     "rank": 0,
-     "total_us": 94.46079283881215,
-     "dag_end_us": 104.14017429690183,
-     "events": 596,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225823,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.9993813333332,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 11,
-     "schedule_sha256": "a2b9b34959c71d511acca65d121e8d3a6bf0d0e8dc06d06a9ddc51ca25852728"
-    },
-    {
-     "rank": 1,
-     "total_us": 99.52497398098657,
-     "dag_end_us": 114.1753824020392,
-     "events": 596,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 13,
-     "schedule_sha256": "32ca2489fef9f572adce243f27bafaa6102008a52fdc63d8cd8e09c659578d39"
-    },
-    {
-     "rank": 2,
-     "total_us": 99.52497398098657,
-     "dag_end_us": 114.1753824020392,
-     "events": 596,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 13,
-     "schedule_sha256": "2482749f8304367a95094a54936a0a1b9a2eb1a2ff58d950ca8f19f1ead4a54a"
-    },
-    {
-     "rank": 3,
-     "total_us": 106.74231197153517,
-     "dag_end_us": 121.3927203925878,
-     "events": 596,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 126.43368728169304,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333332,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 13,
-     "schedule_sha256": "abc0811b2fef1f7fa250910e37cc652bf0e659e3866d930a3d0e16cc713f7a5f"
-    }
-   ]
-  },
-  "pipeline_compute_bound": {
-   "kernel_total_us": 242.14039710911737,
-   "slowest_rank": 3,
-   "ranks": [
-    {
-     "rank": 0,
-     "total_us": 233.8311776855467,
-     "dag_end_us": 248.4815861065993,
-     "events": 716,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548404,
-      "combine": 112.38812903225698,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052617,
-      "gmm1": 2359.9950506666664,
-      "gmm2": 1179.9975253333332,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 15,
-     "schedule_sha256": "9bd8ac90498e3fa8213a3846a96f181ec8d5af2689ad6d9eef4c1bc624b1bb2f"
-    },
-    {
-     "rank": 1,
-     "total_us": 233.8311776855467,
-     "dag_end_us": 248.4815861065993,
-     "events": 716,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548404,
-      "combine": 112.38812903225698,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052617,
-      "gmm1": 2359.9950506666664,
-      "gmm2": 1179.9975253333332,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 15,
-     "schedule_sha256": "c0ed35d5c8ddffe33563ee2633e1abf5bfa103a7fed4b22fbfa2614afa5a069d"
-    },
-    {
-     "rank": 2,
-     "total_us": 233.8311776855467,
-     "dag_end_us": 248.4815861065993,
-     "events": 716,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548404,
-      "combine": 112.38812903225698,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052617,
-      "gmm1": 2359.9950506666664,
-      "gmm2": 1179.9975253333332,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 15,
-     "schedule_sha256": "e6dfc65ac3c5c783224d29848a48cc6b8ee06a7d98d32447dcfed5e3cf9049ed"
-    },
-    {
-     "rank": 3,
-     "total_us": 242.14039710911737,
-     "dag_end_us": 256.79080553017,
-     "events": 716,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548404,
-      "combine": 112.38812903225707,
-      "dispatch": 126.43368728169304,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052646,
-      "gmm1": 2359.995050666666,
-      "gmm2": 1179.9975253333332,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 20,
-     "schedule_sha256": "349af0080fd09d4db0c29a09aeef557c0a5315919e426bf6b9d866b528a16f40"
-    }
-   ]
-  },
-  "pipeline_contended_channels": {
-   "kernel_total_us": 130.7042954880026,
-   "slowest_rank": 3,
-   "ranks": [
-    {
-     "rank": 0,
-     "total_us": 109.60043518019901,
-     "dag_end_us": 123.06751556301988,
-     "events": 716,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225823,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.9993813333332,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 13,
-     "schedule_sha256": "b31c93c423c997979edb5a9d83cf5ae81ef32aee223c0ad5aa583c1adc13d264"
-    },
-    {
-     "rank": 1,
-     "total_us": 123.48695749745401,
-     "dag_end_us": 138.13736591850665,
-     "events": 716,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 11,
-     "schedule_sha256": "27c3fd8ce19c38e96321498b8a2fd08d2bcf1c3bad06ee1cc32ac2fdf8175ba5"
-    },
-    {
-     "rank": 2,
-     "total_us": 123.48695749745401,
-     "dag_end_us": 138.13736591850665,
-     "events": 716,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 11,
-     "schedule_sha256": "0c4f60a728c4808dfc9b374dae6e485d9778ba43bd6024df5b9b049e1e9c39c2"
-    },
-    {
-     "rank": 3,
-     "total_us": 130.7042954880026,
-     "dag_end_us": 145.35470390905522,
-     "events": 716,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.3881290322581,
-      "dispatch": 126.43368728169304,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052617,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.99938133333313,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 11,
-     "schedule_sha256": "2a11cbf3627427f3001836a1dedd93dedef504243aa443e18cb2bc4d962d2936"
-    }
-   ]
-  },
-  "pipeline_engine_queue2": {
-   "kernel_total_us": 106.74231197153517,
-   "slowest_rank": 3,
-   "ranks": [
-    {
-     "rank": 0,
-     "total_us": 94.46079283881215,
-     "dag_end_us": 104.14017429690183,
-     "events": 716,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225823,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.9993813333332,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 13,
-     "schedule_sha256": "4ce12ea3e817430faebca6d02017547bbf35a211026df11e4fc12fbfc0868be1"
-    },
-    {
-     "rank": 1,
-     "total_us": 99.52497398098657,
-     "dag_end_us": 114.1753824020392,
-     "events": 716,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 15,
-     "schedule_sha256": "b32f6bea047eeca0f24560544d2d4ed0b75aa79e9338fbc2b5bc41d3c88cb516"
-    },
-    {
-     "rank": 2,
-     "total_us": 99.52497398098657,
-     "dag_end_us": 114.1753824020392,
-     "events": 716,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 15,
-     "schedule_sha256": "c648e14672658bafce617f9431a5ce73dad7a003394a44dfbc852ccecf88988d"
-    },
-    {
-     "rank": 3,
-     "total_us": 106.74231197153517,
-     "dag_end_us": 121.3927203925878,
-     "events": 716,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 126.43368728169304,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333332,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 15,
-     "schedule_sha256": "e1457ea94ccdfce192a6c07f658be52811b361e72798aec4108e0558bf6c239f"
-    }
-   ]
-  },
-  "pipeline_fix_phase": {
-   "kernel_total_us": 107.39767197153517,
-   "slowest_rank": 3,
-   "ranks": [
-    {
-     "rank": 0,
-     "total_us": 95.11615283881216,
-     "dag_end_us": 104.79553429690183,
-     "events": 716,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225823,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 612.4477706358375,
-      "gmm2": 294.9993813333332,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 13,
-     "schedule_sha256": "6681aaa4be753ae692a360b40a4af47172866deedaee7e99b9e6e52748fca0db"
-    },
-    {
-     "rank": 1,
-     "total_us": 100.18033398098657,
-     "dag_end_us": 114.8307424020392,
-     "events": 716,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 612.4477706358375,
-      "gmm2": 294.99938133333313,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 15,
-     "schedule_sha256": "bfd2c72bc7d5aec1577d1ae2b1e89e525fb7a819ec01811a24bf12f7fc1c4723"
-    },
-    {
-     "rank": 2,
-     "total_us": 100.18033398098657,
-     "dag_end_us": 114.8307424020392,
-     "events": 716,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 612.4477706358375,
-      "gmm2": 294.99938133333313,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 15,
-     "schedule_sha256": "e6b3440122a6d43c77d0223b2d71406c8792d954f79b93d4119b68529caf9f5c"
-    },
-    {
-     "rank": 3,
-     "total_us": 107.39767197153517,
-     "dag_end_us": 122.0480803925878,
-     "events": 716,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 126.43368728169304,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 612.4477706358376,
-      "gmm2": 294.9993813333332,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 15,
-     "schedule_sha256": "5e58542f9c2c6c20819b7d3d56dca729a011c96c4b55448b01e04040aa207bd8"
-    }
-   ]
-  },
-  "pipeline_large_split": {
-   "kernel_total_us": 281.7199536611654,
+   "kernel_total_us": 207.3307868730188,
    "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 281.7199536611654,
-     "dag_end_us": 408.1264883980075,
-     "events": 8282,
-     "wave_count": 32,
+     "total_us": 207.3307868730188,
+     "dag_end_us": 221.98119529407143,
+     "events": 659,
+     "wave_count": 2,
      "stage_busy_us": {
-      "activation": 1166.4791397849363,
-      "combine": 363.61909677418555,
-      "dispatch": 547.7212048489822,
-      "dispatch_call": 901.375999999982,
+      "activation": 185.52774193548402,
+      "combine": 112.38812903225732,
+      "dispatch": 255.69209204848985,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 126.4065347368421,
-      "gmm1": 1939.5625433526002,
-      "gmm2": 954.4371768889121,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.226589595378,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 185,
-     "schedule_sha256": "a3f4ed41693e4cd5fba80584b4322ebf0d0fa00a290cc3bc09309504d0d44e5d"
+     "critical_path_len": 13,
+     "schedule_sha256": "20b0333cfb2878c3ff5049722e58b688282c394bcac8bde7557a677f88473810"
     },
     {
      "rank": 1,
-     "total_us": 281.7199536611654,
-     "dag_end_us": 408.1264883980075,
-     "events": 8282,
-     "wave_count": 32,
+     "total_us": 207.3307868730188,
+     "dag_end_us": 221.98119529407143,
+     "events": 659,
+     "wave_count": 2,
      "stage_busy_us": {
-      "activation": 1166.4791397849363,
-      "combine": 363.61909677418555,
-      "dispatch": 547.7212048489822,
-      "dispatch_call": 901.375999999982,
+      "activation": 185.52774193548402,
+      "combine": 112.38812903225732,
+      "dispatch": 311.4035352373127,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 126.4065347368421,
-      "gmm1": 1939.5625433526002,
-      "gmm2": 954.4371768889121,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.226589595378,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 185,
-     "schedule_sha256": "5cec29b3b3f22f63cea9cec780088b9fe98b44f219fbb240a4d63b6c393467fe"
+     "critical_path_len": 13,
+     "schedule_sha256": "091db74ee0180b6fa3992727dda590f3e0789b55694dfd9c0f7eff4686ceee9a"
     },
     {
      "rank": 2,
-     "total_us": 281.7199536611654,
-     "dag_end_us": 408.1264883980075,
-     "events": 8282,
-     "wave_count": 32,
+     "total_us": 207.3307868730188,
+     "dag_end_us": 221.98119529407143,
+     "events": 659,
+     "wave_count": 2,
      "stage_busy_us": {
-      "activation": 1166.4791397849363,
-      "combine": 363.61909677418555,
-      "dispatch": 547.7212048489822,
-      "dispatch_call": 901.375999999982,
+      "activation": 185.52774193548407,
+      "combine": 112.38812903225723,
+      "dispatch": 311.5675656461887,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 126.4065347368421,
-      "gmm1": 1939.5625433526002,
-      "gmm2": 954.4371768889121,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953776,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 185,
-     "schedule_sha256": "b533387b98fc6d4b4f4e1c668923feac9a05c1a8983c20dcc52e22ab50c500cf"
+     "critical_path_len": 13,
+     "schedule_sha256": "033a62f1377ddba9695aa4f778030bdc5c1deaf484b8127872a3a2968c9ec283"
     },
     {
      "rank": 3,
-     "total_us": 281.7199536611654,
-     "dag_end_us": 408.1264883980075,
-     "events": 8282,
-     "wave_count": 32,
+     "total_us": 207.3307868730188,
+     "dag_end_us": 221.98119529407143,
+     "events": 659,
+     "wave_count": 2,
      "stage_busy_us": {
-      "activation": 1166.4791397849363,
-      "combine": 363.61909677418555,
-      "dispatch": 547.7212048489822,
-      "dispatch_call": 901.375999999982,
+      "activation": 185.52774193548407,
+      "combine": 112.38812903225723,
+      "dispatch": 312.87368728169315,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 126.4065347368421,
-      "gmm1": 1939.5625433526002,
-      "gmm2": 954.4371768889121,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953776,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 185,
-     "schedule_sha256": "da99d4557785a9c0a3956eb643c7f3bbb84e1c9d3547730edc9c76ee83ed43ab"
+     "critical_path_len": 13,
+     "schedule_sha256": "88f7f5834770b9bb1a3d25c00cc34388c941b48e725c4512a561df7c2936a28f"
+    }
+   ]
+  },
+  "packing_longest_first": {
+   "kernel_total_us": 216.2117455404313,
+   "slowest_rank": 0,
+   "ranks": [
+    {
+     "rank": 0,
+     "total_us": 216.2117455404313,
+     "dag_end_us": 230.86215396148393,
+     "events": 643,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.52774193548385,
+      "combine": 112.3881290322572,
+      "dispatch": 220.11209204848987,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953767,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 15,
+     "schedule_sha256": "2fc2c5eff85d7c43f348c8abf49a3850b160cd27deef1d5f9a853a1e557dbc12"
+    },
+    {
+     "rank": 1,
+     "total_us": 216.2117455404313,
+     "dag_end_us": 230.86215396148393,
+     "events": 643,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.52774193548385,
+      "combine": 112.3881290322572,
+      "dispatch": 260.5735352373125,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953767,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 15,
+     "schedule_sha256": "6593a3d46488c0e327a073e995ea87f4bb02b4b71b4e90235dc8dd9366aadead"
+    },
+    {
+     "rank": 2,
+     "total_us": 216.2117455404313,
+     "dag_end_us": 230.86215396148393,
+     "events": 643,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.52774193548385,
+      "combine": 112.3881290322572,
+      "dispatch": 260.7375656461886,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953772,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 15,
+     "schedule_sha256": "499f3418c2ed658392f309e075da0b2fb8f44a55f0bf88a9d1bd0ab593fd2c57"
+    },
+    {
+     "rank": 3,
+     "total_us": 216.2117455404313,
+     "dag_end_us": 230.86215396148393,
+     "events": 643,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.52774193548385,
+      "combine": 112.3881290322572,
+      "dispatch": 263.593687281693,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953772,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 15,
+     "schedule_sha256": "37c9c8d384807e59a85cf13fe38b10d0a9f24cf582360f703f4eacac16e82513"
+    }
+   ]
+  },
+  "pipeline_channels_only": {
+   "kernel_total_us": 217.43267511964697,
+   "slowest_rank": 0,
+   "ranks": [
+    {
+     "rank": 0,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 253.24209204848992,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953758,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 15,
+     "schedule_sha256": "a0e0a8c554990d725efa787789e6bc76da3e190ac5c9b1f3a0640887b3b5341d"
+    },
+    {
+     "rank": 1,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.52774193548402,
+      "combine": 112.38812903225734,
+      "dispatch": 312.95353523731256,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953758,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 15,
+     "schedule_sha256": "61160896a1a6687ed7f9add5ff30d574342d86a7dc644288f417a82f704b9fc0"
+    },
+    {
+     "rank": 2,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 311.56756564618865,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953758,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 15,
+     "schedule_sha256": "d2070f4f06a667fdf0ccb3f1d9d8bbfa81113e1688599b71036da3d20c08b54c"
+    },
+    {
+     "rank": 3,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 312.8736872816931,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953758,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 15,
+     "schedule_sha256": "d544ef679ec43472904d8906868b4ef50902d9679490ec07824c9e52953a5ffd"
+    }
+   ]
+  },
+  "pipeline_compute_bound": {
+   "kernel_total_us": 256.56127104403976,
+   "slowest_rank": 0,
+   "ranks": [
+    {
+     "rank": 0,
+     "total_us": 256.56127104403976,
+     "dag_end_us": 271.2116794650924,
+     "events": 779,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.52774193548402,
+      "combine": 112.38812903225715,
+      "dispatch": 253.24209204848992,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3478.139556089916,
+      "gmm2": 1681.7731306461155,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 17,
+     "schedule_sha256": "645a6eddc832592cbd26d72426e043ece069c697602d6ab5b9d90cb95fbb3cbe"
+    },
+    {
+     "rank": 1,
+     "total_us": 256.56127104403976,
+     "dag_end_us": 271.2116794650924,
+     "events": 779,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.52774193548402,
+      "combine": 112.38812903225715,
+      "dispatch": 312.95353523731256,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3478.139556089916,
+      "gmm2": 1681.7731306461155,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 17,
+     "schedule_sha256": "b03874cc90a44be79ac18d5fea19a1925662bf880ce67f36e9cf55828538afe9"
+    },
+    {
+     "rank": 2,
+     "total_us": 256.56127104403976,
+     "dag_end_us": 271.2116794650924,
+     "events": 779,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.52774193548402,
+      "combine": 112.38812903225715,
+      "dispatch": 311.56756564618865,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3478.139556089916,
+      "gmm2": 1681.7731306461155,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 17,
+     "schedule_sha256": "0b428234cbe4fbd185188353414eed7e21e302189b73e4f1174b20a2e6e258f8"
+    },
+    {
+     "rank": 3,
+     "total_us": 252.8788757286504,
+     "dag_end_us": 267.5292841497031,
+     "events": 779,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.52774193548402,
+      "combine": 112.38812903225715,
+      "dispatch": 312.8736872816931,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052674,
+      "gmm1": 3478.139556089916,
+      "gmm2": 1681.7731306461155,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 17,
+     "schedule_sha256": "a01bd23f6095662cbfa586c1059cd56eed3788b36c484765332374771da6f090"
+    }
+   ]
+  },
+  "pipeline_contended_channels": {
+   "kernel_total_us": 546.2735807073153,
+   "slowest_rank": 0,
+   "ranks": [
+    {
+     "rank": 0,
+     "total_us": 546.2735807073153,
+     "dag_end_us": 560.923989128368,
+     "events": 779,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.5277419354835,
+      "combine": 112.3881290322579,
+      "dispatch": 253.24209204848992,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052703,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953678,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 15,
+     "schedule_sha256": "0ac4ffdd10fa7eb22a44c3332b568b5cc62a917bc0bc6941622ef4b8661ad65c"
+    },
+    {
+     "rank": 1,
+     "total_us": 546.2735807073153,
+     "dag_end_us": 560.923989128368,
+     "events": 779,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.5277419354835,
+      "combine": 112.3881290322579,
+      "dispatch": 312.95353523731256,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052703,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953678,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 15,
+     "schedule_sha256": "f378e20d8b6a2c0594864042236aea8e90630dff360cf90182a24a768e08152f"
+    },
+    {
+     "rank": 2,
+     "total_us": 546.2735807073153,
+     "dag_end_us": 560.923989128368,
+     "events": 779,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.5277419354835,
+      "combine": 112.3881290322579,
+      "dispatch": 311.56756564618865,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052703,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953678,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 15,
+     "schedule_sha256": "e501aef6e14f8e8a9d37a7d1e38cbe6324c560274d891e38b1ad6cb621995e9d"
+    },
+    {
+     "rank": 3,
+     "total_us": 542.591185391926,
+     "dag_end_us": 557.2415938129787,
+     "events": 779,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.52774193548396,
+      "combine": 112.3881290322579,
+      "dispatch": 312.8736872816931,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052703,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953688,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 15,
+     "schedule_sha256": "f7de7f9205ea32075404c232a203d045a0da5a6f2c15b0445c6f4ea0c64e29ae"
+    }
+   ]
+  },
+  "pipeline_engine_queue2": {
+   "kernel_total_us": 209.85625893467588,
+   "slowest_rank": 0,
+   "ranks": [
+    {
+     "rank": 0,
+     "total_us": 209.85625893467588,
+     "dag_end_us": 224.5066673557285,
+     "events": 779,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225741,
+      "dispatch": 253.24209204848992,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.226589595375,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 14,
+     "schedule_sha256": "9ad86b110127149a60d327b11283e83752fe3220c0292cd8685d76efbb936c5a"
+    },
+    {
+     "rank": 1,
+     "total_us": 209.85625893467588,
+     "dag_end_us": 224.5066673557285,
+     "events": 779,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.52774193548402,
+      "combine": 112.38812903225741,
+      "dispatch": 312.95353523731256,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.226589595375,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 14,
+     "schedule_sha256": "f4d6a685e9f522b8e571190313c0aed6eaed1e35aecb708a97b723cd0f509f70"
+    },
+    {
+     "rank": 2,
+     "total_us": 209.85625893467588,
+     "dag_end_us": 224.5066673557285,
+     "events": 779,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225741,
+      "dispatch": 311.56756564618865,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.226589595375,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 14,
+     "schedule_sha256": "fa0d797ac19e30b8e0b8e83559bd66ad49e8c15a230b78c825fc0e071c2d291f"
+    },
+    {
+     "rank": 3,
+     "total_us": 209.85625893467588,
+     "dag_end_us": 224.5066673557285,
+     "events": 779,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225741,
+      "dispatch": 312.8736872816931,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.226589595375,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 14,
+     "schedule_sha256": "d9f194dfca32678bc1c47082a56660f91fd0a2f1eabd27a39f690f143fc155f6"
+    }
+   ]
+  },
+  "pipeline_fix_phase": {
+   "kernel_total_us": 192.6260341202063,
+   "slowest_rank": 0,
+   "ranks": [
+    {
+     "rank": 0,
+     "total_us": 192.6260341202063,
+     "dag_end_us": 207.27644254125892,
+     "events": 779,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225744,
+      "dispatch": 253.24209204848992,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3036.9009498265928,
+      "gmm2": 1212.226589595374,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 16,
+     "schedule_sha256": "fee15ce2e21e148ac7ae3b4aa46ec4c510953afdb399fce74033fea258ea657d"
+    },
+    {
+     "rank": 1,
+     "total_us": 192.42164702343214,
+     "dag_end_us": 207.07205544448476,
+     "events": 779,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.52774193548402,
+      "combine": 112.38812903225744,
+      "dispatch": 312.95353523731256,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3036.9009498265928,
+      "gmm2": 1212.226589595374,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 16,
+     "schedule_sha256": "08f7b6b2ca7db31a184ac9f070f51ccf37113fc22bf2efac392f8ff826f10dd3"
+    },
+    {
+     "rank": 2,
+     "total_us": 192.6260341202063,
+     "dag_end_us": 207.27644254125892,
+     "events": 779,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225744,
+      "dispatch": 311.56756564618865,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3036.9009498265928,
+      "gmm2": 1212.226589595374,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 16,
+     "schedule_sha256": "5dec35f26f3213c693144c055f6f60a1544acbcb7b26885d53ecfbcdc2666e44"
+    },
+    {
+     "rank": 3,
+     "total_us": 192.6260341202063,
+     "dag_end_us": 207.27644254125892,
+     "events": 779,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225748,
+      "dispatch": 312.8736872816931,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3036.9009498265928,
+      "gmm2": 1212.226589595374,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 16,
+     "schedule_sha256": "ef76116ac63d191f964bd18d60ee7ef5773183e36e47386c616f5b438dea4a24"
+    }
+   ]
+  },
+  "pipeline_large_split": {
+   "kernel_total_us": 1965.2493032506657,
+   "slowest_rank": 1,
+   "ranks": [
+    {
+     "rank": 0,
+     "total_us": 1959.4232182861788,
+     "dag_end_us": 2085.829753023021,
+     "events": 9178,
+     "wave_count": 32,
+     "stage_busy_us": {
+      "activation": 1166.479139784935,
+      "combine": 363.6190967741586,
+      "dispatch": 3155.401204848935,
+      "dispatch_call": 901.3760000000206,
+      "dispatch_ready": 0.0,
+      "epilogue": 126.40653473684233,
+      "gmm1": 32972.56323699454,
+      "gmm2": 15516.500346821145,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 154,
+     "schedule_sha256": "754b179d88834b1f6ad4f87246d2ef54a9da1355bc46f06aa42caf391ba6dc34"
+    },
+    {
+     "rank": 1,
+     "total_us": 1965.2493032506657,
+     "dag_end_us": 2091.6558379875078,
+     "events": 9178,
+     "wave_count": 32,
+     "stage_busy_us": {
+      "activation": 1166.479139784935,
+      "combine": 363.61909677415827,
+      "dispatch": 3134.6012048489292,
+      "dispatch_call": 901.3760000000206,
+      "dispatch_ready": 0.0,
+      "epilogue": 126.4065347368421,
+      "gmm1": 32972.56323699454,
+      "gmm2": 15516.50034682114,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 153,
+     "schedule_sha256": "9ae0faac6a78e26ef7f0c782586964baf930b0d379ec85f04f526081afcde268"
+    },
+    {
+     "rank": 2,
+     "total_us": 1963.0404624277433,
+     "dag_end_us": 2089.4469971645854,
+     "events": 9178,
+     "wave_count": 32,
+     "stage_busy_us": {
+      "activation": 1166.479139784935,
+      "combine": 363.61909677415827,
+      "dispatch": 3155.4012048489267,
+      "dispatch_call": 901.3760000000206,
+      "dispatch_ready": 0.0,
+      "epilogue": 126.4065347368421,
+      "gmm1": 32972.56323699454,
+      "gmm2": 15516.500346821142,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 154,
+     "schedule_sha256": "201672f56ce65d81f7af0efc151753399966e27d1aa009ae1564d9157c28bd42"
+    },
+    {
+     "rank": 3,
+     "total_us": 1959.117165765427,
+     "dag_end_us": 2085.523700502269,
+     "events": 9178,
+     "wave_count": 32,
+     "stage_busy_us": {
+      "activation": 1166.479139784935,
+      "combine": 363.6190967741586,
+      "dispatch": 3077.0012048489352,
+      "dispatch_call": 901.3760000000206,
+      "dispatch_ready": 0.0,
+      "epilogue": 126.4065347368421,
+      "gmm1": 32972.56323699454,
+      "gmm2": 15516.500346821133,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 153,
+     "schedule_sha256": "5fa3b1d23d030698db8e64d0f1e38dc20fb34300747b04adaba2942d47e15a3a"
     }
    ]
   },
@@ -2433,24 +2433,24 @@
    "ranks": [
     {
      "rank": 0,
-     "total_us": 1050.0663018988291,
-     "dag_end_us": 1064.7167103198817,
+     "total_us": 1115.808492662263,
+     "dag_end_us": 1130.4589010833156,
      "events": 575,
      "wave_count": 1,
      "stage_busy_us": {
       "activation": 185.52774193548385,
-      "combine": 1926.3073007158641,
+      "combine": 1926.3073007158637,
       "dispatch_local": 23.729732484076433,
       "dispatch_ready": 0.0,
       "dispatch_recv": 1007.1881227747293,
       "epilogue": 14.650408421052589,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333331,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.226589595377,
       "mask_scan": 0.009783439490446286,
       "moe_stage_done": 0.0
      },
      "critical_path_len": 18,
-     "schedule_sha256": "6bfdd2d3871e9493259bdba3198a46dfcdb092d50671809478fd4ad3dc26d983"
+     "schedule_sha256": "31b7b7e998e77f659b199c0dedff258f31080227fac3bcee8dc26f443c682e50"
     },
     {
      "rank": 1,
@@ -2465,13 +2465,13 @@
       "dispatch_ready": 0.0,
       "dispatch_recv": 1528.5394712329776,
       "epilogue": 14.650408421052362,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.99938133333717,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.226589595372,
       "mask_scan": 0.009783439490446286,
       "moe_stage_done": 0.0
      },
      "critical_path_len": 10,
-     "schedule_sha256": "459e70271e017a9c6aaeefed2fb0e960aaaaf9b72a47e9e492aa1a7a96b582d4"
+     "schedule_sha256": "41ba7b9c853976b3d2f632e6f74da386c0722d7b72b726855e154ad0c2a0fc76"
     },
     {
      "rank": 2,
@@ -2486,13 +2486,13 @@
       "dispatch_ready": 0.0,
       "dispatch_recv": 1531.351925387523,
       "epilogue": 14.650408421052362,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.99938133333717,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.226589595372,
       "mask_scan": 0.009783439490446286,
       "moe_stage_done": 0.0
      },
      "critical_path_len": 10,
-     "schedule_sha256": "e0f9d03c6248b1f409ea869de0ce0b6cf7b81f83098c1d727df9d72368bd4690"
+     "schedule_sha256": "d61d0857d130bcd9b84b598b959cf8e061b5f8331ffc1387e1345d89331cc98f"
     },
     {
      "rank": 3,
@@ -2507,713 +2507,713 @@
       "dispatch_ready": 0.0,
       "dispatch_recv": 1542.601742005705,
       "epilogue": 14.650408421052362,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333384,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953715,
       "mask_scan": 0.009783439490446286,
       "moe_stage_done": 0.0
      },
      "critical_path_len": 10,
-     "schedule_sha256": "c6f388bf2df395464bc5e13995bdbc2c0f2256115281cb10b25c9464650961e3"
+     "schedule_sha256": "82d29290e45920519c8f35d7d484cec2306baa97f0b2f004ce5c82f0a617286c"
     }
    ]
   },
   "pipeline_neutral": {
-   "kernel_total_us": 106.74231197153517,
-   "slowest_rank": 3,
+   "kernel_total_us": 217.43267511964697,
+   "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 94.46079283881215,
-     "dag_end_us": 104.14017429690183,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225823,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 253.24209204848992,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.9993813333332,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 11,
-     "schedule_sha256": "08b7a6a9dc7178faa4562a00817613c3895c2605e78844e555658d2bd4f0221c"
+     "critical_path_len": 15,
+     "schedule_sha256": "6a08044e398c435f6130235743adba1edb49cbc3d9e36ceed370c8204d441124"
     },
     {
      "rank": 1,
-     "total_us": 99.52497398098657,
-     "dag_end_us": 114.1753824020392,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 56.336000000000006,
+      "combine": 112.38812903225734,
+      "dispatch": 312.95353523731256,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "bf945f3072b2ef6eeb68e8973e110198b6b570c25d94079a901abbdfb191b07b"
+     "critical_path_len": 15,
+     "schedule_sha256": "7c8c4dad2bdf2b204a07aa61722ede90035cfa449fd44d5beebddf82a0d62d22"
     },
     {
      "rank": 2,
-     "total_us": 99.52497398098657,
-     "dag_end_us": 114.1753824020392,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 311.56756564618865,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "af4c89aad05a65437c3612ee8c9db2bdbb719299cbd2f8abc3123d3c10e869b8"
+     "critical_path_len": 15,
+     "schedule_sha256": "f60c3d34708baadfbf573e893768a6111c9d2b444a7fb5cfba351bca31030e7c"
     },
     {
      "rank": 3,
-     "total_us": 106.74231197153517,
-     "dag_end_us": 121.3927203925878,
-     "events": 596,
+     "total_us": 217.43267511964697,
+     "dag_end_us": 232.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 126.43368728169304,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 312.8736872816931,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333332,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "c7a767da200e0eb2a9bf784ea08065f0f2cb6b123c627b412c66156e5ff0811e"
+     "critical_path_len": 15,
+     "schedule_sha256": "00d1f0e8ca39c4b96f964cf29c0b99b7d99ea7c8c5da19aa8118f03612cab9e6"
     }
    ]
   },
   "pipeline_queue_depth2": {
-   "kernel_total_us": 106.74231197153517,
-   "slowest_rank": 3,
+   "kernel_total_us": 191.93739412020633,
+   "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 94.46079283881215,
-     "dag_end_us": 104.14017429690183,
-     "events": 716,
+     "total_us": 191.93739412020633,
+     "dag_end_us": 206.58780254125895,
+     "events": 779,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225823,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225744,
+      "dispatch": 253.24209204848992,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.9993813333332,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953738,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "d6ae2b8ef251a582bb80e220036bb11cd2814907945621323227a7ce0471c054"
+     "critical_path_len": 16,
+     "schedule_sha256": "47860abffde20f2767ac21896d80e0fe3ef1a5ef790c275c0dfcac6b70e28fa1"
     },
     {
      "rank": 1,
-     "total_us": 99.52497398098657,
-     "dag_end_us": 114.1753824020392,
-     "events": 716,
+     "total_us": 191.73300702343212,
+     "dag_end_us": 206.38341544448474,
+     "events": 779,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 56.336000000000006,
+      "combine": 112.38812903225744,
+      "dispatch": 312.95353523731256,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953738,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 15,
-     "schedule_sha256": "7c62520f525d8ffe6db1d101b12a0ecd2d6807b7787b1789a7ceee33a95b5ffd"
+     "critical_path_len": 16,
+     "schedule_sha256": "6cf12701bdd6fb4d63ee8f552db09f15f8a4d500be511453ff7ec8ec8c8a7d5f"
     },
     {
      "rank": 2,
-     "total_us": 99.52497398098657,
-     "dag_end_us": 114.1753824020392,
-     "events": 716,
+     "total_us": 191.93739412020633,
+     "dag_end_us": 206.58780254125895,
+     "events": 779,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225744,
+      "dispatch": 311.56756564618865,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953738,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 15,
-     "schedule_sha256": "13f30aad3e65b8df40fcc0e8345b155efbd6d0561fed51be420aa73367ef46f1"
+     "critical_path_len": 16,
+     "schedule_sha256": "e8de9d8a7f38c276f9b7f87a02caf52c634aecb73ec37cb9e10b9562f638e77d"
     },
     {
      "rank": 3,
-     "total_us": 106.74231197153517,
-     "dag_end_us": 121.3927203925878,
-     "events": 716,
+     "total_us": 191.93739412020633,
+     "dag_end_us": 206.58780254125895,
+     "events": 779,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 126.43368728169304,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225748,
+      "dispatch": 312.8736872816931,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333332,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953738,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 15,
-     "schedule_sha256": "aaacb805331588f6ba4879f477f926e8254ff5b1ec0df9c86145068719ee3db5"
+     "critical_path_len": 16,
+     "schedule_sha256": "cd2b91cbbe0d29633db9c257efd930be42bfb3fe06c3fb91b4f729a7f64d1b65"
     }
    ]
   },
   "pipeline_split_channels": {
-   "kernel_total_us": 106.74231197153517,
-   "slowest_rank": 3,
+   "kernel_total_us": 209.85625893467588,
+   "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 94.46079283881215,
-     "dag_end_us": 104.14017429690183,
-     "events": 716,
+     "total_us": 209.85625893467588,
+     "dag_end_us": 224.5066673557285,
+     "events": 779,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225823,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225741,
+      "dispatch": 253.24209204848992,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.9993813333332,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.226589595375,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "4ce12ea3e817430faebca6d02017547bbf35a211026df11e4fc12fbfc0868be1"
+     "critical_path_len": 14,
+     "schedule_sha256": "9ad86b110127149a60d327b11283e83752fe3220c0292cd8685d76efbb936c5a"
     },
     {
      "rank": 1,
-     "total_us": 99.52497398098657,
-     "dag_end_us": 114.1753824020392,
-     "events": 716,
+     "total_us": 209.85625893467588,
+     "dag_end_us": 224.5066673557285,
+     "events": 779,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 56.336000000000006,
+      "combine": 112.38812903225741,
+      "dispatch": 312.95353523731256,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.226589595375,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 15,
-     "schedule_sha256": "b32f6bea047eeca0f24560544d2d4ed0b75aa79e9338fbc2b5bc41d3c88cb516"
+     "critical_path_len": 14,
+     "schedule_sha256": "f4d6a685e9f522b8e571190313c0aed6eaed1e35aecb708a97b723cd0f509f70"
     },
     {
      "rank": 2,
-     "total_us": 99.52497398098657,
-     "dag_end_us": 114.1753824020392,
-     "events": 716,
+     "total_us": 209.85625893467588,
+     "dag_end_us": 224.5066673557285,
+     "events": 779,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225741,
+      "dispatch": 311.56756564618865,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.226589595375,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 15,
-     "schedule_sha256": "c648e14672658bafce617f9431a5ce73dad7a003394a44dfbc852ccecf88988d"
+     "critical_path_len": 14,
+     "schedule_sha256": "fa0d797ac19e30b8e0b8e83559bd66ad49e8c15a230b78c825fc0e071c2d291f"
     },
     {
      "rank": 3,
-     "total_us": 106.74231197153517,
-     "dag_end_us": 121.3927203925878,
-     "events": 716,
+     "total_us": 209.85625893467588,
+     "dag_end_us": 224.5066673557285,
+     "events": 779,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 126.43368728169304,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225741,
+      "dispatch": 312.8736872816931,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333332,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.226589595375,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 15,
-     "schedule_sha256": "e1457ea94ccdfce192a6c07f658be52811b361e72798aec4108e0558bf6c239f"
+     "critical_path_len": 14,
+     "schedule_sha256": "d9f194dfca32678bc1c47082a56660f91fd0a2f1eabd27a39f690f143fc155f6"
     }
    ]
   },
   "pipeline_split_no_channels": {
-   "kernel_total_us": 106.74231197153517,
-   "slowest_rank": 3,
+   "kernel_total_us": 191.93739412020633,
+   "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 94.46079283881215,
-     "dag_end_us": 104.14017429690183,
-     "events": 716,
+     "total_us": 191.93739412020633,
+     "dag_end_us": 206.58780254125895,
+     "events": 779,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225823,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225744,
+      "dispatch": 253.24209204848992,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.9993813333332,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953738,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "d6ae2b8ef251a582bb80e220036bb11cd2814907945621323227a7ce0471c054"
+     "critical_path_len": 16,
+     "schedule_sha256": "47860abffde20f2767ac21896d80e0fe3ef1a5ef790c275c0dfcac6b70e28fa1"
     },
     {
      "rank": 1,
-     "total_us": 99.52497398098657,
-     "dag_end_us": 114.1753824020392,
-     "events": 716,
+     "total_us": 191.73300702343212,
+     "dag_end_us": 206.38341544448474,
+     "events": 779,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 56.336000000000006,
+      "combine": 112.38812903225744,
+      "dispatch": 312.95353523731256,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953738,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 15,
-     "schedule_sha256": "7c62520f525d8ffe6db1d101b12a0ecd2d6807b7787b1789a7ceee33a95b5ffd"
+     "critical_path_len": 16,
+     "schedule_sha256": "6cf12701bdd6fb4d63ee8f552db09f15f8a4d500be511453ff7ec8ec8c8a7d5f"
     },
     {
      "rank": 2,
-     "total_us": 99.52497398098657,
-     "dag_end_us": 114.1753824020392,
-     "events": 716,
+     "total_us": 191.93739412020633,
+     "dag_end_us": 206.58780254125895,
+     "events": 779,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225744,
+      "dispatch": 311.56756564618865,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953738,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 15,
-     "schedule_sha256": "13f30aad3e65b8df40fcc0e8345b155efbd6d0561fed51be420aa73367ef46f1"
+     "critical_path_len": 16,
+     "schedule_sha256": "e8de9d8a7f38c276f9b7f87a02caf52c634aecb73ec37cb9e10b9562f638e77d"
     },
     {
      "rank": 3,
-     "total_us": 106.74231197153517,
-     "dag_end_us": 121.3927203925878,
-     "events": 716,
+     "total_us": 191.93739412020633,
+     "dag_end_us": 206.58780254125895,
+     "events": 779,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 126.43368728169304,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225748,
+      "dispatch": 312.8736872816931,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333332,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953738,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 15,
-     "schedule_sha256": "aaacb805331588f6ba4879f477f926e8254ff5b1ec0df9c86145068719ee3db5"
+     "critical_path_len": 16,
+     "schedule_sha256": "cd2b91cbbe0d29633db9c257efd930be42bfb3fe06c3fb91b4f729a7f64d1b65"
     }
    ]
   },
   "pipeline_sync_latency": {
-   "kernel_total_us": 107.74231197153517,
-   "slowest_rank": 3,
+   "kernel_total_us": 218.43267511964697,
+   "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 95.46079283881215,
-     "dag_end_us": 105.14017429690183,
-     "events": 596,
+     "total_us": 218.43267511964697,
+     "dag_end_us": 233.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 97.80209204848983,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 253.24209204848992,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.9993813333332,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 11,
-     "schedule_sha256": "fa2e1b369b5ddb3ee8e80cf374d52ca670576002c181e9114681456be5835701"
+     "critical_path_len": 15,
+     "schedule_sha256": "dfa896f200a58a39961a1784c893881b3aac1ae1a7deae573ba0c6377fd33ddd"
     },
     {
      "rank": 1,
-     "total_us": 100.52497398098657,
-     "dag_end_us": 115.1753824020392,
-     "events": 596,
+     "total_us": 218.43267511964697,
+     "dag_end_us": 233.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.1635352373125,
-      "dispatch_call": 56.336000000000006,
+      "combine": 112.38812903225734,
+      "dispatch": 312.95353523731256,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.226589595376,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "52b7d5e4a529930ce7ecc8e1b9dc7dbb946b00307155bff262434b15566cc753"
+     "critical_path_len": 15,
+     "schedule_sha256": "1e260619941ae02b5e32088a48a442a336200cf6c37a5a99e5473785e3ad2a6d"
     },
     {
      "rank": 2,
-     "total_us": 100.52497398098657,
-     "dag_end_us": 115.1753824020392,
-     "events": 596,
+     "total_us": 218.43267511964697,
+     "dag_end_us": 233.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 127.32756564618862,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 311.56756564618865,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.483930635838,
-      "gmm2": 294.99938133333313,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265883,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "6f837a98c4a9fcec4aa077609a2dc3863ee95080df10e470cd63ff5edeccedb6"
+     "critical_path_len": 15,
+     "schedule_sha256": "5d06857cf022ba959c17aad42789950d2cb9c6c17fac0b753d6b47ac9844d3b4"
     },
     {
      "rank": 3,
-     "total_us": 107.74231197153517,
-     "dag_end_us": 122.3927203925878,
-     "events": 596,
+     "total_us": 218.43267511964697,
+     "dag_end_us": 233.0830835406996,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548402,
-      "combine": 112.38812903225822,
-      "dispatch": 126.43368728169304,
-      "dispatch_call": 56.336000000000006,
+      "activation": 185.5277419354839,
+      "combine": 112.38812903225734,
+      "dispatch": 312.8736872816931,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052632,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333332,
+      "epilogue": 14.650408421052617,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953758,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 13,
-     "schedule_sha256": "bef803fe98b63abb7daa5cd005cc96f41a4fcdbf435b289ed1b2c79213b4c9f4"
+     "critical_path_len": 15,
+     "schedule_sha256": "012ad97e0e4ec3cafde234627b83ce70f8a2decb01d885282f1defdd7af7641d"
     }
    ]
   },
   "policy_critical_path_first": {
-   "kernel_total_us": 287.19209203958536,
+   "kernel_total_us": 497.6371406709416,
    "slowest_rank": 1,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 286.1718572589194,
-     "dag_end_us": 352.9751246273404,
-     "events": 1254,
+     "total_us": 490.21890931692474,
+     "dag_end_us": 557.0221766853458,
+     "events": 1335,
      "wave_count": 3,
      "stage_busy_us": {
-      "activation": 755.1587096774201,
-      "combine": 545.4286451612843,
-      "dispatch": 406.5864532566263,
-      "dispatch_call": 84.50400000000002,
+      "activation": 755.15870967742,
+      "combine": 545.428645161292,
+      "dispatch": 615.8664532566261,
+      "dispatch_call": 84.50399999999999,
       "dispatch_ready": 0.0,
-      "epilogue": 66.80326736842102,
-      "gmm1": 2909.3438150289007,
-      "gmm2": 1431.6557653333257,
+      "epilogue": 66.80326736842107,
+      "gmm1": 8728.031445086703,
+      "gmm2": 2909.3438150288944,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 23,
-     "schedule_sha256": "a4440e6b1a1352c08abb55fcd8cdd45f976730fdfb3d1ca8c3579620096e9ca3"
+     "critical_path_len": 27,
+     "schedule_sha256": "9834e5c10a1bba99bf81d16b9e2fbdb2e00c2c2f9b1e306dddb00992364aaa74"
     },
     {
      "rank": 1,
-     "total_us": 287.19209203958536,
-     "dag_end_us": 353.9953594080064,
-     "events": 1254,
+     "total_us": 497.6371406709416,
+     "dag_end_us": 564.4404080393626,
+     "events": 1335,
      "wave_count": 3,
      "stage_busy_us": {
-      "activation": 755.1587096774201,
-      "combine": 545.4286451612854,
-      "dispatch": 406.5864532566263,
+      "activation": 755.1587096774199,
+      "combine": 545.4286451612918,
+      "dispatch": 611.2164532566262,
       "dispatch_call": 84.50400000000002,
       "dispatch_ready": 0.0,
       "epilogue": 66.80326736842102,
-      "gmm1": 2909.3438150289003,
-      "gmm2": 1431.6557653333246,
+      "gmm1": 8728.031445086703,
+      "gmm2": 2909.3438150289003,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 20,
-     "schedule_sha256": "7eb8aca6097c257c9b97c1e9507fa81c16aa4f0f0d4ff1c55c0f0e486cafcc30"
+     "critical_path_len": 31,
+     "schedule_sha256": "d65233db1ff558cbdb3b2f141f04b7d821f20783011a10386880ee607b5c4c61"
     }
    ]
   },
   "policy_priority_by_stage": {
-   "kernel_total_us": 286.4228487803261,
+   "kernel_total_us": 496.8878767017701,
    "slowest_rank": 1,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 283.3404650295287,
-     "dag_end_us": 350.1437323979497,
-     "events": 1254,
+     "total_us": 489.03919173403693,
+     "dag_end_us": 555.842459102458,
+     "events": 1335,
      "wave_count": 3,
      "stage_busy_us": {
-      "activation": 755.1587096774201,
-      "combine": 545.4286451612841,
-      "dispatch": 406.5864532566264,
-      "dispatch_call": 84.50400000000002,
+      "activation": 755.15870967742,
+      "combine": 545.428645161292,
+      "dispatch": 615.8664532566258,
+      "dispatch_call": 84.5039999999999,
       "dispatch_ready": 0.0,
       "epilogue": 66.80326736842102,
-      "gmm1": 2909.3438150289003,
-      "gmm2": 1431.6557653333257,
+      "gmm1": 8728.031445086703,
+      "gmm2": 2909.3438150288875,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 25,
-     "schedule_sha256": "ae3b8e74688040f7af529ae12e8630b48ff3b03d7d047d91ab286ecd789d28f1"
+     "critical_path_len": 30,
+     "schedule_sha256": "44ed4d35f2e99b0fe2dc4d4f8d57e4ebf29049ca8aedb6c2643c0e5da6b05254"
     },
     {
      "rank": 1,
-     "total_us": 286.4228487803261,
-     "dag_end_us": 353.2261161487471,
-     "events": 1254,
+     "total_us": 496.8878767017701,
+     "dag_end_us": 563.6659713276481,
+     "events": 1335,
      "wave_count": 3,
      "stage_busy_us": {
-      "activation": 755.1587096774201,
-      "combine": 545.4286451612852,
-      "dispatch": 406.5864532566263,
-      "dispatch_call": 84.50400000000002,
+      "activation": 755.1587096774199,
+      "combine": 545.4286451612918,
+      "dispatch": 611.2164532566264,
+      "dispatch_call": 84.50399999999982,
       "dispatch_ready": 0.0,
-      "epilogue": 66.80326736842102,
-      "gmm1": 2909.3438150289007,
-      "gmm2": 1431.655765333323,
+      "epilogue": 66.80326736842107,
+      "gmm1": 8728.031445086703,
+      "gmm2": 2909.3438150288903,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 20,
-     "schedule_sha256": "7b32505a0c08b10a496964bc03a57350e6e20f519073ed0c2fb8c7c34a008b5b"
+     "critical_path_len": 30,
+     "schedule_sha256": "dd3d4b38a575735bddbff23d7490a3776106a4e25707f5a228d9f36d40c41f66"
     }
    ]
   },
   "serialize_dispatch_comm": {
-   "kernel_total_us": 173.37034337054132,
-   "slowest_rank": 2,
+   "kernel_total_us": 398.85942010069004,
+   "slowest_rank": 3,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 143.84486977284251,
-     "dag_end_us": 158.49527819389513,
-     "events": 596,
+     "total_us": 349.0560563117658,
+     "dag_end_us": 363.70646473281846,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548396,
-      "combine": 112.3881290322579,
-      "dispatch": 97.80209204848981,
+      "activation": 185.52774193548385,
+      "combine": 112.38812903225866,
+      "dispatch": 253.2420920484899,
       "dispatch_call": 56.336000000000006,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052617,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333334,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.226589595378,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 12,
-     "schedule_sha256": "bc14f0422e3a594c3f9b8371d3a250e9df764e6759f5970820ccfd8ca489b13e"
+     "critical_path_len": 40,
+     "schedule_sha256": "d758e1abd5d1099269936c25a7a4eccabfa1b92d5b78a6a0f071d4752c65156f"
     },
     {
      "rank": 1,
-     "total_us": 173.20631296166522,
-     "dag_end_us": 187.85672138271784,
-     "events": 596,
+     "total_us": 398.7374846168191,
+     "dag_end_us": 413.3878930378717,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548396,
-      "combine": 112.38812903225785,
-      "dispatch": 127.16353523731252,
+      "activation": 185.52774193548385,
+      "combine": 112.38812903225866,
+      "dispatch": 312.9535352373125,
       "dispatch_call": 56.336000000000006,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052617,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333334,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953788,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 12,
-     "schedule_sha256": "922abb775d87e43cf2f57da641522a5d7a0adaef4ef922c4de9258a282165328"
+     "critical_path_len": 63,
+     "schedule_sha256": "5e6414526df93d30f087306d96806ddc66030452b8f143bce1c433d6aa7372a2"
     },
     {
      "rank": 2,
-     "total_us": 173.37034337054132,
-     "dag_end_us": 188.02075179159394,
-     "events": 596,
+     "total_us": 395.6118717135933,
+     "dag_end_us": 410.26228013464595,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 185.52774193548396,
-      "combine": 112.38812903225785,
-      "dispatch": 127.32756564618862,
+      "activation": 185.52774193548385,
+      "combine": 112.38812903225866,
+      "dispatch": 311.56756564618854,
       "dispatch_call": 56.336000000000006,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052617,
-      "gmm1": 599.4839306358381,
-      "gmm2": 294.9993813333334,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.226589595378,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 12,
-     "schedule_sha256": "d21b83ec3787767bd34fbd793c4e2499a24889070c9f1b01cb7500b280018824"
+     "critical_path_len": 62,
+     "schedule_sha256": "3a6325264ae17bce471282a2809f8473aa856c4e417c00241655ae1c81f20fbe"
     },
     {
      "rank": 3,
-     "total_us": 168.92077073852982,
-     "dag_end_us": 183.57117915958244,
-     "events": 596,
+     "total_us": 398.85942010069004,
+     "dag_end_us": 413.5098285217427,
+     "events": 659,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 185.52774193548396,
-      "combine": 112.38812903225798,
-      "dispatch": 126.43368728169303,
+      "combine": 112.38812903225832,
+      "dispatch": 312.8736872816929,
       "dispatch_call": 56.336000000000006,
       "dispatch_ready": 0.0,
-      "epilogue": 14.650408421052617,
-      "gmm1": 599.4839306358383,
-      "gmm2": 294.9993813333333,
+      "epilogue": 14.650408421052646,
+      "gmm1": 3023.9371098265888,
+      "gmm2": 1212.2265895953794,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 11,
-     "schedule_sha256": "e880ec64e01f07851a42d6591a292e90f0020f26f63877bbf539183a4c53084b"
+     "critical_path_len": 63,
+     "schedule_sha256": "b746684839bef774110ba19d35174ac4740bc08cb098d107e2617bb074309dcd"
     }
    ]
   },
   "stealing_gmm1": {
-   "kernel_total_us": 198.1463069085212,
+   "kernel_total_us": 455.83521611038606,
    "slowest_rank": 1,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 193.79665831592862,
-     "dag_end_us": 230.79829200013913,
-     "events": 866,
+     "total_us": 448.96918419476395,
+     "dag_end_us": 485.97081787897446,
+     "events": 920,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 503.4391397849467,
-      "combine": 363.6190967741908,
-      "dispatch": 271.05763550441753,
-      "dispatch_call": 56.336000000000006,
+      "activation": 503.43913978494663,
+      "combine": 363.61909677419465,
+      "dispatch": 410.57763550441734,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
       "epilogue": 37.0016336842105,
-      "gmm1": 1939.5625433526004,
-      "gmm2": 954.437176888885,
+      "gmm1": 5818.6876300578015,
+      "gmm2": 1939.5625433526118,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 18,
-     "schedule_sha256": "22bb4da127671173db0e51d272d09ec72332cb1e04540cd46fa8ae39f5a4334d"
+     "critical_path_len": 23,
+     "schedule_sha256": "aa769ebb9cc9e9a56abadeeacbf098d277acf4e32508ee412fef9c5a273b6d68"
     },
     {
      "rank": 1,
-     "total_us": 198.1463069085212,
-     "dag_end_us": 235.14794059273171,
-     "events": 866,
+     "total_us": 455.83521611038606,
+     "dag_end_us": 492.83684979459656,
+     "events": 920,
      "wave_count": 2,
      "stage_busy_us": {
-      "activation": 503.4391397849467,
-      "combine": 363.61909677419044,
-      "dispatch": 271.05763550441753,
-      "dispatch_call": 56.336000000000006,
+      "activation": 503.4391397849465,
+      "combine": 363.6190967741944,
+      "dispatch": 407.47763550441744,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
       "epilogue": 37.0016336842105,
-      "gmm1": 1939.5625433526004,
-      "gmm2": 954.4371768888839,
+      "gmm1": 5818.6876300578015,
+      "gmm2": 1939.5625433526122,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 7,
-     "schedule_sha256": "0b0352ef7febb72c1631de3552c1275882e255e24502bcb0f1986dca5258a946"
+     "critical_path_len": 23,
+     "schedule_sha256": "74816751664934f7d26ad1b597fa43b824108551f07f4a4352ae6fa48ffc75d9"
     }
    ]
   },
   "stealing_pipeline": {
-   "kernel_total_us": 201.53694957690058,
-   "slowest_rank": 1,
+   "kernel_total_us": 345.4984732425882,
+   "slowest_rank": 0,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 192.8376523917154,
-     "dag_end_us": 229.8392860759259,
-     "events": 1058,
-     "wave_count": 2,
-     "stage_busy_us": {
-      "activation": 503.4391397849467,
-      "combine": 363.6190967741908,
-      "dispatch": 271.05763550441753,
-      "dispatch_call": 56.336000000000006,
-      "dispatch_ready": 0.0,
-      "epilogue": 37.0016336842105,
-      "gmm1": 1939.5625433526004,
-      "gmm2": 954.437176888885,
-      "moe_stage_done": 0.0
-     },
-     "critical_path_len": 24,
-     "schedule_sha256": "d78c4051cf93f67257799298369515dc1bf7b6cd694753e677c22b24a1a0489c"
-    },
-    {
-     "rank": 1,
-     "total_us": 201.53694957690058,
-     "dag_end_us": 238.53858326111109,
-     "events": 1058,
+     "total_us": 345.4984732425882,
+     "dag_end_us": 382.5001069267987,
+     "events": 1112,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 503.43913978494663,
-      "combine": 363.61909677419044,
-      "dispatch": 271.05763550441753,
-      "dispatch_call": 56.336000000000006,
+      "combine": 363.61909677419465,
+      "dispatch": 410.57763550441734,
+      "dispatch_call": 56.33600000000001,
       "dispatch_ready": 0.0,
       "epilogue": 37.0016336842105,
-      "gmm1": 1939.5625433526004,
-      "gmm2": 954.4371768888839,
+      "gmm1": 5818.6876300578015,
+      "gmm2": 1939.5625433526122,
       "moe_stage_done": 0.0
      },
-     "critical_path_len": 8,
-     "schedule_sha256": "487942391ae026a5ba76ebde84ad4571281f80ccc5bda64f9de319349255e21f"
+     "critical_path_len": 20,
+     "schedule_sha256": "dfc739301eeeaad8656bad65cae3b3e46a6f94a8767d976b4725f3d2ed31a624"
+    },
+    {
+     "rank": 1,
+     "total_us": 345.4984732425882,
+     "dag_end_us": 382.5001069267987,
+     "events": 1112,
+     "wave_count": 2,
+     "stage_busy_us": {
+      "activation": 503.4391397849465,
+      "combine": 363.6190967741944,
+      "dispatch": 407.47763550441744,
+      "dispatch_call": 56.33600000000001,
+      "dispatch_ready": 0.0,
+      "epilogue": 37.0016336842105,
+      "gmm1": 5818.6876300578015,
+      "gmm2": 1939.562543352611,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 20,
+     "schedule_sha256": "3e01127b399a74124e80b0756f9c8dd0d041365d9503d3a527d319ccc961ff6c"
     }
    ]
   }

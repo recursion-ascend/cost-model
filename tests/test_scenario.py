@@ -228,32 +228,41 @@ def test_bad_override_is_rejected(overrides, fragment):
 # Cube 速率必填
 # ---------------------------------------------------------------------------
 
-def test_cube_rate_is_required():
+def test_cube_rate_is_optional():
+    """cube_mac_per_us 缺省 0 = 不计计算项; 实测域内两个 GMM 都是权重载入绑定."""
     sc = m.Scenario(workload=m.Workload(tokens=64, world=4, local_experts=8))
-    with pytest.raises(ValueError, match="cube_mac_per_us"):
-        m.simulate(sc)
-    with pytest.raises(TypeError):
-        m.AnalyticalGmmCosts()
-    with pytest.raises(TypeError):
-        m.build_analytical_costs(h=6144, dispatch_mechanistic=m.DispatchMechanisticLatency())
-    with pytest.raises(ValueError, match="cube_mac_per_us"):
-        m.AnalyticalGmmCosts(cube_mac_per_us=0.0)
+    assert m.simulate(sc)["kernel_total_us"] > 0
+    g = m.AnalyticalGmmCosts()
+    assert g.gmm1_phases(256, 6144, 256)[1] == 0.0     # 不给速率 = 计算项为 0
+    assert m.build_analytical_costs(
+        h=6144, dispatch_mechanistic=m.DispatchMechanisticLatency()) is not None
 
 
 def test_gmm_tile_formulas():
-    """GMM1 = max(A流, 计算), 单缓冲 = 相加 + restart; GMM2 恒为纯计算; B 流不计."""
+    """GMM1 = max(A流+B流, 计算); GMM2 = max(B流, 计算); 单缓冲 = 相加 + restart.
+
+    B 流是小 batch 下的主导项 —— 见 20260930 实测 (bs=36): GMM1 单 tile 55.0 µs,
+    A 流只有 7.1, A流+B流 57.6。
+    """
     bw, rate = 50000.0, 1.0e7
     g = m.AnalyticalGmmCosts(bw_bytes_per_us=bw, cube_mac_per_us=rate)
-    m_rows, k, cols = 256, 6144, 256
+    m_rows, k, cols, k2 = 256, 6144, 256, 2048
     a_flow = m_rows * k / bw
+    b_flow1 = 2 * k * cols / bw
+    b_flow2 = k2 * cols / bw
     compute1 = 2.0 * m_rows * cols * k / rate
-    assert g.gmm1_tile(m_rows, k, cols) == max(a_flow, compute1)
-    assert g.gmm2_tile(m_rows, 2048, cols) == m_rows * cols * 2048 / rate
-    # 计算快到让 A 流绑定
+    compute2 = m_rows * cols * k2 / rate
+    assert g.gmm1_tile(m_rows, k, cols) == max(a_flow + b_flow1, compute1)
+    assert g.gmm2_tile(m_rows, k2, cols) == max(b_flow2, compute2)
+    assert g.gmm1_phases(m_rows, k, cols) == (a_flow + b_flow1, compute1)
+    assert g.gmm2_phases(m_rows, k2, cols) == (b_flow2, compute2)
+    # B 复用: 非首组的 tile 不付 B 流
+    assert g.gmm1_tile(m_rows, k, cols, False) == max(a_flow, compute1)
+    # 计算快到让载入绑定
     fast = m.AnalyticalGmmCosts(bw_bytes_per_us=bw, cube_mac_per_us=1.0e12)
-    assert fast.gmm1_tile(m_rows, k, cols) == a_flow
+    assert fast.gmm1_tile(m_rows, k, cols) == a_flow + b_flow1
+    assert fast.gmm2_tile(m_rows, k2, cols) == b_flow2
     serial = m.AnalyticalGmmCosts(bw_bytes_per_us=bw, cube_mac_per_us=rate,
                                   l1_buf_num=1, tile_restart_us=0.5, l1_tile_k=256)
-    assert serial.gmm1_tile(m_rows, k, cols) == a_flow + compute1 + 24 * 0.5
-    # GMM2 与 L1 缓冲数无关, 单缓冲下也没有 restart
-    assert serial.gmm2_tile(m_rows, 2048, cols) == g.gmm2_tile(m_rows, 2048, cols)
+    assert serial.gmm1_tile(m_rows, k, cols) == a_flow + b_flow1 + compute1 + 24 * 0.5
+    assert serial.gmm2_tile(m_rows, k2, cols) == b_flow2 + compute2 + 8 * 0.5

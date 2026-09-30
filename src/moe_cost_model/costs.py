@@ -192,33 +192,38 @@ class AnalyticalGmmCosts:
     """GMM1/GMM2 的物理公式工厂.
 
     GMM1 每 tile:
-        A 流 = m·K 字节 (FP8 激活, GM→L1)
-        计算 = 2·m·cols·K MACs (SwiGLU 双投影)
-        b=2: T = max(A流/BW, 计算/R_cube)        载入与计算重叠, 慢侧绑定
-        b=1: T = A流/BW + 计算/R_cube + restart   串行相加
+        载入 = A 流 m·K (FP8 激活) + B 流 2·K·cols (SwiGLU gate/up 两块权重)
+        计算 = 2·m·cols·K MACs
+        b=2: T = max(载入/BW, 计算/R_cube)     载入与计算重叠, 慢侧绑定
+        b=1: T = 载入/BW + 计算/R + restart     串行相加
 
     GMM2 每 tile:
+        载入 = K2·cols (B 权重 GM→L1; A 已在片上, 不计 GM 流量)
         计算 = m·cols·K2 MACs
-        T = 计算/R_cube                          与 L1 缓冲数无关, 无 restart
-        A 从 UB 直达 L0A, 片上带宽约 500 GB/s 且每核独占, 搬运时间忽略不计,
-        所以 GMM2 只剩计算. restart 是 L1 换块的停顿, A 不经 L1 就没有这一项.
+        b=2: T = max(载入/BW, 计算/R_cube)
+        b=1: T = 载入/BW + 计算/R + restart
 
-    B 流 (权重搬运) 两个 stage 都不建模: 认为被其他任务的执行掩盖.
-    cube_mac_per_us 必填, 无缺省: 计算项是两个公式的主体, 而 Cube 速率没有
-    标定常数, 给缺省值等于替调用方编一个数.
+    **B 流是小 batch 下的主导项**: bs=36 实测 (20260930 run) 每 tile
+    GMM1 56.9 µs / GMM2 23.9 µs, 与 B 流载入时间 (50.5 / 22.7) 同量级;
+    反解 Cube 速率只有 3.3e6 MAC/µs, 远低于硬件能力 —— 说明两个 stage 都是
+    权重载入绑定, 不是计算绑定。每个专家只有 72 行而一个 tile 的权重是
+    256 列 × K, 权重流量是激活的 7 倍, 没有东西可以掩盖它。
+
+    cube_mac_per_us = 0 时不计计算项 (实测域内计算远小于载入; 大 m 时应给出).
     """
 
-    def __init__(self, bw_bytes_per_us: float = BW_L1_GM, *,
-                 cube_mac_per_us: float,
-                 l1_buf_num: int = 2,
+    def __init__(self, bw_bytes_per_us: float = BW_L1_GM,
+                 weight_nz: bool = False, bw_b_nz_bytes_per_us: float = 0.0,
+                 l1_buf_num: int = 2, cube_mac_per_us: float = 0.0,
                  tile_restart_us: float = 0.0, l1_tile_k: int = 256):
-        if not cube_mac_per_us or cube_mac_per_us <= 0:
+        if weight_nz and bw_b_nz_bytes_per_us <= 0:
             raise ValueError(
-                "cube_mac_per_us 必须为正 (Cube 计算速率, MAC/µs): "
-                "GMM1 = max(A流, 计算), GMM2 = 纯计算, 无此速率无法计时")
+                "weight_nz=True 需要 bw_b_nz_bytes_per_us (NZ 路径 GM→L1 实测带宽)")
         if l1_tile_k <= 0:
             raise ValueError("l1_tile_k must be positive")
         self.bw = bw_bytes_per_us
+        self.weight_nz = bool(weight_nz)
+        self.bw_b = bw_b_nz_bytes_per_us if weight_nz else bw_bytes_per_us
         self.serial = (l1_buf_num == 1)
         self.cube_rate = cube_mac_per_us
         self.chunk_restart = tile_restart_us
@@ -227,36 +232,62 @@ class AnalyticalGmmCosts:
     def _chunks(self, k: int) -> int:
         return -(-k // self._k_l1)
 
-    def gmm1_phases(self, m: int, k: int, cols: int) -> Tuple[float, float]:
-        """GMM1 tile 的 (载入, 计算) 时长. 载入 = A 流, 单缓冲时含 restart.
+    def gmm1_phases(self, m: int, k: int, cols: int,
+                    b_load: bool = True) -> Tuple[float, float]:
+        """GMM1 tile 的 (载入, 计算) 时长; 单缓冲时载入含 restart.
 
         闭式时长由二者合成 (双缓冲取 max, 单缓冲相加); 相位流水按同一组数
         拆 load / cube 相位, 两边口径因此一致.
         """
         load = (m * k) / self.bw
+        if b_load:
+            load += (2 * k * cols) / self.bw_b
         if self.serial:
             load += self._chunks(k) * self.chunk_restart
-        return load, 2.0 * m * cols * k / self.cube_rate
+        compute = (2.0 * m * cols * k / self.cube_rate) if self.cube_rate > 0 else 0.0
+        return load, compute
 
-    def gmm1_tile(self, m: int, k: int, cols: int) -> float:
-        """m 行 × cols 列输出 tile: A 流载入与 SwiGLU 双投影计算."""
-        load, compute = self.gmm1_phases(m, k, cols)
+    def gmm1_tile(self, m: int, k: int, cols: int, b_load: bool = True) -> float:
+        """m 行 × cols 列输出 tile.
+
+        b_load: 是否计 B 流 (权重) 的 GM→L1 字节. B 复用模式下切片内只有首个
+        m-group 的 tile 付自己列块的 B, 后续 m-group 假设命中 L2。
+        """
+        load, compute = self.gmm1_phases(m, k, cols, b_load)
         return load + compute if self.serial else max(load, compute)
 
+    def gmm2_phases(self, m: int, k2: int, cols: int) -> Tuple[float, float]:
+        """GMM2 tile 的 (载入, 计算) 时长: 载入 = B 权重流, A 已在片上."""
+        load = k2 * cols / self.bw_b
+        if self.serial:
+            load += self._chunks(k2) * self.chunk_restart
+        compute = (m * cols * k2 / self.cube_rate) if self.cube_rate > 0 else 0.0
+        return load, compute
+
     def gmm2_tile(self, m: int, k2: int, cols: int) -> float:
-        """GMM2: A 从 UB 直达 L0A 不计时, 时长 = 计算; 计算量 = m·cols·K2."""
-        return m * cols * k2 / self.cube_rate
+        """GMM2: B 权重流主导载入; A 已在片上; 计算量 = m·cols·K2."""
+        load, compute = self.gmm2_phases(m, k2, cols)
+        return load + compute if self.serial else max(load, compute)
 
 
 # PrimitiveCosts 
 
 
-def gmm1_phase_split(costs: PrimitiveCosts, m: int, k: int,
-                     cols: int) -> Optional[Tuple[float, float]]:
+def gmm1_phase_split(costs: PrimitiveCosts, m: int, k: int, cols: int,
+                     b_load: bool = True) -> Optional[Tuple[float, float]]:
     """costs.gmm1_tile 的 (载入, 计算) 分解; 自定义 callable 无法分解, 返回 None."""
     owner = getattr(costs.gmm1_tile, "__self__", None)
     if isinstance(owner, AnalyticalGmmCosts):
-        return owner.gmm1_phases(m, k, cols)
+        return owner.gmm1_phases(m, k, cols, b_load)
+    return None
+
+
+def gmm2_phase_split(costs: PrimitiveCosts, m: int, k2: int,
+                     cols: int) -> Optional[Tuple[float, float]]:
+    """costs.gmm2_tile 的 (载入, 计算) 分解; 自定义 callable 返回 None."""
+    owner = getattr(costs.gmm2_tile, "__self__", None)
+    if isinstance(owner, AnalyticalGmmCosts):
+        return owner.gmm2_phases(m, k2, cols)
     return None
 
 
@@ -345,10 +376,11 @@ def build_analytical_costs(
     *,
     h: int,
     dispatch_mechanistic: DispatchMechanisticLatency,
-    cube_mac_per_us: float,
     urma_mechanistic: Optional[UrmaMechanisticLatency] = None,
     kernel: KernelConfig = None,
     bw_l1_gm: Optional[float] = None,
+    bw_l1_gm_b_nz: float = 0.0,
+    cube_mac_per_us: float = 0.0,
     gmm1_fill_us: float = 0.0,
     gmm1_tile_restart_us: float = 0.0,
     bw_ub: Optional[float] = None,
@@ -363,13 +395,16 @@ def build_analytical_costs(
     几何量 (tile_m/tile_n/每窗列数) 属于 KernelConfig, 调用期由模型传入公式,
     容器只承载硬件常数与 L1 组织参数 — 结构上消除 tile_n/h 双份来源的漏配.
 
-    带宽缺省 = constants 实测值; cube_mac_per_us (Cube 计算速率) 必填, 无缺省.
+    带宽缺省 = constants 实测值; NZ 布局必须显式给 bw_l1_gm_b_nz (零猜测).
+    cube_mac_per_us 缺省 0 = 不计计算项 (实测域内两个 GMM 都是权重载入绑定).
     """
     # 几何量 (tile_n/列数) 不进容器: 调用方按 KernelConfig 调用期传入.
-    # 容器只承载硬件常数; kernel 参数中仅 L1 组织 (l1_buf_num/l1_tile_k) 影响公式形态.
+    # 容器只承载硬件常数; kernel 参数中仅 L1 组织 (l1_buf_num/l1_tile_k/weight_nz) 影响公式形态.
     km = kernel if kernel is not None else KernelConfig()
     gmm = AnalyticalGmmCosts(
         bw_bytes_per_us=bw_l1_gm if bw_l1_gm is not None else BW_L1_GM,
+        weight_nz=km.weight_nz,
+        bw_b_nz_bytes_per_us=bw_l1_gm_b_nz,
         l1_buf_num=km.l1_buf_num,
         cube_mac_per_us=cube_mac_per_us,
         tile_restart_us=gmm1_tile_restart_us,
