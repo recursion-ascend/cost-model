@@ -173,8 +173,6 @@ tr.is-tail td { color: var(--ink-2); }
 .facts li span:first-child { color: var(--ink-2); }
 .facts li span:last-child { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
 
-.notes { display: flex; flex-direction: column; gap: 8px; color: var(--ink-2); padding-left: 18px; margin: 0; max-width: 78ch; }
-.notes strong { color: var(--ink); }
 </style>
 </head>
 <body>
@@ -301,15 +299,6 @@ tr.is-tail td { color: var(--ink-2); }
     </div>
   </section>
 
-  <section class="panel" aria-labelledby="h-note">
-    <h2 id="h-note">读这组数之前</h2>
-    <ul class="notes">
-      <li><strong>Cube 速率是占位值。</strong>仓库里没有标定过的 Cube 计算速率，三档都没有实测依据，所以给的是一组而不是一个数。</li>
-      <li><strong>交点在约 2.66e7。</strong>每个 GMM1 tile 是 144 行，A 流载入固定 14.206 µs。Cube 速率低于交点时 GMM1 由计算决定，高于交点时由 A 流决定，再快也不会缩短。</li>
-      <li><strong>属于外推。</strong>传输常数在 4 卡、h = 6144 上标定，8 卡和 h = 5120 都超出了标定范围。载入带宽也是旧算法下的标定值。</li>
-      <li><strong>适合看什么。</strong>各 stage 的先后关系、瓶颈落在哪里、方案之间的相对差。绝对时长要等实测标定之后才可信。</li>
-    </ul>
-  </section>
 </div>
 <div class="tip" id="tip" hidden></div>
 
