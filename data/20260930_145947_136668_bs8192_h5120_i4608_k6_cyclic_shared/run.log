@@ -1,0 +1,337 @@
+
+$ cmake -S /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile -B /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build -DPROFILE_CONFIG=/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/config.json5 -DPROFILE_PYTHON=/mnt/s00951640/envs/wcf_py310/bin/python -DPython3_EXECUTABLE=/mnt/s00951640/envs/wcf_py310/bin/python -DSOC_VERSION=ascend950pr_957c -DCMAKE_BUILD_TYPE=Release
+-- The C compiler identification is GNU 11.5.0
+-- The CXX compiler identification is GNU 11.5.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/gcc-11 - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/g++-11 - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found Python3: /mnt/s00951640/envs/wcf_py310/bin/python (found version "3.10.20") found components: Interpreter
+-- Configuring done (4.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build
+
+$ cmake --build /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build -j 2
+[  2%] Building CXX object CMakeFiles/megamoe_host.dir/host.cpp.o
+[  4%] Creating directories for 'megamoe_kernel_precompile'
+[  6%] No download step for 'megamoe_kernel_precompile'
+[  9%] No update step for 'megamoe_kernel_precompile'
+[ 11%] No patch step for 'megamoe_kernel_precompile'
+[ 13%] Performing configure step for 'megamoe_kernel_precompile'
+[ 15%] Linking CXX shared library libmegamoe_host.so
+[ 15%] Built target megamoe_host
+-- The C compiler identification is GNU 11.5.0
+-- The CXX compiler identification is GNU 11.5.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/gcc-11 - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/g++-11 - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Configuring done (2.5s)
+-- Generating done (0.0s)
+CMake Warning (unused-cli):
+  Manually-specified variables were not used by the project:
+
+    DYNAMIC_MODE
+    INCLUDE_DIR
+
+
+-- Build files have been written to: /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_precompile-prefix/src/megamoe_kernel_precompile-build
+[ 18%] Performing build step for 'megamoe_kernel_precompile'
+[100%] Building CXX object CMakeFiles/precompile_obj.dir/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/kernel.cpp.o
+[100%] Built target precompile_obj
+[100%] Built target check_src_template
+[ 20%] No install step for 'megamoe_kernel_precompile'
+[ 22%] Completed 'megamoe_kernel_precompile'
+[ 22%] Built target megamoe_kernel_precompile
+[ 25%] Creating directories for 'megamoe_kernel_preprocess'
+[ 27%] No download step for 'megamoe_kernel_preprocess'
+[ 29%] No update step for 'megamoe_kernel_preprocess'
+[ 31%] No patch step for 'megamoe_kernel_preprocess'
+[ 34%] Performing configure step for 'megamoe_kernel_preprocess'
+-- The C compiler identification is GNU 11.5.0
+-- The CXX compiler identification is GNU 11.5.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/gcc-11 - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/g++-11 - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Configuring done (8.7s)
+-- Generating done (0.0s)
+-- Build files have been written to: /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_preprocess-prefix/src/megamoe_kernel_preprocess-build
+[ 36%] Performing build step for 'megamoe_kernel_preprocess'
+[ 66%] Building CXX object CMakeFiles/preprocess_obj.dir/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/kernel.cpp.o
+[ 66%] Building CXX object CMakeFiles/aiv_obj.dir/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/kernel.cpp.o
+[ 66%] Built target preprocess_obj
+[100%] Building CXX object CMakeFiles/aic_obj.dir/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/kernel.cpp.o
+[100%] Built target aiv_obj
+/usr/local/Ascend/cann-9.1.0/x86_64-linux/ccec_compiler/bin/ld.lld -m aicorelinux -Ttext=0 /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_preprocess-prefix/src/megamoe_kernel_preprocess-build/CMakeFiles/aiv_obj.dir/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/kernel.cpp.o -o /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_preprocess-prefix/src/megamoe_kernel_preprocess-build/CMakeFiles/aiv_obj.dir/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/kernel.cpp.o[100%] Built target merge_aiv_obj_text
+[100%] Built target aic_obj
+/usr/local/Ascend/cann-9.1.0/x86_64-linux/ccec_compiler/bin/ld.lld -m aicorelinux -Ttext=0 /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_preprocess-prefix/src/megamoe_kernel_preprocess-build/CMakeFiles/aic_obj.dir/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/kernel.cpp.o -o /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_preprocess-prefix/src/megamoe_kernel_preprocess-build/CMakeFiles/aic_obj.dir/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/kernel.cpp.o[100%] Built target merge_aic_obj_text
+[100%] Built target _host_cpp
+[ 38%] No install step for 'megamoe_kernel_preprocess'
+[ 40%] Completed 'megamoe_kernel_preprocess'
+[ 40%] Built target megamoe_kernel_preprocess
+[ 43%] Creating directories for 'megamoe_kernel_aic_device'
+[ 45%] Creating directories for 'megamoe_kernel_aiv_device'
+[ 47%] No download step for 'megamoe_kernel_aic_device'
+[ 50%] No download step for 'megamoe_kernel_aiv_device'
+[ 52%] No update step for 'megamoe_kernel_aic_device'
+[ 54%] No update step for 'megamoe_kernel_aiv_device'
+[ 56%] No patch step for 'megamoe_kernel_aic_device'
+[ 59%] No patch step for 'megamoe_kernel_aiv_device'
+[ 61%] Performing configure step for 'megamoe_kernel_aic_device'
+[ 63%] Performing configure step for 'megamoe_kernel_aiv_device'
+-- The C compiler identification is GNU 11.5.0
+-- The C compiler identification is GNU 11.5.0
+-- The CXX compiler identification is GNU 11.5.0
+-- The CXX compiler identification is GNU 11.5.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/gcc-11 - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Check for working C compiler: /usr/bin/gcc-11 - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/g++-11 - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/g++-11 - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Configuring done (1.8s)
+-- Generating done (0.0s)
+-- Build files have been written to: /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_aiv_device-prefix/src/megamoe_kernel_aiv_device-build
+[ 65%] Performing build step for 'megamoe_kernel_aiv_device'
+-- Configuring done (1.9s)
+-- Generating done (0.0s)
+-- Build files have been written to: /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_aic_device-prefix/src/megamoe_kernel_aic_device-build
+[100%] Building CXX object CMakeFiles/device_obj.dir/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/auto_gen/megamoe_kernel/auto_gen_kernel.cpp.o
+[ 68%] Performing build step for 'megamoe_kernel_aic_device'
+[100%] Building CXX object CMakeFiles/device_obj.dir/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/auto_gen/megamoe_kernel/auto_gen_kernel.cpp.o
+[100%] Built target device_obj
+/usr/local/Ascend/cann-9.1.0/x86_64-linux/ccec_compiler/bin/ld.lld  -m aicorelinux -r  -Ttext=0 /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_aiv_device-prefix/src/megamoe_kernel_aiv_device-build/CMakeFiles/device_obj.dir/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/auto_gen/megamoe_kernel/auto_gen_kernel.cpp.o -static -o /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_aiv_device_dir/device.o
+[100%] Built target merge_device_obj
+[ 70%] No install step for 'megamoe_kernel_aiv_device'
+[ 72%] Completed 'megamoe_kernel_aiv_device'
+[ 72%] Built target megamoe_kernel_aiv_device
+[ 75%] Creating directories for 'megamoe_kernel_host'
+[ 77%] No download step for 'megamoe_kernel_host'
+[ 79%] No update step for 'megamoe_kernel_host'
+[ 81%] No patch step for 'megamoe_kernel_host'
+[ 84%] Performing configure step for 'megamoe_kernel_host'
+-- The C compiler identification is GNU 11.5.0
+-- The CXX compiler identification is GNU 11.5.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/gcc-11 - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/g++-11 - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+[100%] Built target device_obj
+-- Configuring done (2.4s)
+-- Generating done (0.0s)
+CMake Warning (unused-cli):
+  Manually-specified variables were not used by the project:
+
+    ASCEND_PYTHON_EXECUTABLE
+
+
+-- Build files have been written to: /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_host-prefix/src/megamoe_kernel_host-build
+/usr/local/Ascend/cann-9.1.0/x86_64-linux/ccec_compiler/bin/ld.lld  -m aicorelinux -r  -Ttext=0 /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_aic_device-prefix/src/megamoe_kernel_aic_device-build/CMakeFiles/device_obj.dir/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/auto_gen/megamoe_kernel/auto_gen_kernel.cpp.o -static -o /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_aic_device_dir/device.o
+[100%] Built target merge_device_obj
+[ 86%] No install step for 'megamoe_kernel_aic_device'
+[ 88%] Completed 'megamoe_kernel_aic_device'
+[ 90%] Performing build step for 'megamoe_kernel_host'
+[ 90%] Built target megamoe_kernel_aic_device
+/usr/local/Ascend/cann-9.1.0/x86_64-linux/ccec_compiler/bin/ld.lld -x -m aicorelinux   -Ttext=0 /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_aic_device_dir/device.o /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_aiv_device_dir/device.o -static -o /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_merge_obj_dir/device.o
+[100%] Building CXX object CMakeFiles/host_bisheng_obj.dir/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/kernel.cpp.o
+[ 90%] Built target megamoe_kernel_merge_obj
+[ 93%] Building CXX object CMakeFiles/megamoe_kernel_host_stub_obj.dir/auto_gen/megamoe_kernel/host_stub.cpp.o
+[ 93%] Built target megamoe_kernel_host_stub_obj
+[100%] Built target host_bisheng_obj
+[ 95%] Performing install step for 'megamoe_kernel_host'
+[100%] Built target host_bisheng_obj
+Install the project...
+-- Install configuration: "Release"
+-- Installing: /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_host_dir/./objects-Release/host_bisheng_obj/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/kernel.cpp.o
+[ 97%] Completed 'megamoe_kernel_host'
+[ 97%] Built target megamoe_kernel_host
+[100%] Linking CXX shared library lib/libmegamoe_kernel.so
+/usr/local/Ascend/cann-9.1.0/bin/ascendc_pack_kernel /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/CMakeFiles/megamoe_kernel_host_stub_obj.dir/auto_gen/megamoe_kernel/host_stub.cpp.o /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_merge_obj_dir/device.o 0 /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/CMakeFiles/megamoe_kernel_host_stub_obj.dir/auto_gen/megamoe_kernel/host_stub.cpp.o
+recompile: /usr/bin/g++-11 -fPIC -O3 -DNDEBUG -shared -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack -s -Wl,-soname,libmegamoe_kernel.so -o lib/libmegamoe_kernel.so CMakeFiles/megamoe_kernel_host_stub_obj.dir/auto_gen/megamoe_kernel/host_stub.cpp.o /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/megamoe_kernel_host_dir/objects-Release/host_bisheng_obj/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/kernel.cpp.o    -L/usr/local/Ascend/cann-9.1.0/lib64  -L/usr/local/Ascend/cann-9.1.0/tools/simulator/ascend950pr_957c/lib  /usr/local/Ascend/cann-9.1.0/lib64/libascendc_runtime.a -lascend_dump -lc_sec
+[100%] Built target megamoe_kernel
+
+$ /mnt/s00951640/envs/wcf_py310/bin/python -m torch.distributed.run --standalone --nproc_per_node=4 /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/scripts/run_case.py
+/mnt/s00951640/envs/wcf_py310/lib/python3.10/runpy.py:126: RuntimeWarning: 'torch.distributed.run' found in sys.modules after import of package 'torch.distributed', but prior to execution of 'torch.distributed.run'; this may result in unpredictable behaviour
+  warn(RuntimeWarning(msg))
+Using /root/.cache/torch_extensions/py310_cpu as PyTorch extensions root...
+Using /root/.cache/torch_extensions/py310_cpu as PyTorch extensions root...
+Using /root/.cache/torch_extensions/py310_cpu as PyTorch extensions root...
+Emitting ninja build file /root/.cache/torch_extensions/py310_cpu/quant_flash_attn/build.ninja...
+Using /root/.cache/torch_extensions/py310_cpu as PyTorch extensions root...
+Building extension module quant_flash_attn...
+Using envvar MAX_JOBS (2) as the number of workers...
+ninja: no work to do.
+Loading extension module quant_flash_attn...
+Loading extension module quant_flash_attn...
+Loading extension module quant_flash_attn...
+Using /root/.cache/torch_extensions/py310_cpu as PyTorch extensions root...
+Loading extension module quant_flash_attn...
+Emitting ninja build file /root/.cache/torch_extensions/py310_cpu/moe_finalize_routing/build.ninja...
+Building extension module moe_finalize_routing...
+Using envvar MAX_JOBS (2) as the number of workers...
+Using /root/.cache/torch_extensions/py310_cpu as PyTorch extensions root...
+Using /root/.cache/torch_extensions/py310_cpu as PyTorch extensions root...
+ninja: no work to do.
+Loading extension module moe_finalize_routing...
+Using /root/.cache/torch_extensions/py310_cpu as PyTorch extensions root...
+Emitting ninja build file /root/.cache/torch_extensions/py310_cpu/moe_finalize_routing/build.ninja...
+Building extension module moe_finalize_routing...
+Using envvar MAX_JOBS (2) as the number of workers...
+ninja: no work to do.
+Loading extension module moe_finalize_routing...
+Using /root/.cache/torch_extensions/py310_cpu as PyTorch extensions root...
+Using /root/.cache/torch_extensions/py310_cpu as PyTorch extensions root...
+Emitting ninja build file /root/.cache/torch_extensions/py310_cpu/inplace_partial_rotary_mul/build.ninja...
+Building extension module inplace_partial_rotary_mul...
+Using envvar MAX_JOBS (2) as the number of workers...
+Loading extension module moe_finalize_routing...
+Loading extension module moe_finalize_routing...
+ninja: no work to do.
+Loading extension module inplace_partial_rotary_mul...
+Using /root/.cache/torch_extensions/py310_cpu as PyTorch extensions root...
+Using /root/.cache/torch_extensions/py310_cpu as PyTorch extensions root...
+Emitting ninja build file /root/.cache/torch_extensions/py310_cpu/inplace_partial_rotary_mul/build.ninja...
+Building extension module inplace_partial_rotary_mul...
+Using envvar MAX_JOBS (2) as the number of workers...
+ninja: no work to do.
+Loading extension module inplace_partial_rotary_mul...
+Loading extension module inplace_partial_rotary_mul...
+Loading extension module inplace_partial_rotary_mul...
+{"rank": 0, "torch": "2.7.1+cpu", "torch_npu": "2.7.1.post9.dev20260815", "package": "/mnt/s00951640/envs/wcf_py310/lib/python3.10/site-packages/cann_ops_transformer/__init__.py", "case": {"tokens": 8192, "hidden": 5120, "intermediate": 4608, "experts": 64, "topk": 6, "shared_experts": 1, "routing": "cyclic", "seed": 20260930, "dtype": "fp8_e5m2", "warmup": 3, "output_dir": "/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/raw"}}
+[W930 15:00:47.371417711 ProcessGroupHCCL.cpp:1228] Warning: The watchdog timeout 180000ms(which is set by init_process_group) is less than or equal to HCCL execution timeout 1836000ms! The plog may not be recorded. (function ProcessGroupHCCL)
+{"rank": 3, "torch": "2.7.1+cpu", "torch_npu": "2.7.1.post9.dev20260815", "package": "/mnt/s00951640/envs/wcf_py310/lib/python3.10/site-packages/cann_ops_transformer/__init__.py", "case": {"tokens": 8192, "hidden": 5120, "intermediate": 4608, "experts": 64, "topk": 6, "shared_experts": 1, "routing": "cyclic", "seed": 20260930, "dtype": "fp8_e5m2", "warmup": 3, "output_dir": "/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/raw"}}
+{"rank": 1, "torch": "2.7.1+cpu", "torch_npu": "2.7.1.post9.dev20260815", "package": "/mnt/s00951640/envs/wcf_py310/lib/python3.10/site-packages/cann_ops_transformer/__init__.py", "case": {"tokens": 8192, "hidden": 5120, "intermediate": 4608, "experts": 64, "topk": 6, "shared_experts": 1, "routing": "cyclic", "seed": 20260930, "dtype": "fp8_e5m2", "warmup": 3, "output_dir": "/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/raw"}}
+{"rank": 2, "torch": "2.7.1+cpu", "torch_npu": "2.7.1.post9.dev20260815", "package": "/mnt/s00951640/envs/wcf_py310/lib/python3.10/site-packages/cann_ops_transformer/__init__.py", "case": {"tokens": 8192, "hidden": 5120, "intermediate": 4608, "experts": 64, "topk": 6, "shared_experts": 1, "routing": "cyclic", "seed": 20260930, "dtype": "fp8_e5m2", "warmup": 3, "output_dir": "/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/raw"}}
+/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/scripts/run_case.py:191: UserWarning: Cannot create tensor with interal format while allow_internel_format=False, tensor will be created with base format. (Triggered internally at ../torch_npu/csrc/aten/common/TensorFactories.cpp:437.)
+  col = idx % h
+/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/scripts/run_case.py:191: UserWarning: Cannot create tensor with interal format while allow_internel_format=False, tensor will be created with base format. (Triggered internally at ../torch_npu/csrc/aten/common/TensorFactories.cpp:437.)
+  col = idx % h
+/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/scripts/run_case.py:191: UserWarning: Cannot create tensor with interal format while allow_internel_format=False, tensor will be created with base format. (Triggered internally at ../torch_npu/csrc/aten/common/TensorFactories.cpp:437.)
+  col = idx % h
+/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/scripts/run_case.py:191: UserWarning: Cannot create tensor with interal format while allow_internel_format=False, tensor will be created with base format. (Triggered internally at ../torch_npu/csrc/aten/common/TensorFactories.cpp:437.)
+  col = idx % h
+[rank0]:[W930 15:00:48.672611615 op_api_common.cpp:49] Warning: The /usr/local/Ascend/cann-9.1.0/opp/vendors/SoftplusV2Grad/op_api/lib/libcust_opapi.so owner does not match current owner or the root user is using the files of a common user, will skip this file. (function operator())
+Using /root/.cache/torch_extensions/py310_cpu as PyTorch extensions root...
+Using /root/.cache/torch_extensions/py310_cpu as PyTorch extensions root...
+Using /root/.cache/torch_extensions/py310_cpu as PyTorch extensions root...
+Using /root/.cache/torch_extensions/py310_cpu as PyTorch extensions root...
+Emitting ninja build file /root/.cache/torch_extensions/py310_cpu/comm_context/build.ninja...
+Building extension module comm_context...
+Using envvar MAX_JOBS (2) as the number of workers...
+ninja: no work to do.
+Loading extension module comm_context...
+Loading extension module comm_context...
+Loading extension module comm_context...
+Loading extension module comm_context...
+Platform aic=28 aiv=56 UB=253952
+MegaMoe wave policy: aicNum=28 hiddenDim=9216 h=5120 requested_p1=0 requested_p2=0 effective_p1=4 effective_p2=1 gmm1TilesPerMGroup=36 gmm2TilesPerMGroup=20 gmm1RequiredMGroups=4 gmm2RequiredMGroups=2 mGroupsPerWave=4 dominant_side=GMM1
+Tiling bytes=232 workspace=4311912448 maxOutput=196608 mGroupsPerWave=4
+Platform aic=28 aiv=56 UB=253952
+MegaMoe wave policy: aicNum=28 hiddenDim=9216 h=5120 requested_p1=0 requested_p2=0 effective_p1=4 effective_p2=1 gmm1TilesPerMGroup=36 gmm2TilesPerMGroup=20 gmm1RequiredMGroups=4 gmm2RequiredMGroups=2 mGroupsPerWave=4 dominant_side=GMM1
+Tiling bytes=232 workspace=4311912448 maxOutput=196608 mGroupsPerWave=4
+Platform aic=28 aiv=56 UB=253952
+MegaMoe wave policy: aicNum=28 hiddenDim=9216 h=5120 requested_p1=0 requested_p2=0 effective_p1=4 effective_p2=1 gmm1TilesPerMGroup=36 gmm2TilesPerMGroup=20 gmm1RequiredMGroups=4 gmm2RequiredMGroups=2 mGroupsPerWave=4 dominant_side=GMM1
+Tiling bytes=232 workspace=4311912448 maxOutput=196608 mGroupsPerWave=4
+Platform aic=28 aiv=56 UB=253952
+MegaMoe wave policy: aicNum=28 hiddenDim=9216 h=5120 requested_p1=0 requested_p2=0 effective_p1=4 effective_p2=1 gmm1TilesPerMGroup=36 gmm2TilesPerMGroup=20 gmm1RequiredMGroups=4 gmm2RequiredMGroups=2 mGroupsPerWave=4 dominant_side=GMM1
+Tiling bytes=232 workspace=4311912448 maxOutput=196608 mGroupsPerWave=4
+Platform aic=28 aiv=56 UB=253952
+MegaMoe wave policy: aicNum=28 hiddenDim=9216 h=5120 requested_p1=0 requested_p2=0 effective_p1=4 effective_p2=1 gmm1TilesPerMGroup=36 gmm2TilesPerMGroup=20 gmm1RequiredMGroups=4 gmm2RequiredMGroups=2 mGroupsPerWave=4 dominant_side=GMM1
+Tiling bytes=232 workspace=4311912448 maxOutput=196608 mGroupsPerWave=4
+Platform aic=28 aiv=56 UB=253952
+Platform aic=28 aiv=56 UB=253952
+MegaMoe wave policy: aicNum=28 hiddenDim=9216 h=5120 requested_p1=0 requested_p2=0 effective_p1=4 effective_p2=1 gmm1TilesPerMGroup=36 gmm2TilesPerMGroup=20 gmm1RequiredMGroups=4 gmm2RequiredMGroups=2 mGroupsPerWave=4 dominant_side=GMM1
+MegaMoe wave policy: aicNum=28 hiddenDim=9216 h=5120 requested_p1=0 requested_p2=0 effective_p1=4 effective_p2=1 gmm1TilesPerMGroup=36 gmm2TilesPerMGroup=20 gmm1RequiredMGroups=4 gmm2RequiredMGroups=2 mGroupsPerWave=4 dominant_side=GMM1
+Tiling bytes=232 workspace=4311912448 maxOutput=196608 mGroupsPerWave=4
+Tiling bytes=232 workspace=4311912448 maxOutput=196608 mGroupsPerWave=4
+Platform aic=28 aiv=56 UB=253952
+MegaMoe wave policy: aicNum=28 hiddenDim=9216 h=5120 requested_p1=0 requested_p2=0 effective_p1=4 effective_p2=1 gmm1TilesPerMGroup=36 gmm2TilesPerMGroup=20 gmm1RequiredMGroups=4 gmm2RequiredMGroups=2 mGroupsPerWave=4 dominant_side=GMM1
+Tiling bytes=232 workspace=4311912448 maxOutput=196608 mGroupsPerWave=4
+WARMUP_DONE rank=1 iteration=0WARMUP_DONE rank=0 iteration=0
+
+WARMUP_DONE rank=3 iteration=0
+WARMUP_DONE rank=2 iteration=0
+WARMUP_DONE rank=0 iteration=1
+WARMUP_DONE rank=3 iteration=1
+WARMUP_DONE rank=1 iteration=1
+WARMUP_DONE rank=2 iteration=1
+WARMUP_DONE rank=3 iteration=2WARMUP_DONE rank=1 iteration=2WARMUP_DONE rank=0 iteration=2
+
+
+WARMUP_DONE rank=2 iteration=2
+ROUTING_SLICE rank=1 n_rows=64 sent_total=49152 ids_sha256=3ee0ae8f2c24568453320613965ac489ad89fba7bb45cea42fdf35691b296645ROUTING_SLICE rank=0 n_rows=64 sent_total=49152 ids_sha256=7ee33287a34778ae7ecd4899316e98afe5e271a8fbde7f4d68132a0f44e45904
+
+PROFILE_MEASURE_BEGIN rank=1 launches=1 warmup=3 library=/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/lib/libmegamoe_kernel.soPROFILE_MEASURE_BEGIN rank=0 launches=1 warmup=3 library=/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/lib/libmegamoe_kernel.so
+
+ROUTING_SLICE rank=3 n_rows=64 sent_total=49152 ids_sha256=ee184f06b7dfa6928d103524ec0c458ad2ce47f933db6f9952f9117e07858fe1
+PROFILE_MEASURE_BEGIN rank=3 launches=1 warmup=3 library=/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/lib/libmegamoe_kernel.so
+ROUTING_SLICE rank=2 n_rows=64 sent_total=49152 ids_sha256=24c7f626273cf9e5bdbf8ca862065b3b66c2e07052798a96ad64f37b7388b889
+PROFILE_MEASURE_BEGIN rank=2 launches=1 warmup=3 library=/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/lib/libmegamoe_kernel.so
+STEP_HOST_TIMING rank=1 rep=0 launch_t=10480.785397213 done_t=10480.800644006 own_e2e_us=15246.8
+RESULT_CHECK rank=1 rep=0 y_sha256=6ce4cdb05429c73f116927a6088ec885f28c8b9b9f39851224b6319e62448e74 y_sum=70778880.000000 y_finite=True counts=[3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072]
+PROFILE_MEASURE_END rank=1 repeats=1
+INPUT_PREP rank=1 input_prepare_us=1662133.9
+STEP_HOST_TIMING rank=0 rep=0 launch_t=10480.785409161 done_t=10480.800255699 own_e2e_us=14846.5
+RESULT_CHECK rank=0 rep=0 y_sha256=6ce4cdb05429c73f116927a6088ec885f28c8b9b9f39851224b6319e62448e74 y_sum=70778880.000000 y_finite=True counts=[3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072]
+PROFILE_MEASURE_END rank=0 repeats=1
+INPUT_PREP rank=0 input_prepare_us=1668880.9
+STEP_HOST_TIMING rank=2 rep=0 launch_t=10480.785396593 done_t=10480.800518723 own_e2e_us=15122.1
+STEP_HOST_TIMING rank=3 rep=0 launch_t=10480.785400308 done_t=10480.800299864 own_e2e_us=14899.6
+RESULT_CHECK rank=2 rep=0 y_sha256=6ce4cdb05429c73f116927a6088ec885f28c8b9b9f39851224b6319e62448e74 y_sum=70778880.000000 y_finite=True counts=[3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072]
+PROFILE_MEASURE_END rank=2 repeats=1
+INPUT_PREP rank=2 input_prepare_us=1669277.0
+RESULT_CHECK rank=3 rep=0 y_sha256=6ce4cdb05429c73f116927a6088ec885f28c8b9b9f39851224b6319e62448e74 y_sum=70778880.000000 y_finite=True counts=[3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072, 3072]
+PROFILE_MEASURE_END rank=3 repeats=1
+INPUT_PREP rank=3 input_prepare_us=1658968.9
+
+$ /mnt/s00951640/envs/wcf_py310/bin/python /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/scripts/parse_prof.py --n-cores 84 --aiv-cores 56 --event-names-from /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/generated/profile_events_generated.h --pair-map /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/generated/pair_map.json /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/raw/prof_rank0.bin /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/raw/prof_rank1.bin /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/raw/prof_rank2.bin /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/raw/prof_rank3.bin
+[INFO] Loaded 60 event names from /mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/build/generated/profile_events_generated.h
+[INFO] N_CORES=84, AIV_CORES=56, AIC_CORES=28
+[INFO] Loaded explicit pair map: 30 pairs
+Traceback (most recent call last):
+  File "/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/scripts/parse_prof.py", line 199, in <module>
+    main()
+  File "/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/scripts/parse_prof.py", line 175, in main
+    rows = parse_one(fp, n_cores, aiv_cores, event_names)
+  File "/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/megamoe_profile/scripts/parse_prof.py", line 65, in parse_one
+    raw = open(fpath, 'rb').read()
+FileNotFoundError: [Errno 2] No such file or directory: '/mnt/s00951640/ops-transformer-profs-demo-megamoe-profile/prof_runs/20260930_145947_136668_bs8192_h5120_i4608_k6_cyclic_shared/raw/prof_rank0.bin'

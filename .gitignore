@@ -27,11 +27,12 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# 实测 run 工件 (打点 bin / trace / device log): 体积大, 不入库
+# 实测 run 工件 (打点 bin / device log): 体积大, 不入库; trace json / config / log 保留
 /2026*_bs*/
 /2026*_bs*.zip
 /build_bench/
-/data/
+/data/*/build/
+/data/*/raw/
 
 # 根目录项目的旧副本, 不上库
 /moe-cost-model/
