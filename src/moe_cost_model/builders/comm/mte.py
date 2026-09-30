@@ -7,12 +7,29 @@ from __future__ import annotations
 
 from typing import Dict, Tuple
 
+from ...config.hardware import ceil_div
 from ...costs import DispatchDataLayout
+from ..base import build_dispatch_expert_ir
 from ..context import BuildContext
 from .base import CombineTransport, DispatchTransport
 
 
 class MteDispatch(DispatchTransport):
+    """按 (专家, m-group) 分块, 一块归一个 AIV1 核.
+
+    切分层级: 先按专家, 每个专家内再按 m-group (tile_m 行一组). 一个块的全部行
+    由同一个核搬运, 块内再按源卡切段 (不同源卡要从不同的卡上读)。
+
+    核号按全局 m-group 序轮转 —— 同一个块无论落在哪个波, 归属的核都不变。
+    块数 = Σ_e ceil(专家 e 的行数 / tile_m); 块数少于核数时, 多出来的核在
+    dispatch 阶段没有活。
+    """
+
+    @staticmethod
+    def _block_owner(shape, km, expert: int, group: int, p: int) -> int:
+        """(专家, m-group) → AIV1 核号: 全局 m-group 序对核数取模."""
+        prefix = sum(ceil_div(n, km.tile_m) for n in shape.expert_tokens[:expert])
+        return (prefix + group) % p
 
     def add_wave(self, builder, ctx: BuildContext, w, shape, km, p, c, policy,
                  shared_gates):
@@ -20,11 +37,19 @@ class MteDispatch(DispatchTransport):
         # 缺省 (= dispatch_lookahead) 时与旧值逐字节一致
         la = policy.effective_wave_offsets(shape.token_num).dispatch + 1
         TILE_M = km.tile_m
-        wave_contrib: Dict[Tuple[int, int, list], list] = {}
-        call_irs = [builder._dispatch_call_ir(shape, w, core) for core in range(p)]
+        wave_contrib: Dict[Tuple[int, int], list] = {}
         layout0 = shape.dispatch_layout or DispatchDataLayout.from_hidden(shape.h)
+        b_row = layout0.bytes_read_per_row()
+
+        blocks_by_core: Dict[int, list] = {}
+        for sl in w.slices:
+            fg = sl.row_begin // TILE_M
+            for lg in range(sl.m_groups):
+                group = fg + lg
+                owner = self._block_owner(shape, km, sl.expert, group, p)
+                blocks_by_core.setdefault(owner, []).append((sl, group))
+
         for core in range(p):
-            call_ir = call_irs[core]
             deps = [shared_gates] if shared_gates else []
             pacing_wave = w.index - la
             if pacing_wave >= 0 and core in ctx.last_combine_by_core:
@@ -36,28 +61,21 @@ class MteDispatch(DispatchTransport):
                 acquires=(q_aiv1,), releases=(q_aiv1,),
                 meta={"stage": "dispatch_call", "wave": w.index, "core": core})
 
-            rel_begin, count = builder._rotated_balanced_range(w.rows, core, p,
-                                                               w.begin.global_row)
-            if count == 0:
-                continue
-            cb = w.begin.global_row + rel_begin
-            ce = cb + count
-            expert_ir_by_id = {e.expert: e for e in call_ir.experts}
-            b_row = layout0.bytes_read_per_row()
             first_remote = True
-            for sl in w.slices:
-                ob = max(cb, sl.global_row_begin)
-                oe = min(ce, sl.global_row_end)
-                if ob >= oe:
-                    continue
-                lb = sl.row_begin + (ob - sl.global_row_begin)
-                expert_ir = expert_ir_by_id[sl.expert]
-                seg_start = lb
+            for sl, group in blocks_by_core.get(core, ()):
+                row_begin = group * TILE_M
+                row_end = min(row_begin + TILE_M, shape.expert_tokens[sl.expert])
+                expert_ir = build_dispatch_expert_ir(
+                    expert=sl.expert, dst_rank=shape.rank_id,
+                    source_counts=shape.expert_source_tokens[sl.expert],
+                    row_begin=row_begin, row_end=row_end, layout=layout0)
+                seg_start = row_begin
                 for si, (src, rows) in enumerate(expert_ir.segments):
                     seg_end = seg_start + rows
                     if rows <= 0:
                         continue
-                    name = f"W{w.index}.dispatch.c{core}.e{sl.expert}.s{si}.r{seg_start}_{seg_end}"
+                    name = (f"W{w.index}.dispatch.c{core}.e{sl.expert}.g{group}"
+                            f".s{si}.r{seg_start}_{seg_end}")
                     resources = [f"AIV1:{core}"]
                     if builder.options.serialize_dispatch_comm and src != shape.rank_id:
                         resources.append("DISPATCH_COMM")
@@ -74,17 +92,13 @@ class MteDispatch(DispatchTransport):
                             (f"fab_dst:{shape.rank_id}", bx, c.dispatch_mechanistic.bw_remote_bytes_per_us),
                         )
                     meta = {"stage": "dispatch", "wave": w.index, "core": core,
-                            "expert": sl.expert, "src_rank": src,
+                            "expert": sl.expert, "mgroup": group, "src_rank": src,
                             "row_begin": seg_start, "row_end": seg_end, "rows": rows}
                     ev = builder._event(name, resources, duration, deps=deps,
                                         meta=meta, channel_bytes=ch_bytes)
-                    for grp in range(seg_start // TILE_M, (seg_end - 1) // TILE_M + 1):
-                        gb = grp * TILE_M
-                        ge = min(gb + TILE_M, shape.expert_tokens[sl.expert])
-                        rows_g = max(0, min(seg_end, ge) - max(seg_start, gb))
-                        if rows_g:
-                            wave_contrib.setdefault((sl.expert, grp), []).append(
-                                (ev, rows_g, core, call_name))
+                    # 一个块整体归一个核, 段必然落在本 m-group 内
+                    wave_contrib.setdefault((sl.expert, group), []).append(
+                        (ev, rows, core, call_name))
                     seg_start = seg_end
 
         for sl in w.slices:

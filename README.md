@@ -169,6 +169,22 @@ res = simulate(sc)
 
 能做的实验举例：GMM2 滞后交替的新波循环；两个 stage 之间插入新 stage；MTE 编排配 URMA 接收的混搭传输。
 
+### 工作量怎么切到核上 (MTE 路径)
+
+两级切分: **先按专家, 每个专家内再按 m-group** (`tile_m` 行一组)。块 = (专家, m-group)。
+
+| 阶段 | 一个块再怎么切 | 归属 |
+| --- | --- | --- |
+| dispatch | 按源卡切段 (不同源卡从不同的卡上读) | **一块归一个 AIV1 核**, 整块的行由该核搬完 |
+| GMM1 | 按输出列切 tile (`ceil(intermediate / 2 / tile_n)` 个) | 每个 tile 一个 AIC 核, 游标轮转 |
+| ACT | 一对一跟随 GMM1 tile | 同核的 AIV0 |
+| GMM2 | 按输出列切 tile (`ceil(h / tile_n)` 个), 每个 tile 要本块**全部** ACT 产出 | 每个 tile 一个 AIC 核, 游标轮转 |
+| COMBINE | 一对一跟随 GMM2 tile | 同核的 AIV1 |
+
+块号按全局 m-group 序对核数取模决定归属, 与波无关 —— 同一个块落在哪个波, 归属的核都不变。
+
+**块数少于核数时, 多出来的核在 dispatch 阶段没有活。** 块数 = Σ 各专家 `ceil(行数 / tile_m)`。每卡专家少、每专家行数不足 `tile_m` 时 (小 batch) 这一项很小, dispatch 的并行度会成为瓶颈。
+
 ### 3. 当前改不了的结构
 
 波粒度只有两种：MTE 路径按 256 行组切波，Layered 路径按专家范围切波。ACT 总与 GMM1 同波。同核程序序没有建成依赖边，靠资源互斥保序。片间 fab 信道占位关闭，跨卡争用不建模。
@@ -307,5 +323,5 @@ moe-cost-model/
 │   └── analysis/                # 第 6 层: 关键路径 / 空闲核任务转移
 ├── tests/                       # 134 项 (引擎 / 建图 / API 锚点 / Layered / golden 指纹 / 场景)
 ├── examples/                    # scenario_basic.toml + run_scenario.py + run_basic.py
-└── tools/                       # 分析脚本 (审计 / 诊断 / 全量对比 / golden 生成)
+└── tools/                       # 分析脚本 (审计 / 诊断 / 全量对比 / golden 生成 / HTML 报告)
 ```

@@ -63,9 +63,12 @@ def test_default_pin():
     #   本锚点只钉回归, 数值本身随夹具速率而定, 不代表实测时长
     # 2026-09 执行时间改记到最后一个 COMBINE 结束: 尾段链 14.65 µs 不再计入
     #   → 83.082 → 68.431; 含尾段的时刻另记在 kernel_dag_end_us (仍为 83.082)
-    assert abs(res["kernel_total_us"] - 68.431) < 0.01
-    assert abs(res["kernel_dag_end_us"] - 83.082) < 0.01
-    assert len(res["rank_results"][0]["events"]) == 659
+    # 2026-09 dispatch 改为按 (专家, m-group) 分块, 一块归一个 AIV1 核:
+    #   原先 432 行全局均分到 28 核, 现在块数 (本例 5 块) 决定用几个核 →
+    #   dispatch 并行度下降, 68.431 → 113.382
+    assert abs(res["kernel_total_us"] - 113.382) < 0.01
+    assert abs(res["kernel_dag_end_us"] - 128.033) < 0.01
+    assert len(res["rank_results"][0]["events"]) == 608
     # 排队模型生效标志: 资源争用出现 (旧模型恒为 0)
     rq = sum(1 for e in res["rank_results"][0]["events"] if e.resource_queue_us > 0)
     assert rq > 100, f"resource_queue>0 仅 {rq} 次, 排队模型未生效"
@@ -191,7 +194,7 @@ def _run_costs():
 def test_kl1_override_restores_legacy():
     """kL1=256 显式覆盖应恢复与 auto 相同值 (结构等价性自检)."""
     res = _run(options=m.ModelOptions(gmm2_kl1=256))
-    assert abs(res["kernel_total_us"] - 68.431) < 0.5
+    assert abs(res["kernel_total_us"] - 113.382) < 0.5
 
 
 def test_primitive_costs_requires_all():
