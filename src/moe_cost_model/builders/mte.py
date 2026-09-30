@@ -110,14 +110,13 @@ class MteEventBuilder(EventBuilderBase):
                 resonance_fix_applied=False,
                 cursor_after_fix=ctx.cursor.start))
 
-        # ---- 尾段链 ----
-        # 须在全部 COMBINE 事件生成之后: counts_export 依赖每核最后一个 COMBINE,
-        # 早于此处调用则扫描不到 combine 事件, 尾段链会浮到时间线开头 (已修复的 bug)
-        if waves:
-            self._add_epilogue(shape, km, ACT_HALF, p, c)
+        # ---- 完成事件 (每核三引擎排空) ----
+        # 须在全部 stage 事件生成之后, 且先于尾段链: 尾段的门就是这些排空节点
+        drains = self._add_completion(p)
 
-        # ---- 完成事件 ----
-        self._add_completion(p, policy, ctx.gmm1_act_history)
+        # ---- 尾段链 ----
+        if waves:
+            self._add_epilogue(shape, km, ACT_HALF, p, c, drains)
 
         # ---- 守恒校验 ----
         missing = []

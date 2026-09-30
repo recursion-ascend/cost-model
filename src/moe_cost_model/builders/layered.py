@@ -108,10 +108,10 @@ class LayeredEventBuilder(EventBuilderBase):
                 resonance_fix_applied=resonance,
                 cursor_after_fix=cursor.start))
 
-        # ---- 尾段链: 在 combine 事件之后创建 (依赖扫描需要它们已存在) ----
+        # ---- 完成事件 + 尾段链: 都在全部 stage 事件之后; 排空先建, 尾段的门就是它 ----
+        drains = self._add_completion(p)
         if waves:
-            self._add_epilogue(shape, km, ACT_HALF, p, c)
-        self._add_completion(p, policy, ctx.gmm1_act_history)
+            self._add_epilogue(shape, km, ACT_HALF, p, c, drains)
 
         # ---- 守恒校验 (与 MTE 建图器同口径) ----
         missing = []

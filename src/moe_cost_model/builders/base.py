@@ -252,13 +252,17 @@ class EventBuilderBase:
 
     # ---- 尾段 ----
 
-    def _add_epilogue(self, shape, km, ACT_HALF, p, c):
-        last_combine = {}
-        for ev in self.events:
-            if str(ev.meta.get("stage", "")) == "combine":
-                last_combine[ev.meta.get("core")] = ev.name
-        ce_deps = tuple(sorted(last_combine.values()))
-        counts_export = self._event("epilogue.counts_export", (), T_COUNTS_EXPORT_US, deps=ce_deps,
+    def _add_epilogue(self, shape, km, ACT_HALF, p, c, drains=()):
+        """尾段链. 门是每核三引擎的排空节点 (drains), 不是"每核最后一个 COMBINE".
+
+        内核里 WAIT_GMM_DRAIN (实测 trace 恰好 84 个 = 28 核 x AIC/AIV0/AIV1) 在
+        WAIT_OUTPUT_CORE_SYNC → COUNTS_EXPORT 之前, 三个引擎都要各自排空。只等
+        COMBINE 会漏掉 AIC 的 GMM2 尾块与 AIV0 的 ACT: bs=36 用例里核 2~5 的最后
+        一个 ACT (209.6us) 晚于该核最后一个 COMBINE (149.9us), 只是恰好被核 0/1 的
+        晚 COMBINE (231.0us) 盖住 —— 换个路由就会让尾段起得太早。
+        """
+        counts_export = self._event("epilogue.counts_export", (), T_COUNTS_EXPORT_US,
+                                    deps=tuple(drains),
                                     meta={"stage": "epilogue", "part": "counts_export"})
         core_sync = self._event("epilogue.output_core_sync", (), T_CORE_SYNC_BARRIER_US, deps=(counts_export,),
                                 meta={"stage": "epilogue", "part": "output_core_sync"})
@@ -279,14 +283,38 @@ class EventBuilderBase:
 
     # ---- 完成事件 ----
 
-    def _add_completion(self, p, policy, gmm1_act_history):
+    #: 每个引擎上跑哪些 stage —— 排空节点按此归集本核该引擎的全部事件
+    DRAIN_STAGES = (
+        ("aic", ("gmm1", "gmm2", "shared_gmm1", "shared_gmm2")),
+        ("aiv0", ("activation",)),
+        ("aiv1", ("dispatch_call", "dispatch", "combine",
+                  "dispatch_recv", "dispatch_local", "mask_scan")),
+    )
+
+    def _add_completion(self, p):
+        """每核每引擎一个排空节点 (对应内核 WAIT_GMM_DRAIN), 返回全部节点名.
+
+        依赖取本核该引擎的**全部**事件, 不是最后一个: 同核同引擎的先后由资源
+        互斥在调度期决定, 建图序不等于时间序, 只挂最后建的那个会漏。节点零时长,
+        多挂边不影响时长, 只保证"排空"这个语义真的成立。
+
+        修复前: aic 挂的是 ACT (ACT 跑在 AIV0), aiv0/aiv1 一条边都没有, 而且 84 个
+        节点没有任何消费者 —— 是个既不约束也不被约束的死栅栏。
+        """
+        role_of = {st: role for role, stages in self.DRAIN_STAGES for st in stages}
+        members = {}
+        for ev in self.events:
+            role = role_of.get(str(ev.meta.get("stage", "")))
+            core = ev.meta.get("core")
+            if role is None or core is None:
+                continue
+            members.setdefault((role, core), []).append(ev.name)
+        names = []
         for core in range(p):
-            depth = policy.gmm1_activation_depth
-            aic_deps = gmm1_act_history[core][-depth:]
-            self._event(f"moe_expert_stage_done.aic.c{core}", (f"AIC:{core}",), 0.0,
-                        deps=aic_deps,
-                        meta={"stage": "moe_stage_done", "role": "aic", "core": core})
-            self._event(f"moe_expert_stage_done.aiv0.c{core}", (f"AIV0:{core}",), 0.0,
-                        meta={"stage": "moe_stage_done", "role": "aiv0", "core": core})
-            self._event(f"moe_expert_stage_done.aiv1.c{core}", (f"AIV1:{core}",), 0.0,
-                        meta={"stage": "moe_stage_done", "role": "aiv1", "core": core})
+            for role, res in (("aic", f"AIC:{core}"), ("aiv0", f"AIV0:{core}"),
+                              ("aiv1", f"AIV1:{core}")):
+                names.append(self._event(
+                    f"moe_expert_stage_done.{role}.c{core}", (res,), 0.0,
+                    deps=tuple(members.get((role, core), ())),
+                    meta={"stage": "moe_stage_done", "role": role, "core": core}))
+        return tuple(names)
