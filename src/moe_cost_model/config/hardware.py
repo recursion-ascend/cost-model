@@ -239,8 +239,11 @@ class KernelConfig:
     topo_urma: bool = False           # MEGAMOE_TOPO_URMA: True → URMA Layered 路径
                                       #   (MegaMoeLayered); 建模见
                                       #   layered.py — 单 Server 假设, PUT 复用 GET 常数
-    swizzle_offset: int = 3           # Blaze BlockSchedulerSwizzle<Offset,Dir>
-    swizzle_direction: int = 0
+    # Blaze BlockSchedulerSwizzle<Offset, Direction>; kernel 实例化为 <3, 1>
+    # (common/mega_moe_gmm_common.h: using BlockScheduler = BlockSchedulerSwizzle<3, 1>),
+    # GMM1 与 GMM2 都用它。Direction=1 = N 维在外层, 连续 tile 共享同一 A 行块。
+    swizzle_offset: int = 3
+    swizzle_direction: int = 1
     activation_n_half: int = ACTIVATION_N_HALF   # SwiGLU 双投影
     l1_tile_k: int = 256              # K-chunk 基线 (select_kl1 自适应)
     # GMM1 B 复用. 不影响时长: B 流 (权重载入) 不进 GMM tile 公式,

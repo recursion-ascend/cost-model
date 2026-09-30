@@ -8,8 +8,8 @@
       "anchor": 106.742
     },
     "deterministic_4rank_bs64_lag1": {
-      "kernel_total_us": 134.782833,
-      "kernel_dag_end_us": 149.433242
+      "kernel_total_us": 134.161455,
+      "kernel_dag_end_us": 148.811863
     }
   }
 }

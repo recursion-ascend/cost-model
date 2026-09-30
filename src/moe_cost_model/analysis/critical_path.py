@@ -1,9 +1,4 @@
-"""六问决策分析层.
 
-建模章程: 不追求 100% 复现硬件; 以可解释可验证的抽象支撑工程决策 ——
-瓶颈在哪里 / 为什么形成 / 可以改什么 / 预计收益范围 / 下一个瓶颈 /
-最小验证实验.
-"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
