@@ -26,6 +26,14 @@ from ..config.pipeline import PipelineConstraints
 
 CH_GM_TO_L1 = "gm_to_l1"
 CH_HBM_WRITE = "hbm_write"
+# dispatch 的访存: 读源卡窗口 → UB, 写本卡 workspace。
+# 单独两条而不是并到 gm_to_l1: default_channels 的契约是"每核速率 x 核数 = 刚好
+# 不争用", 往 gm_to_l1 上再塞一个消费者就把中性基线破坏了, 多出来的时长是构造
+# 出来的不是物理的 (见 test_channel_no_contention_invariance)。
+# 要研究 dispatch 与 GMM1 抢访存 (即 T_GMM1_OVERLAP 那 0.9us 的机制), 得先有
+# **整卡访存带宽**的实测: 把两者并到一条聚合为整卡值的信道上, 争用才是算出来的。
+CH_DISPATCH_READ = "dispatch_read"
+CH_DISPATCH_WRITE = "dispatch_write"
 
 _STAGE_GMM1 = "gmm1"
 _STAGE_ACT = "activation"

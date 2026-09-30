@@ -161,10 +161,13 @@ class A8W8WaveCostModel:
                 ev.resources = tuple(pre + r for r in ev.resources)
                 ev.acquires = tuple((pre + a, k) for a, k in ev.acquires)
                 ev.releases = tuple((pre + r, k) for r, k in ev.releases)
+                # 未配置的信道直接丢掉: 建图器无条件申报字节 (它不知道调用方开了
+                # 哪些信道), 由此处按实际存在的信道过滤。片间信道跨 rank 共享不加
+                # 前缀; 其余按 rank 前缀隔离。
                 ev.channel_bytes = tuple(
                     (c, b, rt) if c.startswith("fab_") else (pre + c, b, rt)
                     for c, b, rt in ev.channel_bytes
-                    if fab_on or not c.startswith("fab_"))
+                    if (fab_on if c.startswith("fab_") else c in chans))
             qd = self.options.engine_queue_depths or EngineQueueDepths()
             for core in range(shape.aic_num):
                 capacities[pre + f"Q:aic:c{core}"] = qd.aic

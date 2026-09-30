@@ -10,6 +10,7 @@ from typing import Dict, Tuple
 from ...costs import DispatchDataLayout
 from ..base import rows_by_source_rank
 from ..context import BuildContext
+from ..pipeline_expand import CH_DISPATCH_READ, CH_DISPATCH_WRITE
 from .base import CombineTransport, DispatchTransport
 
 
@@ -45,6 +46,7 @@ class MteDispatch(DispatchTransport):
             ce = cb + count
             expert_ir_by_id = {e.expert: e for e in call_ir.experts}
             b_row = layout0.bytes_read_per_row()
+            b_write = layout0.bytes_written_per_row()
             first_remote = True
             for sl in w.slices:
                 ob = max(cb, sl.global_row_begin)
@@ -64,16 +66,29 @@ class MteDispatch(DispatchTransport):
                         resources.append("DISPATCH_COMM")
                     duration = c.dispatch_mechanistic.segment_us(
                         src, shape.rank_id, rows, layout0) + c.dispatch_ready_publish_us
-                    ch_bytes = ()
+                    # 每行: 读 rowBytes (源卡窗口) + 写 b_write (本卡 workspace)
+                    rate_r = (c.dispatch_mechanistic.bw_local_bytes_per_us if src == shape.rank_id
+                              else c.dispatch_mechanistic.bw_remote_bytes_per_us)
+                    bw_loc = c.dispatch_mechanistic.bw_local_bytes_per_us
+                    rx, wx = rows * b_row, rows * b_write
+                    # 读侧 dispatch_read, 写侧 dispatch_write。原先 dispatch 只申报
+                    # 远端读的片间字节, 本卡读与全部写在调度器眼里根本不存在 ——
+                    # DAG 里少了一整条访存通路。
+                    ch_bytes = [(CH_DISPATCH_READ, rx, rate_r),
+                                (CH_DISPATCH_WRITE, wx, bw_loc)]
                     if src != shape.rank_id:
                         if first_remote:
+                            # T_GMM1_OVERLAP 暂时留着: dispatch 与 GMM1 抢访存的机制
+                            # 要靠"两者并到同一条聚合为整卡访存带宽的信道"才能算出来,
+                            # 而整卡聚合带宽尚无实测 (不能拿每核速率x核数当整卡值)。
+                            # 那一天到了, 这一项必须同时删掉, 否则就是双重计费。
                             duration += c.dispatch_mechanistic.gmm1_overlap_us_per_call
                             first_remote = False
-                        bx = rows * b_row
-                        ch_bytes = (
-                            (f"fab_src:{src}", bx, c.dispatch_mechanistic.bw_remote_bytes_per_us),
-                            (f"fab_dst:{shape.rank_id}", bx, c.dispatch_mechanistic.bw_remote_bytes_per_us),
-                        )
+                        ch_bytes += [
+                            (f"fab_src:{src}", rx, c.dispatch_mechanistic.bw_remote_bytes_per_us),
+                            (f"fab_dst:{shape.rank_id}", rx, c.dispatch_mechanistic.bw_remote_bytes_per_us),
+                        ]
+                    ch_bytes = tuple(ch_bytes)
                     meta = {"stage": "dispatch", "wave": w.index, "core": core,
                             "expert": sl.expert, "src_rank": src,
                             "row_begin": seg_start, "row_end": seg_end, "rows": rows}

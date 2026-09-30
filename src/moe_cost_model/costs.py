@@ -37,9 +37,27 @@ class DispatchDataLayout:
     rev_token_elem_cnt: int = 6144   # = H, 1 byte/elem after E5M2 quant
     rev_scale_elem_cnt: int = 192    # = ceil(H/32)
 
+    #: metaInfo 每行 INT32_PER_256B(8) x int32 = 32B (内核 StoreDispatch... 的第三次搬运)
+    META_BYTES_PER_ROW = 32
+
     def bytes_read_per_row(self) -> int:
+        """Fetch 一次 DataCopy 的字节 = context.quantTokenScaleAlignBytes.
+
+        内核 FetchDispatchTokenAndMetaInfo 从源卡窗口读这么多进 UB; 也正是 trace
+        payload 里 [23:12] 那个 rowBytes/32 的来源。
+        """
         return _align(self.rev_token_elem_cnt, BYTES_ALIGN_QUANT) + \
             _align(self.rev_scale_elem_cnt, BYTES_ALIGN_SCALE)
+
+    def bytes_written_per_row(self) -> int:
+        """Store 三次搬运的字节, 全部落在**本卡** workspace.
+
+        内核 StoreDispatchTokenAndMetaInfo: DataCopyPad(token) +
+        DataCopyPad(scale) + DataCopy(metaInfo)。前两个是未对齐的精确元素数
+        (revTokenElemCnt = H/A_ELEMS_PER_BYTE, revScaleElemCnt =
+        CeilDiv(H, MXFP_DIVISOR_SIZE) x MXFP_MULTI_BASE_SIZE), 都是 1B/元素。
+        """
+        return self.rev_token_elem_cnt + self.rev_scale_elem_cnt + self.META_BYTES_PER_ROW
 
     @staticmethod
     def from_hidden(h: int) -> "DispatchDataLayout":

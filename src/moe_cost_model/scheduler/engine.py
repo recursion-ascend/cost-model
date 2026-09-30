@@ -140,8 +140,15 @@ class _ChannelState:
         self._memo[key] = result
         return result
 
+    #: "没有带宽" 的判据必须相对于信道量级 —— 绝对阈值 1e-9 在 bw_total ~1e6 时
+    #: 拦不住浮点残渣: 28 个满速率事件把 bw_total 吃到最后一位, 第 29 个算出
+    #: f_min = 1.16e-9 (刚好大于 1e-9), 于是 dur = nbytes/1.16e-9 = 9e12 us。
+    #: 20260930 bs=36 + gm_to_l1 信道复现过: rank2 总时长 9.07e12。
+    RATE_EPS_FRAC = 1e-9
+
     def _probe_uncached(self, t0: float, nbytes: float, entitled: float) -> Tuple[float, float]:
         cap = self.ch.max_rate_per_event or self.ch.bw_total
+        rate_floor = self.ch.bw_total * self.RATE_EPS_FRAC
         rate_cap = min(entitled, self.ch.bw_total, cap)
         if nbytes <= 0:
             return t0, 0.0
@@ -156,7 +163,7 @@ class _ChannelState:
                 t = nxt
                 continue
             r = min(rate_cap, f_min)
-            if r <= 1e-9:
+            if r <= rate_floor:
                 nxt = self._min_active_end(t)
                 if nxt is None:
                     break

@@ -125,15 +125,29 @@ def default_channels(
     *,
     bw_l1_gm: float,
     bw_scatter: float,
+    bw_dispatch: float = 0.0,
 ) -> Tuple[Channel, ...]:
     """L2 默认信道: 每核应得速率 = 闭式公式所用带宽, 聚合 = ×核数.
 
-    gm_to_l1:  GMM1/GMM2 权重+激活 GM→L1 流量
-    hbm_write: COMBINE 散射写
-    无争用时事件速率 = 应得速率, 与闭式公式逐字节一致;
-    争用 (并发超过聚合允许) 时降速/排队.
+    gm_to_l1:       GMM1/GMM2 权重+激活 GM→L1 流量
+    hbm_write:      COMBINE 散射写
+    dispatch_read:  dispatch 从源卡窗口读进 UB
+    dispatch_write: dispatch 写本卡 workspace (token + scale + metaInfo)
+
+    每条信道的聚合 = 它自己那组消费者满速率时刚好装下 → **无争用基线**, 事件速率
+    = 应得速率, 与闭式公式逐字节一致 (test_channel_no_contention_invariance)。
+    要研究争用就显式收紧聚合, 或把两组消费者并到同一条信道上 —— 后者需要该层级
+    的真实聚合带宽, 不能拿"每核速率×核数"当整卡值用。
     """
-    return (
+    chans = [
         Channel("gm_to_l1", bw_total=bw_l1_gm * aic_num, ports=0, max_rate_per_event=bw_l1_gm),
         Channel("hbm_write", bw_total=bw_scatter * aic_num, ports=0, max_rate_per_event=bw_scatter),
-    )
+    ]
+    if bw_dispatch > 0:
+        chans += [
+            Channel("dispatch_read", bw_total=bw_dispatch * aic_num, ports=0,
+                    max_rate_per_event=bw_dispatch),
+            Channel("dispatch_write", bw_total=bw_dispatch * aic_num, ports=0,
+                    max_rate_per_event=bw_dispatch),
+        ]
+    return tuple(chans)
