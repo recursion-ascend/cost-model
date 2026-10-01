@@ -219,3 +219,50 @@ def test_strategy_fields_round_trip():
     out = sc.to_dict(defaults=False)
     assert out["tile_grid"] == {"name": "split_rows", "parts": 2}
     assert out["orchestration"] == "mte"
+
+
+# --------------------------------------------------- GMM2 K 维分段就绪 (编排选择)
+
+def _seg_run(segments):
+    """固定形状跑一次, 只变 GMM2 的 K 分段数."""
+    return run_api(uniform_routing(2, 4, 128), 128, topk=6, aic_num=28,
+                   options=m.ModelOptions(gmm2_k_segments=segments))
+
+
+def test_gmm2_k_segments_default_is_two_and_names_are_stable():
+    """缺省 2 段必须沿用 ".h"/part=head 与不带后缀的 tail —— combine 与
+    gmm2_tail_by_group 按这两个名字挂钩, audit_edges 与 test_api_smoke 也认它们."""
+    res = _seg_run(2)
+    g2 = [e for e in res["rank_results"][0]["events"] if e.meta.get("stage") == "gmm2"]
+    parts = {str(e.meta.get("part")) for e in g2}
+    assert parts == {"head", "tail"}
+    assert any(e.name.endswith(".h") for e in g2)
+    assert m.ModelOptions().gmm2_k_segments == 2
+
+
+def test_gmm2_k_segments_bounds_cover_k_without_gap():
+    """分段边界必须无缺口无重叠地覆盖 [0, k); 各段时长占比之和 == 1."""
+    from moe_cost_model.builders.gmm2 import _k_segment_bounds
+    for k, kl1 in ((4608, 256), (4608, 512), (5120, 256), (256, 256), (300, 256)):
+        for seg in (0, 1, 2, 3, 6, 1000):
+            b = _k_segment_bounds(k, kl1, seg)
+            assert b[0][0] == 0 and b[-1][1] == k, (k, kl1, seg, b)
+            for (a_lo, a_hi), (n_lo, _) in zip(b, b[1:]):
+                assert a_hi == n_lo, (k, kl1, seg, b)
+            assert abs(sum((hi - lo) / k for lo, hi in b) - 1.0) < 1e-12
+
+
+def test_gmm2_finer_segments_only_wait_their_own_act_columns():
+    """逐块模式下, 第 j 段只依赖列范围与它相交的 ACT —— 这就是"对应 tile ACT 完
+    就能进 GMM2"的表达。段数越多, 单段等待的 ACT 数越少。"""
+    res2 = _seg_run(2)
+    res0 = _seg_run(0)
+
+    def n_gmm2(result):
+        return len([e for e in result["rank_results"][0]["events"]
+                    if e.meta.get("stage") == "gmm2"])
+
+    # 逐块的 gmm2 事件数必须远多于两段 (每个 kL1 块一个事件)
+    assert n_gmm2(res0) > n_gmm2(res2) * 2
+    # 细粒度不该让墙钟变差 (本形状上应改善)
+    assert res0["kernel_total_us"] <= res2["kernel_total_us"] * 1.001

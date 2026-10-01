@@ -116,4 +116,19 @@ class ModelOptions:
     fabric_channels: bool = False
     pipeline: Optional[PipelineConstraints] = None
     gmm2_kl1: Optional[int] = None
+    # GMM2 沿 K 维分几段独立就绪 (K = GMM1 的输出列 = ACT 的列范围)。
+    #
+    # GMM2 的 K 就是 GMM1 切分的那个 N 轴, 所以一个 ACT tile 只产出 GMM2 在 K 上
+    # 1/ceil(k/TILE_N) 的部分; GMM2 要累完整个 K 才有结果。分几段就绪是**编排选择**,
+    # 不是物理约束 —— L0C 本来就沿 kL1 分块累加 (block_mmad 的 ProcessTileL1), 所以
+    # 每段只等覆盖自己 K 范围的 ACT 在物理上可行。
+    #
+    #   2 (缺省, = 现有 kernel): 首个 kL1 块一段 (只等 1 个 ACT), 其余合成一段 (等其余全部)。
+    #       实测 k=4608/kl1=256 时, 第一段只占 1/18 = 5.6% 时长, 94.4% 仍等满 18 个 ACT。
+    #   0: 每个 kL1 块各一段, 第 j 段只等覆盖第 j 块的 ACT —— 最细粒度。
+    #   N>2: 均分成 N 段。
+    #
+    # 代价: 段数越多, flag 轮询次数越多 (kernel 侧每段一次 WaitUntilGmFlagEquals)。
+    # 本模型不计这项开销, 所以细粒度的收益是**上界**。
+    gmm2_k_segments: int = 2
     engine_queue_depths: Optional[EngineQueueDepths] = None

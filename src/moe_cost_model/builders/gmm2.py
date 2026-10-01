@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import List
 
-from ..config.hardware import _gmm2_head_tail_fractions, select_kl1
+from ..config.hardware import select_kl1
 from ..costs import gmm2_phase_split
 from ..planning.tile_grid import STAGE_GMM2, validate_tiles
 from .context import BuildContext
@@ -38,7 +38,6 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                          tile_m=km.tile_m, tile_n=km.tile_n,
                          l1_size=km.l1_size, k_l1_base=km.l1_tile_k,
                          n_windows=km.l1_buf_num)
-        head_frac, tail_frac = _gmm2_head_tail_fractions(k_gmm2, kl1)
 
         for tile_idx, core in enumerate(owners):
             t = tiles[tile_idx]
@@ -62,8 +61,7 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                 first_owned[core] = False
 
             ordered = sorted(acts, key=lambda a: (a.col_begin, a.row_begin))
-            head_acts = [a.name for a in ordered if a.col_begin < kl1]
-            tail_acts = [a.name for a in ordered if a.col_end > kl1]
+            bounds = _k_segment_bounds(k_gmm2, kl1, builder.options.gmm2_k_segments)
 
             ntile = t.col_begin // TILE_N
             label = tile_label(t, sl.rows, shape.h, TILE_M, TILE_N)
@@ -74,29 +72,77 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                     "row_begin": t.row_begin, "row_end": t.row_end,
                     "logical_n": t.cols, "core": core, "m_rows": t.rows,
                     "cursor_tile": tile_idx}
-            # head/tail 是同一个 tile 的两段: 各按时长占比分摊本 tile 的 B 流,
-            # 信道字节才不会在计算绑定时被整段时长放大。
+            # 同一个 tile 的各 K 段按时长占比分摊本 tile 的 B 流, 信道字节才不会在
+            # 计算绑定时被整段时长放大。段的 K 范围决定它等哪些 ACT。
             phases = gmm2_phase_split(c, t.rows, k_gmm2, t.cols)
-            head_meta = dict(meta, part="head")
-            tail_meta = dict(meta, part="tail")
-            if phases is not None:
-                load_us, compute_us = phases
-                head_meta["load_us"] = load_us * head_frac
-                head_meta["compute_us"] = compute_us * head_frac
-                tail_meta["load_us"] = load_us * tail_frac
-                tail_meta["compute_us"] = compute_us * tail_frac
             gname = f"W{w.index}.E{sl.expert}.S{si}.gmm2.{label}.c{core}"
-            builder._event(gname + ".h", (f"AIC:{core}",), duration * head_frac,
-                           deps=deps + head_acts,
-                           acquires=(q_aic2,), releases=(q_aic2,), meta=head_meta)
-            builder._event(gname, (f"AIC:{core}",), duration * tail_frac,
-                           deps=[gname + ".h"] + tail_acts, meta=tail_meta)
+            n_seg = len(bounds)
+            prev: List[str] = []
+            for j, (k_lo, k_hi) in enumerate(bounds):
+                frac = (k_hi - k_lo) / k_gmm2
+                seg_acts = [a.name for a in ordered
+                            if a.col_begin < k_hi and a.col_end > k_lo]
+                last = (j == n_seg - 1)
+                # 末段用不带后缀的名字: combine 与 gmm2_tail_by_group 按它挂钩。
+                # 两段时首段沿用 ".h"/part="head" —— 现有测试与 audit_edges 认这个名字。
+                if last:
+                    name, part = gname, "tail"
+                elif n_seg == 2:
+                    name, part = gname + ".h", "head"
+                else:
+                    name, part = f"{gname}.k{j}", f"k{j}"
+                seg_meta = dict(meta, part=part)
+                if phases is not None:
+                    load_us, compute_us = phases
+                    seg_meta["load_us"] = load_us * frac
+                    seg_meta["compute_us"] = compute_us * frac
+                # 首段持有队列 token; 后续段靠前一段的串接边保序, 不重复占用。
+                if j == 0:
+                    builder._event(name, (f"AIC:{core}",), duration * frac,
+                                   deps=deps + seg_acts,
+                                   acquires=(q_aic2,), releases=(q_aic2,), meta=seg_meta)
+                else:
+                    builder._event(name, (f"AIC:{core}",), duration * frac,
+                                   deps=prev + seg_acts, meta=seg_meta)
+                prev = [name]
             builder.gmm2_tail_by_group.setdefault((sl.expert, global_group), []).append(gname)
 
             # combine 走传输后端钩子: MTE 配对 tile / URMA 记录待批
             builder.combine_backend.on_gmm2_tile(
                 builder, ctx, w, shape, si, sl, t, label, ntile, core,
                 gname, global_group, call_iteration)
+
+
+def _k_segment_bounds(k_gmm2: int, kl1: int, segments: int):
+    """GMM2 沿 K 的分段边界 [(k_lo, k_hi), ...], 末段到 k_gmm2.
+
+    segments == 2 (缺省): 复现现有 kernel —— 首个 kL1 块一段, 其余合成一段。
+        与旧实现逐字节等价: head 等 col_begin < kl1 的 ACT, tail 等 col_end > kl1 的。
+    segments == 0: 每个 kL1 块各一段 (最细)。
+    segments > 2: 按 kL1 块数均分成 segments 段 (块数不足时退化为块数)。
+    """
+    if kl1 <= 0:
+        raise ValueError("kl1 must be positive")
+    n_chunks = -(-k_gmm2 // kl1)
+    if segments == 2:
+        if n_chunks <= 1:
+            return [(0, k_gmm2)]
+        return [(0, kl1), (kl1, k_gmm2)]
+    if segments == 0 or segments >= n_chunks:
+        return [(j * kl1, min((j + 1) * kl1, k_gmm2)) for j in range(n_chunks)]
+    if segments < 1:
+        raise ValueError("gmm2_k_segments must be >= 0")
+    if segments == 1:
+        return [(0, k_gmm2)]
+    # 把 n_chunks 个块尽量均匀地分到 segments 段里
+    per, rem = divmod(n_chunks, segments)
+    out, lo_chunk = [], 0
+    for j in range(segments):
+        take = per + (1 if j < rem else 0)
+        hi_chunk = lo_chunk + take
+        out.append((lo_chunk * kl1, min(hi_chunk * kl1, k_gmm2)))
+        lo_chunk = hi_chunk
+    return out
 
 
 def _require_full_k(acts, k_gmm2: int, expert: int, group: int, t) -> None:
