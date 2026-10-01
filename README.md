@@ -296,10 +296,28 @@ m.register("tile_grid", "split_every_group", SplitEveryGroup)
 ```bash
 cd moe-cost-model
 pip install -e .          # 或直接 pytest (pyproject 已配 pythonpath)
-pytest tests/             # 155 项测试, 约 2 分钟
+pytest tests/             # 177 项测试 (5 项需 tiling 真值, 见下), 约 1 分钟
 python examples/run_scenario.py    # 场景文件 + 改旋钮对比
 python examples/run_basic.py       # 底层入口
 ```
+
+## tiling 真值与实测工件
+
+`examples/*.toml` 的 `[tiling] path` 指向实测 run 的 `raw/tiling_rank0.bin` —— 这是
+`tests/test_guardrails.py` 与 `tools/eval_suite.py` 核对"场景文件声称的形状 == 跑出数据的
+kernel 配置"的唯一依据, 也是本项目防"手抄参数没人核对"的那一层。
+
+打点工件体积大, `.gitignore` 把 `/data/*/raw/` 整个排除了, 所以**干净克隆里 tiling 真值
+缺席**: 5 条护栏测试 skip, `eval_suite` 一个场景都跑不了。tiling 真值本身只是十来个整数,
+用导出器写成几百字节的 JSON 旁置文件入库即可永久解决:
+
+```bash
+python tools/export_tiling.py --all        # 在有 raw/*.bin 的采集机上跑一次
+git add data/*/tiling_rank0.json           # 不在 gitignore 里
+```
+
+`parse_tiling` 在 `raw/*.bin` 缺失时自动回落到上一级同名 `.json`, 所以 `examples/*.toml`
+一字不用改。两者都没有时报错会指明这条命令。
 
 ## 回归保护
 

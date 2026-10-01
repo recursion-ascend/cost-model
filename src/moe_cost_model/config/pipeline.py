@@ -3,10 +3,13 @@
 设计原则:
   - 全部默认值 = 现行为 (回归安全): 同步延迟 0, 队列深度 1, 信道空, 速率 None
   - 数值必须带出处: 结构常数源自 kernel 工程, 硬件参数源自单点实测
-  - from_tiling 从 tiling_rank*.bin 读 kernel 真实槽位/深度
+  - from_tiling 从 tiling_rank*.bin 读 kernel 真实槽位/深度; 打点 bin 体积大不入库,
+    故 parse_tiling 同时接受 tools/export_tiling.py 导出的 tiling_rank*.json 旁置文件
+    (同一批整数, 几百字节, 可入库), 并在 .bin 缺失时自动回落到同名 .json
 """
 from __future__ import annotations
 
+import json
 import struct
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -23,9 +26,59 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
+#: parse_tiling 返回的字段名; JSON 旁置文件必须恰好含这些键.
+TILING_FIELDS = (
+    "combineSyncSlotCountPerExpert", "groupedMatmulMode",
+    "moeEpr", "bs", "h", "hidden", "ep", "topk", "aic", "aiv", "shared",
+    "mGroupsPerWave",
+    "dispatchRouteItemsPerBatch", "dispatchRouteBatches", "dispatchBufferCount",
+    "sendMaskBufferCountWithExtra", "sendMaskBufferCountWithoutExtra",
+    "unpermuteTokensPerBatch", "unpermuteInputBufferCount",
+)
+
+
+def resolve_tiling_path(path) -> Path:
+    """tiling 真值的实际文件.
+
+    打点工件 (raw/tiling_rank0.bin) 体积大、不入库, 所以场景文件照旧指向 .bin,
+    而本函数在 .bin 不存在时回落到同目录同名的 .json 旁置文件 —— 后者由
+    tools/export_tiling.py 在采集机上导出一次并入库, 之后 CI 与干净克隆都能
+    跑 tiling 真值护栏。两者都没有才报错, 且提示怎么生成。
+    """
+    p = Path(path)
+    if p.exists():
+        return p
+    # 候选旁置文件: 同目录同名; 以及 bin 在 raw/ 下时的上一级 —— /data/*/raw/ 整个
+    # 被 gitignore, 所以入库的旁置文件落在 run 根目录, 场景文件无须改 path。
+    cands = [p.with_suffix(".json")]
+    if p.parent.name == "raw":
+        cands.append(p.parent.parent / p.with_suffix(".json").name)
+    for c in cands:
+        if c.exists():
+            return c
+    raise FileNotFoundError(
+        f"tiling 真值不存在: {p}\n"
+        f"也没有旁置文件 ({', '.join(str(c) for c in cands)})。\n"
+        f"打点 bin 不入库 (.gitignore: /data/*/raw/); 在有 bin 的采集机上跑一次\n"
+        f"  python tools/export_tiling.py --all\n"
+        f"把 tiling_rank0.json 导出并入库即可。")
+
+
 def parse_tiling(path) -> Dict[str, int]:
-    """解析 tiling_rank*.bin -> kernel 实际参数与缓冲槽位配置."""
-    raw = Path(path).read_bytes()
+    """解析 tiling 真值 -> kernel 实际参数与缓冲槽位配置.
+
+    path 可以是 tiling_rank*.bin (打点工件) 或 tiling_rank*.json (入库旁置文件);
+    .bin 缺失时自动回落到同名 .json, 见 resolve_tiling_path.
+    """
+    path = resolve_tiling_path(path)
+    if path.suffix == ".json":
+        data = json.loads(path.read_text())
+        missing = [k for k in TILING_FIELDS if k not in data]
+        if missing:
+            raise ValueError(f"{path}: tiling 旁置文件缺字段 {missing}; "
+                             f"用 tools/export_tiling.py 重新导出")
+        return {k: int(data[k]) for k in TILING_FIELDS}
+    raw = path.read_bytes()
     (moe_epr, bs, h, hidden, ep, _bpep, _mo, topk, aic, aiv) = struct.unpack_from("<10I", raw, 0)
     shared, = struct.unpack_from("<I", raw, 64)
     # dispatchBufferConfig @80: routeItemsPerBatch, routeBatchCount, bufferCount, copyBufferBytes

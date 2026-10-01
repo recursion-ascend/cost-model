@@ -3,6 +3,9 @@
 三条都来自实际踩过的坑 —— 见 src/moe_cost_model/guardrails.py 的模块说明。
 """
 import dataclasses
+import json
+import struct
+import sys
 from pathlib import Path
 
 import pytest
@@ -10,14 +13,38 @@ import pytest
 import moe_cost_model as m
 from moe_cost_model.guardrails import (
     check_against_tiling, check_channels, check_routing_conservation)
+from moe_cost_model.config.pipeline import (
+    TILING_FIELDS, parse_tiling, resolve_tiling_path)
 from moe_cost_model.scenario import TilingSource
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+import export_tiling  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[1]
-# 实测 run 都在 data/ 下 (已 gitignore); 场景文件由 tiling 真值生成, 见 examples/*.toml
+# 场景文件由 tiling 真值生成, 见 examples/*.toml
 SCENARIO = ROOT / "examples" / "112575_bs36_noshared.toml"
 RUN = ROOT / "data" / "20260930_154158_112575_bs36_h5120_i4608_k6_cyclic_noshared"
 TILING = RUN / "raw" / "tiling_rank0.bin"
-has_run = pytest.mark.skipif(not TILING.exists(), reason="实测 run 未就位 (已 gitignore)")
+
+
+def _tiling_available() -> bool:
+    """打点 bin (raw/, 已 gitignore) 或入库的 tiling_rank0.json 旁置文件任一就位即可.
+
+    这几条护栏是项目自己防 "手抄参数没人核对" 的唯一一层; 只认 .bin 会让它们在
+    CI 与任何干净克隆里全部 skip, 等于不存在。旁置文件由 tools/export_tiling.py
+    导出并入库, 见 resolve_tiling_path。
+    """
+    try:
+        resolve_tiling_path(TILING)
+    except FileNotFoundError:
+        return False
+    return True
+
+
+has_run = pytest.mark.skipif(
+    not _tiling_available(),
+    reason=f"tiling 真值未就位: {TILING} 与旁置 .json 都不存在 "
+           f"(在采集机上跑 python tools/export_tiling.py --all 并入库)")
 
 
 # ---------------------------------------------------------------- tiling 真值
@@ -138,3 +165,64 @@ def test_routing_conservation_is_warning_only():
     assert errors == []
     assert any("!= tokens x topk" in w for w in warnings)
     assert m.simulate(sc)["kernel_total_us"] > 0     # 照跑
+
+
+# ------------------------------------------------- tiling 旁置文件 (不需实测数据)
+
+def _synth_tiling_bin() -> bytes:
+    """最小合法 MegaMoeTilingData; 值无意义, 只为测 bin/json 两条解析路等价."""
+    raw = bytearray(256)
+    struct.pack_into("<10I", raw, 0, 3, 36, 5120, 9216, 4, 0, 0, 6, 28, 56)
+    struct.pack_into("<I", raw, 64, 1)
+    struct.pack_into("<Q", raw, 72, 0)
+    struct.pack_into("<4i", raw, 80, 256, 1, 6, 0)
+    struct.pack_into("<4i", raw, 96, 2, 1, 3, 0)
+    struct.pack_into("<4i", raw, 112, 2, 1, 4, 0)
+    struct.pack_into("<2i", raw, 132, 8, 2)
+    struct.pack_into("<I", raw, 204, 2)
+    return bytes(raw)
+
+
+def test_tiling_sidecar_roundtrip_is_lossless(tmp_path):
+    """export_tiling 导出的 JSON 与原 bin 解析出的真值逐字段相等."""
+    b = tmp_path / "raw" / "tiling_rank0.bin"
+    b.parent.mkdir()
+    b.write_bytes(_synth_tiling_bin())
+    from_bin = parse_tiling(b)
+    out = export_tiling.default_out(b)
+    export_tiling.export_one(b, out)
+    assert out == tmp_path / "tiling_rank0.json"      # raw/ 被 gitignore, 落上一级
+    assert parse_tiling(out) == from_bin
+    assert set(from_bin) == set(TILING_FIELDS)
+
+
+def test_bin_missing_falls_back_to_sidecar_one_level_up(tmp_path):
+    """场景文件照旧指向 raw/*.bin; bin 没了也要命中入库的上一级旁置文件."""
+    b = tmp_path / "raw" / "tiling_rank0.bin"
+    b.parent.mkdir()
+    b.write_bytes(_synth_tiling_bin())
+    truth = parse_tiling(b)
+    export_tiling.export_one(b, export_tiling.default_out(b))
+    b.unlink()                                        # 模拟干净克隆: 只有旁置文件
+    assert resolve_tiling_path(b) == tmp_path / "tiling_rank0.json"
+    assert parse_tiling(b) == truth
+
+
+def test_both_missing_error_names_the_exporter(tmp_path):
+    """两者都没有时的报错必须说清怎么生成, 否则 CI 上只看到一句 FileNotFoundError."""
+    with pytest.raises(FileNotFoundError, match="export_tiling"):
+        parse_tiling(tmp_path / "raw" / "tiling_rank0.bin")
+
+
+def test_sidecar_missing_field_is_rejected(tmp_path):
+    """旁置文件缺字段必须报错, 不能静默返回半张真值表."""
+    good = tmp_path / "tiling_rank0.json"
+    b = tmp_path / "raw" / "tiling_rank0.bin"
+    b.parent.mkdir()
+    b.write_bytes(_synth_tiling_bin())
+    export_tiling.export_one(b, good)
+    data = json.loads(good.read_text())
+    del data["mGroupsPerWave"]
+    good.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match="mGroupsPerWave"):
+        parse_tiling(good)
