@@ -358,7 +358,8 @@ class MultiResourceScheduler:
                 pending=pend_view,
                 committed_tail=dict(resource_last_event),
                 channel_inflight={name: sum(r for _, r, _ in st_.active)
-                                  for name, st_ in chan_state.items()})
+                                  for name, st_ in chan_state.items()},
+                end_by_name=dict(end_by_name))
             act = restructure(ctx)
             for nm in act.cancel:
                 if nm in end_by_name:

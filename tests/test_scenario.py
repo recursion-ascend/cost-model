@@ -59,12 +59,28 @@ def test_uniform_workload():
 
 
 def test_stealing_by_name():
-    sc = m.Scenario(
-        workload=m.Workload(tokens=256, world=2, local_experts=4, topk=8, routing="explicit",
-                            counts=[[[256] * 2 for _ in range(4)] for _ in range(2)]),
-        p1_override=2, p2_override=1, calibration=CAL,
-        restructure={"name": "idle_core_stealing", "min_pending": 2})
-    assert fingerprint(m.simulate(sc)) == STORED["stealing_gmm1"]
+    """restructure 按名解析 + 关键字参数透传.
+
+    断言的是"按名构造 == 直接构造", 不是某个具体墙钟 —— 后者属于 golden 的职责,
+    写在这里会让任何启发式调整都来撞这条测试 (原先它钉着 STORED["stealing_gmm1"],
+    而那个 golden 用的是默认 min_pending, 两个配置本就不同, 只是旧钩子几乎不工作才
+    碰巧指纹相同)。
+    """
+    def make(restructure):
+        return m.Scenario(
+            workload=m.Workload(tokens=256, world=2, local_experts=4, topk=8,
+                                routing="explicit",
+                                counts=[[[256] * 2 for _ in range(4)] for _ in range(2)]),
+            p1_override=2, p2_override=1, calibration=CAL,
+            restructure=restructure)
+
+    by_name = make({"name": "idle_core_stealing", "min_pending": 2})
+    direct = make(m.idle_core_stealing(min_pending=2))
+    assert fingerprint(m.simulate(by_name)) == fingerprint(m.simulate(direct))
+
+    # 参数确实透传: min_pending 换个值, 结果必须跟着变 (否则等于没解析关键字)
+    other = make({"name": "idle_core_stealing", "min_pending": 1})
+    assert fingerprint(m.simulate(by_name)) != fingerprint(m.simulate(other))
 
 
 # ---------------------------------------------------------------------------

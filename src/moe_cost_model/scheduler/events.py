@@ -76,6 +76,26 @@ class RestructureContext:
     pending: Dict[str, "Event"]          # 未提交事件视图 (name -> Event)
     committed_tail: Dict[str, str]       # 每资源最后提交的事件名
     channel_inflight: Dict[str, float]   # 每信道在飞速率和
+    # 已提交事件的结束时刻 (name -> end_us). 钩子判"前置是否已完成"的唯一依据:
+    # ctx.pending 只说明事件未提交, 不说明它的前置已经跑完 —— 一个未提交事件的
+    # 前置可能刚被提交但结束时刻还在未来。搬运只应作用于已就绪的事件, 否则搬过去
+    # 的 tile 在新核上照样干等, 等于没搬。默认空 dict 保持旧钩子的向后兼容。
+    end_by_name: Dict[str, float] = field(default_factory=dict)
+
+    def ready_at(self, ev: "Event") -> float:
+        """ev 的依赖就绪时刻 (逐边延迟计入); 任一前置未提交则返回 inf."""
+        if not ev.deps:
+            return 0.0
+        t = 0.0
+        for d in ev.deps:
+            if d not in self.end_by_name:
+                return float("inf")
+            t = max(t, self.end_by_name[d] + edge_latency(ev, d))
+        return t
+
+    def is_ready(self, ev: "Event") -> bool:
+        """全部前置已完成 (结束时刻不晚于当前时刻)."""
+        return self.ready_at(ev) <= self.time_us
 
 
 @dataclass
