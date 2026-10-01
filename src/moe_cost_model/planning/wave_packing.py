@@ -1,7 +1,7 @@
 """第 3 层: wave 打包策略 — SequentialGreedy / LongestExpertFirst / BalancedWaves."""
 from __future__ import annotations
 
-from typing import List
+from typing import List, Sequence, Tuple
 
 from .waves import ExpertSlice, Position, Wave, ceil_div
 

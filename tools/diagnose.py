@@ -20,13 +20,12 @@ from moe_cost_model import (
     ModelOptions, PipelineConstraints, PrimitiveCosts, QueueDepths,
     AnalyticalActCosts, AnalyticalCombineCosts, AnalyticalGmmCosts,
     DispatchMechanisticLatency, simulate_routing_counts,
-    calc_m_groups_per_wave, parse_tiling, BW_L1_GM, T_COUNT_GATE,
+    calc_m_groups_per_wave, parse_tiling, T_COUNT_GATE,
 )
-from moe_cost_model.analysis import bottleneck_report, what_if, extract_critical_path, critical_path_breakdown
+from moe_cost_model.analysis import bottleneck_report, what_if
 from routing import make_routing
 from artifacts import cube_rate, read_prof_bin
 
-import csv
 
 
 def auto_config(run: Path):
@@ -194,7 +193,7 @@ def report(run: Path, compare: Path = None):
         lo, hi = d - 100 * err_band, d + 100 * err_band
         print(f"- 实验: 同工况重跑, 修改 {best_name} 对应的运行参数")
         print(f"- 预期: 墙钟变化落在 [{lo:+.1f}%, {hi:+.1f}%] 内 → 模型在该决策点可信")
-        print(f"- 判据: 实测变化出界 → 用 tools/validate_waits.py 复核该 stage 的等待归因")
+        print("- 判据: 实测变化出界 → 用 tools/validate_waits.py 复核该 stage 的等待归因")
     else:
         print("- 当前配置已在扫描空间内最优; 建议扩大扫描维度 (路由均衡/共享专家路径)")
     if compare:
@@ -204,7 +203,7 @@ def report(run: Path, compare: Path = None):
             print(f"\n## 实测对照 ({compare.name})")
             print(f"- 实测墙钟: {run.name}={w1:.0f}µs vs {compare.name}={w2:.0f}µs "
                   f"→ 实测 Δ={fmt_pct(100*(w2-w1)/w1)}")
-            print(f"- (模型侧同工况对比请用 --compare 的模型报告交叉验证)")
+            print("- (模型侧同工况对比请用 --compare 的模型报告交叉验证)")
 
 
 if __name__ == "__main__":

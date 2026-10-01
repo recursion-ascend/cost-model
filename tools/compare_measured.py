@@ -126,7 +126,7 @@ def main() -> int:
 
     m_origin = min(e["ts"] for e in ev if e["name"].startswith("DISPATCH"))
     m_end = max(e["ts"] + e["dur"] for e in ev if e["name"].startswith("COMBINE"))
-    print(f"\n== 执行时间 (首个 dispatch → 末个 COMBINE) ==")
+    print("\n== 执行时间 (首个 dispatch → 末个 COMBINE) ==")
     print(f"  模型 {res['kernel_total_us']:9.3f} us   实测 {m_end - m_origin:9.3f} us   "
           f"{pct(res['kernel_total_us'], m_end - m_origin)}")
 
@@ -143,7 +143,7 @@ def main() -> int:
         print("\n== dispatch 包络 (每核每波; 实测 DISPATCH_SCHEDULE 内含 XFER/LOCAL) ==")
         print(f"  模型 {len(env):3d} 个 中位 {m_env:7.3f} us   实测 {len(x_sch):3d} 个 中位 "
               f"{statistics.median(x_sch):7.3f} us   {pct(m_env, statistics.median(x_sch))}")
-    print(f"\n== 逐 stage (时刻相对各自的首个 dispatch) ==")
+    print("\n== 逐 stage (时刻相对各自的首个 dispatch) ==")
     print(f"  {'stage':14s} {'模型 起→止':>20s} {'实测 起→止':>20s} "
           f"{'模型 n/核':>10s} {'实测 n/核':>10s} {'单事件中位':>18s}")
     for stage, prefixes in STAGE_MAP:

@@ -19,3 +19,14 @@ pythonpath = ["src"]
 [tool.ruff]
 line-length = 100
 src = ["src", "tests"]
+# mega_moe/ 是 vendored 的 kernel 工程 (Ascend C), 不由本项目的 lint 规则管
+extend-exclude = ["mega_moe"]
+
+[tool.ruff.lint.per-file-ignores]
+# __init__.py 是再导出中转站: 导入即公共 API, F401 在这里是误报
+"src/moe_cost_model/__init__.py" = ["F401"]
+"src/moe_cost_model/*/__init__.py" = ["F401"]
+# tools/ 与部分测试在 import 前先 sys.path.insert (脚本直接跑, 不装包), E402 必然
+"tools/*.py" = ["E402"]
+"bench/*.py" = ["E402"]
+"tests/test_guardrails.py" = ["E402"]

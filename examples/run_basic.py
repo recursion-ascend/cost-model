@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from moe_cost_model import (
     DispatchMechanisticLatency, InstancePolicy, KernelConfig,
-    ModelOptions, build_analytical_costs, simulate_routing_counts,
+    build_analytical_costs, simulate_routing_counts,
 )
 
 WORLD, LOCAL = 4, 64            # 4 rank, 每 rank 64 专家

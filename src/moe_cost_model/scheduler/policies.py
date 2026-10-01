@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-from typing import Dict, Tuple
+from typing import Dict, Sequence
 
 from .events import Event
 

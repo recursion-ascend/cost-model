@@ -3,23 +3,21 @@
 """
 from __future__ import annotations
 
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import registry
 from .builders.mte import MteEventBuilder
 from .config.hardware import KernelConfig, BW_WINDOW, ceil_div
-from .config.policy import InstancePolicy
 from .scheduler.events import Channel, Event, ScheduledEvent
 from .scheduler.engine import MultiResourceScheduler
 from .scheduler.policies import CriticalPathFirst, EarliestStart, PriorityByStage
-from .costs import DispatchDataLayout
 from .builders.pipeline_expand import apply_pipeline
 from .costs import PrimitiveCosts
 from .shape import (
-    BlockCursor, CursorTrace, EngineQueueDepths, MegaMoeShape, ModelOptions,
+    CursorTrace, EngineQueueDepths, MegaMoeShape, ModelOptions,
 )
 from .planning.waves import (
-    ExpertSlice, Wave, calc_m_groups_per_wave, plan_waves, plan_layered_waves,
+    Wave, calc_m_groups_per_wave, plan_waves, plan_layered_waves,
 )
 
 
@@ -86,7 +84,6 @@ class A8W8WaveCostModel:
         return cls(self.costs, self.options).build(shape, self.waves(shape))
 
     def dispatch_ir(self, shape: MegaMoeShape) -> List:
-        from .builders.base import DispatchCallIR
         return [
             MteEventBuilder(self.costs, self.options)._dispatch_call_ir(shape, w, core)
             for w in self.waves(shape)
@@ -273,10 +270,6 @@ class A8W8WaveCostModel:
                 continue
             expert = int(ev.meta["expert"])
             mgroup = int(ev.meta["mgroup"])
-            contributor_events = tuple(ev.meta.get("contributor_events", ()))
-            work_events = [scheduled_by_name[n] for n in contributor_events]
-            first_row_work = min((x.start_us for x in work_events), default=ev.start_us)
-            service_sum = sum(x.end_us - x.start_us for x in work_events)
             g1 = gmm1_by_group.get((expert, mgroup), [])
             g1_first = min((x.start_us for x in g1), default=None)
             dispatch_ready_tiles.append({

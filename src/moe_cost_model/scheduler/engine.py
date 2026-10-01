@@ -17,10 +17,9 @@ from __future__ import annotations
 import heapq
 from bisect import bisect_right, insort
 from collections import defaultdict
-from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from .events import Channel, Event, RestructureAction, RestructureContext, ScheduledEvent, edge_latency
+from .events import Channel, Event, RestructureContext, ScheduledEvent, edge_latency
 
 
 class _TimeCounter:
@@ -585,7 +584,6 @@ class MultiResourceScheduler:
                 rel_ctr.setdefault(res, _TimeCounter()).add(end, k)
                 insort(rel_times.setdefault(res, []), end)
             for cname, nbytes, _ in ev.channel_bytes:
-                rate = rates.get(cname, 0.0)
                 chan_state[cname].commit(start, start + max(dur, 1e-12),
                                          min(nbytes / max(dur, 1e-12), self._rate_cap(channels[cname])))
             for ledger in dict.fromkeys([res for res, _ in ev.acquires]

@@ -12,7 +12,7 @@ import pytest
 
 import moe_cost_model as m
 from moe_cost_model.guardrails import (
-    check_against_tiling, check_channels, check_routing_conservation)
+    check_channels, check_routing_conservation)
 from moe_cost_model.config.pipeline import (
     TILING_FIELDS, parse_tiling, resolve_tiling_path)
 from moe_cost_model.scenario import TilingSource

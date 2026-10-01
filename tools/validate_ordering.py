@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from artifacts import cube_rate, read_prof_bin
 from moe_cost_model import (
     AnalyticalActCosts, AnalyticalCombineCosts, AnalyticalGmmCosts,
-    DispatchMechanisticLatency, KernelConfig, PrimitiveCosts, T_COUNT_GATE,
+    DispatchMechanisticLatency, PrimitiveCosts, T_COUNT_GATE,
     simulate_routing_counts, parse_tiling,
 )
 from routing import make_routing
@@ -159,7 +159,7 @@ def main():
         print(f"  {r['name']:<20} {r['mgw']:>3} {r['meas']:9.1f} {r['meas_sd']:6.1f} "
               f"{r['model']:9.1f} {err:+6.1f}%")
     if discordant:
-        print(f"\n不一致对 (实测差 > 噪声 2σ):")
+        print("\n不一致对 (实测差 > 噪声 2σ):")
         for a, b, dm, dmod, noise in discordant:
             print(f"  {a} vs {b}: 实测Δ={dm:+.1f}µs 模型Δ={dmod:+.1f}µs (噪声阈 {noise:.1f}µs)")
 

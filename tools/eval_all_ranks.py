@@ -7,7 +7,11 @@
   - routing CSV       → 仅当与 tiling bs 一致时使用; 否则用 make_routing(bs) 重建
   - P1/P2 policy      → 从 tiling mGroupsPerWave 反解 (不再用默认值)
 """
-import sys, struct, statistics, csv, re
+import sys
+import struct
+import statistics
+import csv
+import re
 from pathlib import Path
 
 PROJ = Path(__file__).resolve().parents[1]
@@ -17,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from moe_cost_model import (
     PrimitiveCosts, simulate_routing_counts, calc_m_groups_per_wave,
     AnalyticalGmmCosts, AnalyticalActCosts, AnalyticalCombineCosts,
-    DispatchMechanisticLatency, BW_L1_GM, T_COUNT_GATE, parse_tiling, KernelConfig,
+    DispatchMechanisticLatency, T_COUNT_GATE, parse_tiling, KernelConfig,
 )
 from routing import make_routing
 from artifacts import cube_rate
