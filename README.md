@@ -301,6 +301,35 @@ python examples/run_scenario.py    # 场景文件 + 改旋钮对比
 python examples/run_basic.py       # 底层入口
 ```
 
+## 核空闲分解: 哪些消不掉, 哪些是真浪费
+
+"核不能有空闲"作为绝对约束在逻辑上不可能 —— 事件必须等前置完成, 而 t=0 时 GMM1 还在等
+`dispatch_ready` (AIV1 产出), 所以开头所有 AIC 必须空着。能成立的不变量是
+**work-conserving**: 核不得在"存在已就绪的活"时空闲。
+
+`rank_results["idle_decomposition"]` 按角色池 (AIC / AIV0 / AIV1) 给出:
+
+| 字段 | 含义 |
+| --- | --- |
+| `busy_us` | 占用核·us; 与 `resource_busy_us` 的同角色合计逐位一致 |
+| `forced_idle_us` | 此刻池里**没有**已就绪未开始的事件 → 消不掉, 只能改 DAG 结构 |
+| `avoidable_idle_us` | 有就绪的活却有核空着 → work-conservation 违规, 换 tile→核 绑定方式可回收 |
+| `segments` | 每一处 avoidable 的 (时间窗, 空闲核, 等着的就绪事件) |
+| `work_conserving` | `avoidable_idle_us == 0` |
+
+`avoidable_idle_us` 是**上界**: 它没有检查那个活是否真能落到那个空核上 (AIC/AIV 共位约束、
+队列计数信号量)。当"值不值得动绑定方式"的量级判断用, 不要当承诺。
+
+```bash
+python tools/check_work_conservation.py examples/scenario_basic.toml --role AIC:
+python tools/check_work_conservation.py --sweep              # 扫几个形状对比
+python tools/check_work_conservation.py <场景> --assert-conserving   # CI: 有违规则非零退出
+```
+
+实测 (ep=5, 每专家 256 行全远端, aic=28): `forced` 在四个形状上几乎恒定 (~2150 核·us),
+那是 dispatch 前段与波间排空的固定代价, 换 wave/tile 编排也消不掉; `avoidable` 占空闲的
+22%~54%, 是换绑定方式能动的部分。
+
 ## tiling 真值与实测工件
 
 `examples/*.toml` 的 `[tiling] path` 指向实测 run 的 `raw/tiling_rank0.bin` —— 这是

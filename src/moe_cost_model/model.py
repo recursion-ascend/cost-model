@@ -257,6 +257,15 @@ class A8W8WaveCostModel:
             r: (resource_busy[r] / resource_span[r] if resource_span[r] > 0 else 0.0)
             for r in resource_busy}
 
+        # 空闲分解 (每个角色池一份): forced = 此刻全局无就绪活, 消不掉;
+        # avoidable = 有就绪活却有核空着, 即 work-conservation 违规。约 simulate 的 1%。
+        from .analysis.idle import idle_decomposition
+        idle_reports = {}
+        for role in ("AIC:", "AIV0:", "AIV1:"):
+            for rank_tag, rep in idle_decomposition(scheduled, role).items():
+                idle_reports[f"{rank_tag}.{role.rstrip(':')}" if rank_tag
+                             else role.rstrip(":")] = rep
+
         scheduled_by_name = {ev.name: ev for ev in scheduled}
         gmm1_by_group: Dict[Tuple[int, int], List[ScheduledEvent]] = {}
         for ev in scheduled:
@@ -322,6 +331,10 @@ class A8W8WaveCostModel:
             "stage_resource_queue_us": stage_resource_queue,
             "gmm2_lag_active": (shape.policy.effective_gmm2_lag(shape.token_num) > 0
                                 and not self._kernel_cfg(shape).topo_urma),
+            # 空闲分解: 区分"DAG 逼出来的"与"有活却空着"。后者才是 work-conservation
+            # 违规, 换 tile->核 的绑定方式可回收; 前者只能靠改 DAG 结构 (加深流水、改波
+            # 的组成)。见 analysis/idle.py —— avoidable 是上界, 未计共位与队列约束。
+            "idle_decomposition": idle_reports,
         }
 
     def structural_summary(self, shape: MegaMoeShape) -> List[Dict[str, object]]:
