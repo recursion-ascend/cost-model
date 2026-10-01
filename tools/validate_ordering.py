@@ -6,6 +6,7 @@ Kendall tau + 不一致对分析 (区分 '模型错' 与 '实测噪声内').
 
 数据: wave_policy_reps_20260920 (B=64, 37 组合, 10 reps, 4 ranks).
 """
+import argparse
 import re
 import statistics
 import sys
@@ -24,7 +25,7 @@ from moe_cost_model import (
 )
 from routing import make_routing
 
-SWEEP = REPO / "prof_runs/wave_policy_reps_20260920"
+DEFAULT_SWEEP = REPO / "prof_runs/wave_policy_reps_20260920"
 
 
 def parse_p1p2(name, tiling):
@@ -76,10 +77,23 @@ def build_C(t, seed, routing):
 
 
 def main():
-    runs = sorted(d for d in SWEEP.iterdir()
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("sweep", nargs="?", type=Path, default=DEFAULT_SWEEP,
+                    help=f"p1/p2 扫描目录 (含每组合的 raw/tiling_rank0.bin); 缺省 {DEFAULT_SWEEP}")
+    args = ap.parse_args()
+    sweep = args.sweep
+    if not sweep.is_dir():
+        sys.exit(f"扫描目录不存在: {sweep}\n"
+                 f"这是跑在采集机上的工具, 需要 p1/p2 扫描的原始工件 "
+                 f"(每个组合一个 raw/tiling_rank0.bin + 打点 bin)。\n"
+                 f"用法: python tools/validate_ordering.py <扫描目录>")
+    runs = sorted(d for d in sweep.iterdir()
                   if (d / "raw/tiling_rank0.bin").exists() and d.is_dir()
                   and not d.name.endswith((".log",))
                   and d.name not in ("build_shared",))
+    if not runs:
+        sys.exit(f"{sweep} 下没有任何含 raw/tiling_rank0.bin 的组合目录")
     # 路由固定 (同 seed), C 只算一次
     t0 = parse_tiling(runs[0] / "raw/tiling_rank0.bin")
     cfg = runs[0] / "config.json5"
@@ -95,15 +109,17 @@ def main():
         mw, msd, n = measured_kernel_wall(run)
         if n == 0:
             continue
+        _gmm = AnalyticalGmmCosts(cube_mac_per_us=cube_rate())
+        _act = AnalyticalActCosts()
+        _comb = AnalyticalCombineCosts()
         costs = PrimitiveCosts(
             dispatch_mechanistic=DispatchMechanisticLatency(),
-            gmm1_tile=AnalyticalGmmCosts(cube_mac_per_us=cube_rate()).gmm1_tile,
-            gmm2_tile=AnalyticalGmmCosts(cube_mac_per_us=cube_rate()).gmm2_tile,
-            activation_tile=AnalyticalActCosts().tile,
-            activation_store_bytes=AnalyticalActCosts().store_bytes,
-        activation_store_bytes=AnalyticalActCosts().store_bytes,
-            combine_tile=AnalyticalCombineCosts().tile,
-            combine_write_bytes_per_row=AnalyticalCombineCosts().write_bytes_per_row,
+            gmm1_tile=_gmm.gmm1_tile,
+            gmm2_tile=_gmm.gmm2_tile,
+            activation_tile=_act.tile,
+            activation_store_bytes=_act.store_bytes,
+            combine_tile=_comb.tile,
+            combine_write_bytes_per_row=_comb.write_bytes_per_row,
             count_table_prepare_us=T_COUNT_GATE)
         res = simulate_routing_counts(
             routing_counts=rc, token_num_per_rank=t["bs"], h=t["h"],

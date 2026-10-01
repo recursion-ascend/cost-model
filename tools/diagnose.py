@@ -87,15 +87,17 @@ def make_simulator(t, C):
     p1, p2 = p1p2()
 
     def sim(options=None, full=False, p1_ovr=None, p2_ovr=None):
+        _gmm = AnalyticalGmmCosts(cube_mac_per_us=cube_rate())
+        _act = AnalyticalActCosts()
+        _comb = AnalyticalCombineCosts()
         costs = PrimitiveCosts(
             dispatch_mechanistic=DispatchMechanisticLatency(),
-            gmm1_tile=AnalyticalGmmCosts(cube_mac_per_us=cube_rate()).gmm1_tile,
-            gmm2_tile=AnalyticalGmmCosts(cube_mac_per_us=cube_rate()).gmm2_tile,
-            activation_tile=AnalyticalActCosts().tile,
-            activation_store_bytes=AnalyticalActCosts().store_bytes,
-        activation_store_bytes=AnalyticalActCosts().store_bytes,
-            combine_tile=AnalyticalCombineCosts().tile,
-            combine_write_bytes_per_row=AnalyticalCombineCosts().write_bytes_per_row,
+            gmm1_tile=_gmm.gmm1_tile,
+            gmm2_tile=_gmm.gmm2_tile,
+            activation_tile=_act.tile,
+            activation_store_bytes=_act.store_bytes,
+            combine_tile=_comb.tile,
+            combine_write_bytes_per_row=_comb.write_bytes_per_row,
             count_table_prepare_us=T_COUNT_GATE)
         res = simulate_routing_counts(
             routing_counts=rc, token_num_per_rank=t["bs"], h=t["h"],
