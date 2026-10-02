@@ -39,6 +39,7 @@ class BuildContext:
     gmm1_act_history: List[List[str]] = field(default_factory=list)
     gmm2_combine_history: List[List[str]] = field(default_factory=list)
     last_combine_by_core: Dict[int, str] = field(default_factory=dict)
+    combines_by_wave: Dict[int, List[str]] = field(default_factory=dict)
 
     @classmethod
     def fresh(cls, p: int, cursor: BlockCursor = None) -> "BuildContext":

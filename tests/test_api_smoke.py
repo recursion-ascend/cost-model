@@ -94,8 +94,10 @@ def test_default_pin():
     #   0.10416 对 A 流斜率 0.09865, 比值 1.06 -> A 流是加性项。
     #   ACT 的 722 不受影响 (两个独立 m=256 run 互差 0.5%)。
     #   184.484 -> 220.483
-    assert abs(res["kernel_total_us"] - 220.483) < 0.01
-    assert abs(res["kernel_dag_end_us"] - 235.133) < 0.01
+    # 2026-10 dispatch_call 调用开销缺省改 0 (由算子工程师按实现填, 实测参考
+    #   T_CALL_OH=1.006): 220.483 -> 219.477
+    assert abs(res["kernel_total_us"] - 219.477) < 0.01
+    assert abs(res["kernel_dag_end_us"] - 234.127) < 0.01
     assert len(res["rank_results"][0]["events"]) == 659
     # 排队模型生效标志: 资源争用出现 (旧模型恒为 0)
     rq = sum(1 for e in res["rank_results"][0]["events"] if e.resource_queue_us > 0)
@@ -226,7 +228,7 @@ def _run_costs():
 def test_kl1_override_restores_legacy():
     """kL1=256 显式覆盖应恢复与 auto 相同值 (结构等价性自检)."""
     res = _run(options=m.ModelOptions(gmm2_kl1=256))
-    assert abs(res["kernel_total_us"] - 220.483) < 0.5
+    assert abs(res["kernel_total_us"] - 219.477) < 0.5
 
 
 def test_primitive_costs_requires_all():

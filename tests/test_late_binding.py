@@ -3,7 +3,7 @@ import moe_cost_model as m
 from moe_cost_model.analysis import idle_decomposition
 
 
-def _run(hidden_dim, local, late):
+def _run(hidden_dim, local, late, pacing="per_core"):
     W, PER = 5, 64
     rc = [[[0 if s == d else PER for s in range(W)] for _ in range(local)] for d in range(W)]
     tok = sum(rc[d][e][1] for d in range(W) for e in range(local)) // 6
@@ -11,7 +11,7 @@ def _run(hidden_dim, local, late):
         routing_counts=rc, token_num_per_rank=tok, h=5120, hidden_dim=hidden_dim, aic_num=28,
         costs=m.build_analytical_costs(h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency()),
         p1_override=1, p2_override=1, topk=6,
-        options=m.ModelOptions(late_bind_pools=late))
+        options=m.ModelOptions(late_bind_pools=late, dispatch_pacing=pacing))
     return res["rank_results"][0]["events"]
 
 
@@ -36,3 +36,25 @@ def test_act_stays_on_its_gmm1_core():
     for a in acts:
         g = by[a.name.replace(".act.", ".gmm1.")]
         assert a.resources[0].rsplit(":", 1)[1] == g.resources[0].rsplit(":", 1)[1]
+
+
+def _avoid(evs, role):
+    (rep,) = idle_decomposition(evs, role).values()
+    return rep.avoidable_idle_us
+
+
+def test_aic_and_aiv1_late_binding_work_conserving_all_pacings():
+    for pacing in ("per_core", "wave", "none"):
+        evs = _run(9216, 6, ("AIC", "AIV1"), pacing)
+        for role in ("AIC:", "AIV0:", "AIV1:"):
+            assert _avoid(evs, role) < 1e-6, (pacing, role)
+
+
+def test_static_aiv1_violates_under_per_core_pacing():
+    assert _avoid(_run(9216, 6, ()), "AIV1:") > 1.0
+
+
+def test_bad_pacing_rejected():
+    import pytest
+    with pytest.raises(ValueError):
+        _run(9216, 3, (), "bogus")

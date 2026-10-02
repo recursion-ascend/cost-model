@@ -35,11 +35,13 @@ def _rewrite_for_late_binding(events: List[Event], roles: Sequence[str], aic_num
     _candidates/_bind)。每核的自取自还队列信号量 (Q:aic:c7) 在独占核资源下是空约束,
     直接去掉 (否则落到核 3 的 tile 会去扣核 7 的队列深度)。
 
-    **不改一条依赖边**: 事件名、deps、dep_latency 全部原样, 变的只有"哪个核来做"。
+    **不删不改任何已有依赖边**: 事件名、deps、dep_latency 原样, 变的只有"哪个核来做"。
 
     物理约束用 colocate_with 保住:
       GMM1 -> ACT 同核 (L0C->UB Fixpipe 直给配对 AIV0), 所以 AIC 入池即隐含 AIV0 入池,
       且每个 ACT 必须与它的 GMM1 落同一核号。
+      dispatch 跟随同波同核号的 dispatch_call (调用开销落在真正搬数据的核上),
+      并补一条 call -> dispatch 边 —— 这是本函数唯一新增的边, 只在 AIV1 入池时出现。
       GMM2 -> combine 不是物理共位 (GMM2 写 GM, combine 读 GM), 故不加约束。
     """
     pooled = set(roles)
@@ -52,6 +54,7 @@ def _rewrite_for_late_binding(events: List[Event], roles: Sequence[str], aic_num
         pools[f"{pre}{role}"] = tuple(f"{pre}{role}:{c}" for c in range(aic_num))
 
     stage_of = {e.name: str(e.meta.get("stage", "")) for e in events}
+    dur_of = {e.name: e.duration_us for e in events}
     for ev in events:
         if str(ev.meta.get("stage", "")) == "moe_stage_done":
             continue  # 每核排空栅栏: 它代表的就是那个核, 不能漂移
@@ -84,6 +87,16 @@ def _rewrite_for_late_binding(events: List[Event], roles: Sequence[str], aic_num
             anchor = next((d for d in ev.deps if stage_of.get(d) == "gmm1"), None)
             if anchor is not None:
                 ev.colocate_with = anchor
+        if str(ev.meta.get("stage", "")) == "dispatch" and ".dispatch." in ev.name:
+            # 调用开销跟着核走: 本段 dispatch 与同波同核号的 dispatch_call 同核,
+            # 且先付调用开销再搬 (静态绑定下靠同核串行隐含, 晚绑定下须显式成边)。
+            call = f"{ev.name.split('.dispatch.', 1)[0]}.dispatch_call.c{core}"
+            # 调用开销为 0 (缺省) 时没有开销可"跟", 共位只剩约束: 会让已就绪的段
+            # 等某个忙核而别的核空着。只在开销 > 0 时才绑。
+            if stage_of.get(call) == "dispatch_call" and dur_of[call] > 0:
+                ev.colocate_with = call
+                if call not in ev.deps:
+                    ev.deps = tuple(ev.deps) + (call,)
 
     # 相位拆分事件 (.ld/.cb/fix) 自己不持核资源, 只靠带核号的队列 token 绑核;
     # 晚绑定下这些 token 无从回填, 先明确拒绝而不是算出一个错数。

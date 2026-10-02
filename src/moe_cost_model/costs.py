@@ -10,7 +10,7 @@ from typing import Callable, Optional, Tuple
 from .config.hardware import (
     ACT_BYTES_PER_VEC, BW_L1_GM, BW_LOCAL_GM, BW_REMOTE_GM, BW_REMOTE_WRITE,
     BW_UB, DISPATCH_BUFFER_COUNT,
-    T_CALL_OH, T_COUNT_GATE, T_GMM1_OVERLAP, T_LAT_LOCAL, T_LAT_REMOTE,
+    T_COUNT_GATE, T_GMM1_OVERLAP, T_LAT_LOCAL, T_LAT_REMOTE,
     T_STARTUP_VEC,
     MXFP_DIVISOR_SIZE, MXFP_MULTI_BASE_SIZE, MXFP_MULTI_BASE_SIZE_K,
     URMA_FLAG_BYTES, URMA_FLAG_WINDOW_TOKENS,
@@ -80,7 +80,9 @@ class DispatchMechanisticLatency:
     """
     # 缺省值取 constants.py 单一事实源 (SourcedValue, 出处标签随值传播);
     # 数值与 2026-09 dispatch_transfer_raw.csv 逐段反解一致.
-    t_call_oh_us: float = T_CALL_OH
+    # 每波每核 dispatch 调用的固定开销。缺省 0: 由算子工程师按自己的实现填
+    # (实测参考值 T_CALL_OH = 1.006us, 见 config/hardware.py)。
+    t_call_oh_us: float = 0.0
     t_lat_local_us: float = T_LAT_LOCAL
     bw_local_bytes_per_us: float = BW_LOCAL_GM
     t_lat_remote_us: float = T_LAT_REMOTE

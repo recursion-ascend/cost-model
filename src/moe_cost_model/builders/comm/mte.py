@@ -45,8 +45,14 @@ class MteDispatch(DispatchTransport):
             call_ir = call_irs[core]
             deps = [shared_gates] if shared_gates else []
             pacing_wave = w.index - la
-            if pacing_wave >= 0 and core in ctx.last_combine_by_core:
-                deps.append(ctx.last_combine_by_core[core])
+            pacing = builder.options.dispatch_pacing
+            if pacing_wave >= 0 and pacing == "per_core":
+                if core in ctx.last_combine_by_core:
+                    deps.append(ctx.last_combine_by_core[core])
+            elif pacing_wave >= 0 and pacing == "wave":
+                deps.extend(ctx.combines_by_wave.get(pacing_wave, ()))
+            elif pacing != "none" and pacing not in ("per_core", "wave"):
+                raise ValueError(f"dispatch_pacing 只能是 per_core/wave/none, 收到 {pacing!r}")
             q_aiv1 = (f"Q:aiv1:c{core}", 1)
             call_name = builder._event(
                 f"W{w.index}.dispatch_call.c{core}", (f"AIV1:{core}",),
@@ -185,6 +191,7 @@ class MteCombine(CombineTransport):
                              "remote_rows": remote_rows, "rows_by_dst": by_dst})
         ctx.gmm2_combine_history[core].append(cname)
         ctx.last_combine_by_core[core] = cname
+        ctx.combines_by_wave.setdefault(w.index, []).append(cname)
 
     def flush_wave(self, builder, ctx: BuildContext, w, shape, km, p):
         pass

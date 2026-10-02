@@ -146,4 +146,11 @@ class ModelOptions:
     # 产生) 在建图时按静态核号生成, 晚绑定后会指向别的核的 ACT。这不违反不变量
     # (那段空闲会计成 forced), 但墙钟会略微高估。该类边占总边数 1.4%~3.0%。
     late_bind_pools: Tuple[str, ...] = ()
+    # 下一波 dispatch 的配速边 (等第 w-lookahead 波的 combine), 由算子工程师选:
+    #   "per_core"  等本核该波最后一个 combine (kernel 的 AIV1 循环体: 先 combine 再
+    #               下一波 dispatch)。与 AIV1 晚绑定同用时偏保守: 边指向原核号的
+    #               combine, 那段等待计 forced。
+    #   "wave"      等该波全部 combine
+    #   "none"      不等 combine, 跨波连续 dispatch
+    dispatch_pacing: str = "per_core"
     engine_queue_depths: Optional[EngineQueueDepths] = None
