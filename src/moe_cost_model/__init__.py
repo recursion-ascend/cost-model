@@ -41,6 +41,7 @@ from .scheduler.events import (
 from .scheduler.engine import MultiResourceScheduler
 from .scheduler.policies import (
     CriticalPathFirst, EarliestStart, PriorityByStage, SchedulingPolicy,
+    WorkConservingCriticalPath,
 )
 from .planning.waves import (
     ExpertSlice, Position, Wave, calc_layered_first_wave_expert_count,

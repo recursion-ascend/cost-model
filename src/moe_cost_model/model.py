@@ -11,7 +11,8 @@ from .builders.mte import MteEventBuilder
 from .config.hardware import KernelConfig, BW_WINDOW, ceil_div
 from .scheduler.events import POOL_WILDCARD, Channel, Event, ScheduledEvent
 from .scheduler.engine import MultiResourceScheduler
-from .scheduler.policies import CriticalPathFirst, EarliestStart, PriorityByStage
+from .scheduler.policies import (CriticalPathFirst, EarliestStart, PriorityByStage,
+                                 WorkConservingCriticalPath)
 from .builders.pipeline_expand import apply_pipeline
 from .costs import PrimitiveCosts
 from .shape import (
@@ -316,7 +317,8 @@ class A8W8WaveCostModel:
         if restructure is not None or self.options.fabric_channels:
             return False
         if sched_pol is not None and type(sched_pol) not in (
-                EarliestStart, CriticalPathFirst, PriorityByStage):
+                EarliestStart, CriticalPathFirst, PriorityByStage,
+                WorkConservingCriticalPath):
             return False
         ranks = [sh.rank_id for sh in shapes]
         return len(set(ranks)) == len(ranks)

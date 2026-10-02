@@ -77,3 +77,35 @@ def test_call_overhead_charged_once_per_wave_core_and_conserving():
     assert set(charged) == worked
     for role in ("AIC:", "AIV1:"):
         assert _avoid(evs, role) < 1e-6
+
+
+def _run_pol(hidden_dim, local, late, policy=None, pacing="per_core"):
+    W, PER = 5, 64
+    rc = [[[0 if s == d else PER for s in range(W)] for _ in range(local)] for d in range(W)]
+    tok = sum(rc[d][e][1] for d in range(W) for e in range(local)) // 6
+    return m.simulate_routing_counts(
+        routing_counts=rc, token_num_per_rank=tok, h=5120, hidden_dim=hidden_dim, aic_num=28,
+        costs=m.build_analytical_costs(h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency()),
+        p1_override=1, p2_override=1, topk=6, scheduling_policy=policy,
+        options=m.ModelOptions(late_bind_pools=late, dispatch_pacing=pacing))["rank_results"][0]
+
+
+def test_critical_path_tiebreak_keeps_zero_idle_and_cuts_makespan():
+    """零空闲之上按关键链打破平手: 不变量仍成立, 且墙钟不差于纯贪心."""
+    pools = ("AIC", "AIV1")
+    for hd, local in ((9216, 3), (18432, 6)):
+        greedy = _run_pol(hd, local, pools)
+        cp = _run_pol(hd, local, pools, m.WorkConservingCriticalPath())
+        for role in ("AIC:", "AIV0:", "AIV1:"):
+            assert _avoid(greedy["events"], role) < 1e-6
+            assert _avoid(cp["events"], role) < 1e-6
+        assert cp["dag_end_us"] <= greedy["dag_end_us"] + 1e-9
+        # 同样的工作量, 只是顺序不同
+        assert abs(_aic(cp["events"]).busy_us - _aic(greedy["events"]).busy_us) < 1e-6
+
+
+def test_remaining_path_computed_only_when_policy_asks():
+    cp = _run_pol(9216, 3, (), m.WorkConservingCriticalPath())
+    assert any(e.meta.get("remaining_path_us", 0) > 0 for e in cp["events"])
+    greedy = _run_pol(9216, 3, ())
+    assert all("remaining_path_us" not in e.meta for e in greedy["events"])

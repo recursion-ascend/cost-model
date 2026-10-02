@@ -289,6 +289,29 @@ class MultiResourceScheduler:
                 indegree[ev.name] += 1
                 children[dep].append(ev.name)
 
+        # 关键路径长度 (事件自身开始算起, 到任一 sink 的最长链, 含边延迟):
+        # 只在策略索要时算一次, 反向拓扑一遍, O(V+E)。写进 meta 供策略读取。
+        if getattr(policy, "needs_remaining_path", False):
+            order_rev: List[str] = []
+            deg = dict(indegree)
+            stack = [n for n, d in deg.items() if d == 0]
+            while stack:
+                n = stack.pop()
+                order_rev.append(n)
+                for ch in children[n]:
+                    deg[ch] -= 1
+                    if deg[ch] == 0:
+                        stack.append(ch)
+            remaining: Dict[str, float] = {}
+            for n in reversed(order_rev):
+                ev = by_name[n]
+                tail = 0.0
+                for ch in children[n]:
+                    tail = max(tail, remaining[ch] + edge_latency(by_name[ch], n))
+                remaining[n] = max(0.0, ev.duration_us) + tail
+            for n, v in remaining.items():
+                by_name[n].meta["remaining_path_us"] = v
+
         # 静态校验: acquire 不得超过容量, 引用必须已声明
         for ev in events:
             for res, k in ev.acquires:
