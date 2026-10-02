@@ -58,7 +58,11 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             deps.append(ready_name)
             history = ctx.gmm1_act_history[core]
             depth = policy.gmm1_activation_depth
-            if len(history) >= depth:
+            # depth = UB 里能同时存几块 GMM1 结果。GMM1 的结果经 L0C->UB 的 Fixpipe
+            # 直给配对 AIV0 (不落 GM), 所以 AIV0 没把第 i-depth 块读走, AIC 就没地方
+            # 写第 i 块。depth=0 = 不建这条边 (假设 UB 不构成约束)。
+            # 注意 history[-0] 是 history[0] 而不是"无依赖", 所以 0 必须单独判。
+            if depth > 0 and len(history) >= depth:
                 deps.append(history[-depth])
 
             if first_owned[core]:

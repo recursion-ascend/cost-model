@@ -109,3 +109,27 @@ def test_remaining_path_computed_only_when_policy_asks():
     assert any(e.meta.get("remaining_path_us", 0) > 0 for e in cp["events"])
     greedy = _run_pol(9216, 3, ())
     assert all("remaining_path_us" not in e.meta for e in greedy["events"])
+
+
+def test_gmm1_activation_depth_zero_drops_the_ub_edge():
+    """depth=0 = 不建 GMM1->ACT 的 UB 反压边 (以前 history[-0] 取到 history[0], 空表直接崩)."""
+    W, PER, local = 5, 64, 3
+    rc = [[[0 if s == d else PER for s in range(W)] for _ in range(local)] for d in range(W)]
+    tok = sum(rc[d][e][1] for d in range(W) for e in range(local)) // 6
+
+    def run(depth):
+        return m.simulate_routing_counts(
+            routing_counts=rc, token_num_per_rank=tok, h=5120, hidden_dim=9216, aic_num=28,
+            costs=m.build_analytical_costs(
+                h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency()),
+            p1_override=1, p2_override=1, topk=6,
+            policy=m.InstancePolicy(gmm1_activation_depth=depth))["rank_results"][0]
+
+    name = "R0.W0.E1.S1.gmm1.m0.n10.c0"
+    d1 = {e.name: e for e in run(1)["events"]}[name]
+    d0 = {e.name: e for e in run(0)["events"]}[name]
+    # depth=1: 被配对 AIV0 的 ACT 卡住; depth=0: 只被自己的核卡住
+    assert d1.critical_reason == "dependency"
+    assert d1.critical_parent.endswith(".act.m0.n0.c0")
+    assert d0.critical_reason.startswith("resource:")
+    assert d0.start_us < d1.start_us
