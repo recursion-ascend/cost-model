@@ -17,7 +17,13 @@ from .tiling import resolve_grid, tile_label
 
 def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                   policy, TILE_M, TILE_N, ACT_HALF) -> None:
-    gmm1_sched_n = builder._gmm1_device_scheduler_n(shape, km.activation_n_half)
+    # 交织路径的调度宽度是整个 hidden_dim (gate/up 在 tile 内按列交织), 非交织是
+    # hidden_dim/activation_n_half —— 于是 n-tile 数翻倍, 每 tile 的 B 流减半。
+    # 出处: mega_moe_wave_a8w8.h:446。
+    act_half = 1 if km.gmm1_interleaved else km.activation_n_half
+    gmm1_sched_n = builder._gmm1_device_scheduler_n(shape, act_half)
+    # 一个 GMM1 tile 产出多少输出列: 交织时 epilogueN = tileN/activation_n_half。
+    out_div = km.activation_n_half if km.gmm1_interleaved else 1
     grid = resolve_grid(shape)
     cursor = ctx.cursor
     for si, sl in enumerate(w.slices):
@@ -87,4 +93,4 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                            acquires=(q_aic,), releases=(q_aic,), meta=meta)
 
             add_activation_tile(builder, ctx, w, si, sl, t, label, ntile, core,
-                                global_group, gname)
+                                global_group, gname, out_div)

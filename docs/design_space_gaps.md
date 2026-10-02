@@ -14,6 +14,7 @@
 | wave 容量 | `p1_override` / `p2_override` | 经 `calc_m_groups_per_wave` |
 | tile 网格 | `tile_grid` | SwizzledTileGrid / SplitRowsTileGrid, 可自定义 |
 | tile 几何 | `KernelConfig.tile_m` / `tile_n` | 实测 tile_n 128 -> dag_end -6.6%, tile_m 128 -> +39% |
+| GMM1 交织 | `KernelConfig.gmm1_interleaved` | kernel 的 `IsGmm1Interleaved`: n-tile 18->36, 每 tile B 流减半, UB 深度 1->2。**A 流翻倍是模型口径的推论, 未经交织路径实测** |
 | swizzle | `KernelConfig.swizzle_offset` / `swizzle_direction` | **仅在每专家多于 1 个 m-group 时有效** (1 组时退化为无效) |
 | tile->核 分配 | `core_assignment` | StaticRoundRobin / GreedyLeastBusy / ContiguousBlock |
 | tile->核 绑定时机 | `ModelOptions.late_bind_pools` | 建图时 / 派发时 (缺口 3 已补齐) |
@@ -248,3 +249,30 @@ MTE 路径同理: `DispatchMechanisticLatency` 只分 local / remote 两档, 没
 
 同一类的小边界 (都在 `layered.py` 顶部有声明): flag 轮询重试、mask 扫描的标量开销、
 `maxOutputSize` 截断、world >= 5 的并发外推。
+
+---
+
+## 缺口 8: A 流的"每 tile 都付"口径没在交织路径上标定
+
+`KernelConfig.gmm1_interleaved` 建好之后暴露出来的问题。
+
+模型的 GMM1 载入 = A 流 + B 流, **A 流按每个 tile 各付一次 `m x k`** 计费。这个口径是在
+**非交织路径**上标定的 (costs.py `gmm1_phases` 文档: bs36 -> bs128 单变量对比, 实测斜率
+0.10416 对 A 流斜率 0.09865, 比值 1.06)。
+
+交织路径把 n-tile 从 18 变成 36, 于是模型里 A 流总量直接翻倍 —— 实测 hidden=9216 专家=3
+的 AIC busy 从 5455 涨到 6819 核·us (+25%)。结论就成了"交织在 6 专家形状上更慢"
+(488.1 -> 537.9 us)。
+
+**这个结论可信度低**, 因为:
+
+1. kernel 两条路径都实现了, 交织路径存在本身说明它在某些形状上更快, 否则不会写。
+2. `swizzle_direction=1` (N 维在外层) 下连续的 n-tile 共享同一 A 行块, L2 命中率高。
+   tile 数翻倍时, 多出来的那一半有相当概率不必重新从 GM 载 A。
+3. 同一份文档已经记过一次同类的坑: bs8192 的 -28% 来自权重在 m-group 之间被 L2 复用,
+   模型用 `gmm1_b_reuse` 表达, 但"付几次"的规律至今没定。A 流在 n-tile 之间的复用是
+   **对称的另一半**, 现在完全没有表达手段。
+
+要补: 一个 "A 流在 n 维上付几次" 的旋钮 (对称于 `gmm1_b_reuse` 在 m 维上的作用), 常数待
+交织路径的实测 trace 标定。在那之前, 交织路径的墙钟预测只能当**悲观上界**用 —— 它的
+tile 数翻倍、负载更均衡、UB 深度翻倍这三项收益是可信的, A 流那一项是高估。

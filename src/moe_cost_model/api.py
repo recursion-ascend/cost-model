@@ -25,9 +25,11 @@ def _rebind_costs_to_kernel(costs: PrimitiveCosts, kernel) -> PrimitiveCosts:
         return costs
     g1 = getattr(costs.gmm1_tile, "__self__", None)
     if isinstance(g1, AnalyticalGmmCosts):
+        want_wb = 1 if kernel.gmm1_interleaved else kernel.activation_n_half
         if (g1.serial != (kernel.l1_buf_num == 1)
                 or g1._k_l1 != kernel.l1_tile_k
-                or g1.weight_nz != kernel.weight_nz):
+                or g1.weight_nz != kernel.weight_nz
+                or g1.wb != want_wb):
             if kernel.weight_nz and not g1.weight_nz:
                 raise ValueError(
                     "KernelConfig.weight_nz=True 但 gmm1 公式按 Z 布局构造, "
@@ -41,7 +43,8 @@ def _rebind_costs_to_kernel(costs: PrimitiveCosts, kernel) -> PrimitiveCosts:
                 l1_buf_num=kernel.l1_buf_num,
                 cube_mac_per_us=g1.cube_rate,
                 tile_restart_us=g1.chunk_restart,
-                l1_tile_k=kernel.l1_tile_k)
+                l1_tile_k=kernel.l1_tile_k,
+                gmm1_weight_blocks=want_wb)
             costs = dataclasses.replace(costs, gmm1_tile=new_g.gmm1_tile,
                                         gmm2_tile=new_g.gmm2_tile)
     comb = getattr(costs.combine_tile, "__self__", None)

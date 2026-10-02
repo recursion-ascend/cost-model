@@ -288,6 +288,16 @@ class KernelConfig:
     swizzle_offset: int = 3
     swizzle_direction: int = 1
     activation_n_half: int = ACTIVATION_N_HALF   # SwiGLU 双投影
+    # MegaMoeA8W8Wave 的 IsGmm1Interleaved 模板参数 (kernel 两条路径都已实现):
+    #   False (缺省, 非交织): 调度宽度 = hidden_dim/activation_n_half -> 18 个 n-tile,
+    #     每 tile 跑 ACTIVATION_N_HALF 遍权重块 (gate + up 各一次 mmad),
+    #     GMM1 每算完一个 tile 就等配对 AIV0 读走 UB (vecSetSyncCom = 1, 深度 1)。
+    #   True (交织): 调度宽度 = hidden_dim -> 36 个 n-tile, gate/up 在 tile 内按列交织,
+    #     每 tile 一遍 mmad, 产出的 epilogue 宽度是 tile 的一半 (epilogueN = N/2);
+    #     UB 两块缓冲 ping-pong, 攒到 2 个在飞才等 (vecSetSyncCom >= 2, 深度 2)。
+    # 出处: stage/mega_moe_gmm1_activation.h:251-285 (同步分支),
+    #       mega_moe_wave_a8w8.h:446 (调度宽度), 同文件 377-392 (epilogueN = N/2)。
+    gmm1_interleaved: bool = False
     l1_tile_k: int = 256              # K-chunk 基线 (select_kl1 自适应)
     # GMM1 B 复用: 切片内只有首个 m-group 付自己列块的 B 流 (builders/gmm1.py:32)。
     # **影响时长** —— b_load 进 gmm1_tile 公式 (costs.py:294)。实测 hidden=9216 专家=3

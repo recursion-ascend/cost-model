@@ -266,3 +266,53 @@ def test_gmm2_finer_segments_only_wait_their_own_act_columns():
     assert n_gmm2(res0) > n_gmm2(res2) * 2
     # 细粒度不该让墙钟变差 (本形状上应改善)
     assert res0["kernel_total_us"] <= res2["kernel_total_us"] * 1.001
+
+
+def _interleave_build(interleaved, hidden_dim=9216, local=3):
+    """建图(不调度): 返回 (gmm1 事件, activation 事件)."""
+    W, PER = 5, 64
+    rc = [[[0 if s == d else PER for s in range(W)] for _ in range(local)] for d in range(W)]
+    tok = sum(rc[d][e][1] for d in range(W) for e in range(local)) // 6
+    kc = m.KernelConfig(gmm1_interleaved=interleaved)
+    mm = m.A8W8WaveCostModel(costs=m.build_analytical_costs(
+        h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency(), kernel=kc))
+    sh = m.MegaMoeShape(expert_tokens=(256,) * local, token_num=tok, h=5120,
+                        hidden_dim=hidden_dim, aic_num=28, p1_override=1, p2_override=1,
+                        topk=6, kernel=kc,
+                        expert_source_tokens=tuple(tuple(rc[0][e]) for e in range(local)))
+    evs = mm.build_events(sh)[0]
+    return ([e for e in evs if e.meta.get("stage") == "gmm1"],
+            [e for e in evs if e.meta.get("stage") == "activation"])
+
+
+def test_gmm1_interleaved_doubles_tiles_and_halves_b_stream():
+    """交织: n-tile 翻倍, 每 tile 只载一个权重块 —— 整层 B 流总量不变."""
+    g_off, _ = _interleave_build(False)
+    g_on, _ = _interleave_build(True)
+    assert len(g_on) == 2 * len(g_off)
+    # B 流总量守恒: 18 tile x 2 块 == 36 tile x 1 块
+    gm = m.build_analytical_costs(
+        h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency(),
+        kernel=m.KernelConfig(gmm1_interleaved=False)).gmm1_tile.__self__
+    gm_i = m.build_analytical_costs(
+        h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency(),
+        kernel=m.KernelConfig(gmm1_interleaved=True)).gmm1_tile.__self__
+    assert gm.wb == 2 and gm_i.wb == 1
+    b_off = sum(gm.wb * 5120 * e.meta["logical_n"] for e in g_off)
+    b_on = sum(gm_i.wb * 5120 * e.meta["logical_n"] for e in g_on)
+    assert b_off == b_on
+
+
+def test_gmm1_interleaved_keeps_activation_output_columns():
+    """交织下 epilogueN = tileN/2: ACT 列区间必须仍然无缝覆盖 hidden_dim/2."""
+    for interleaved in (False, True):
+        _, acts = _interleave_build(interleaved)
+        cov = {}
+        for e in acts:
+            cov.setdefault((e.meta["expert"], e.meta["mgroup"]), []).append(
+                (e.meta["col_begin"], e.meta["col_end"]))
+        for key, iv in cov.items():
+            iv.sort()
+            assert iv[0][0] == 0 and iv[-1][1] == 9216 // 2, (interleaved, key, iv)
+            for a, b in zip(iv, iv[1:]):
+                assert a[1] == b[0], (interleaved, key, iv)   # 无空洞无重叠

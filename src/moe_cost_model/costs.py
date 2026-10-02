@@ -254,6 +254,7 @@ class AnalyticalGmmCosts:
     def __init__(self, bw_bytes_per_us: float = BW_L1_GM,
                  weight_nz: bool = False, bw_b_nz_bytes_per_us: float = 0.0,
                  l1_buf_num: int = 2, cube_mac_per_us: float = 0.0,
+                 gmm1_weight_blocks: int = 2,
                  tile_restart_us: float = 0.0, l1_tile_k: int = 256):
         if weight_nz and bw_b_nz_bytes_per_us <= 0:
             raise ValueError(
@@ -264,6 +265,12 @@ class AnalyticalGmmCosts:
         self.weight_nz = bool(weight_nz)
         self.bw_b = bw_b_nz_bytes_per_us if weight_nz else bw_bytes_per_us
         self.serial = (l1_buf_num == 1)
+        # 一个 GMM1 tile 要载入几个权重块: 非交织 = ACTIVATION_N_HALF (gate+up 两遍
+        # mmad), 交织 = 1 (gate/up 在 tile 内按列交织, 一遍 mmad)。
+        # 两种口径下整层 B 流总量相同 (18 tile x 2 == 36 tile x 1)。
+        self.wb = int(gmm1_weight_blocks)
+        if self.wb <= 0:
+            raise ValueError("gmm1_weight_blocks must be positive")
         self.cube_rate = cube_mac_per_us
         self.chunk_restart = tile_restart_us
         self._k_l1 = int(l1_tile_k)
@@ -294,7 +301,7 @@ class AnalyticalGmmCosts:
           远低于实测 53.8)。待 bs8192 的 trace 重传后单独查。
         """
         a_load = (m * k) / self.bw
-        b_load_us = (2 * k * cols) / self.bw_b if b_load else 0.0
+        b_load_us = (self.wb * k * cols) / self.bw_b if b_load else 0.0
         load = a_load + b_load_us
         if self.serial:
             load += self._chunks(k) * self.chunk_restart
@@ -540,6 +547,7 @@ def build_analytical_costs(
         cube_mac_per_us=cube_mac_per_us,
         tile_restart_us=gmm1_tile_restart_us,
         l1_tile_k=km.l1_tile_k,
+        gmm1_weight_blocks=1 if km.gmm1_interleaved else km.activation_n_half,
     )
     act = AnalyticalActCosts(
         bw_ub_bytes_per_us=bw_ub if bw_ub is not None else BW_UB,
