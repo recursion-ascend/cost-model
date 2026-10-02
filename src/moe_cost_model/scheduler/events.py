@@ -48,6 +48,11 @@ class Event:
     # (builders/activation.py: "ACT 钉在配对 GMM1 同核的 AIV0 上"), 所以 GMM1 晚绑定到
     # 核 X 时, 它的 ACT 必须落 AIV0:X。只在 resources 含池占位符时生效。
     colocate_with: Optional[str] = None
+    # L3 晚绑定一次性开销: (键, us)。同一键在同一核号上只计一次 —— 本事件若是该核
+    # 上第一个带此键的事件, 时长加 us (例: 每波每核的 dispatch 调用开销, 由该核
+    # 在这一波做的第一段 dispatch 承担)。开销落在真正干活的核上, 而不必把事件
+    # 钉死在某个核。只在晚绑定 (schedule(pools=...)) 下生效。
+    once_per_core: Optional[Tuple[str, float]] = None
 
 
 @dataclass(frozen=True)

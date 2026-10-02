@@ -221,6 +221,7 @@ class MultiResourceScheduler:
             if not mem:
                 raise ValueError(f"pool {pk} 的成员表为空")
         bound_core: Dict[str, str] = {}      # 事件名 -> 绑定的核号后缀
+        charged_once: set = set()            # 已计过的 (once_per_core 键, 核号)
 
         def _core_of(resource: str) -> str:
             return resource.rsplit(":", 1)[1] if ":" in resource else resource
@@ -628,6 +629,13 @@ class MultiResourceScheduler:
             bound_res = _bind(ev) if has_pools else ev.resources
             if has_pools and bound_res:
                 bound_core[name] = _core_of(bound_res[0])
+            once_us = 0.0
+            if has_pools and ev.once_per_core is not None and name in bound_core:
+                ck = (ev.once_per_core[0], bound_core[name])
+                if ck not in charged_once:
+                    charged_once.add(ck)
+                    once_us = max(0.0, ev.once_per_core[1])
+                    end += once_us
             acq = _remap_tokens(ev.acquires, bound_core.get(name)) if has_pools else ev.acquires
             rel = _remap_tokens(ev.releases, bound_core.get(name)) if has_pools else ev.releases
             blocking_resource = (
@@ -682,7 +690,7 @@ class MultiResourceScheduler:
                     critical_parent=critical_parent,
                     critical_reason=critical_reason,
                     order=ev.order,
-                    meta=dict(ev.meta),
+                    meta=dict(ev.meta, once_per_core_us=once_us) if once_us else dict(ev.meta),
                     capacity_wait_us=cap_wait,
                     channel_wait_us=ch_wait,
                     channel_rate=rates,

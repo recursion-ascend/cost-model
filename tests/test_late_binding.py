@@ -58,3 +58,22 @@ def test_bad_pacing_rejected():
     import pytest
     with pytest.raises(ValueError):
         _run(9216, 3, (), "bogus")
+
+
+def test_call_overhead_charged_once_per_wave_core_and_conserving():
+    W, PER, local = 5, 64, 3
+    rc = [[[0 if s == d else PER for s in range(W)] for _ in range(local)] for d in range(W)]
+    tok = sum(rc[d][e][1] for d in range(W) for e in range(local)) // 6
+    evs = m.simulate_routing_counts(
+        routing_counts=rc, token_num_per_rank=tok, h=5120, hidden_dim=9216, aic_num=28,
+        costs=m.build_analytical_costs(
+            h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency(t_call_oh_us=1.006)),
+        p1_override=1, p2_override=1, topk=6,
+        options=m.ModelOptions(late_bind_pools=("AIC", "AIV1")))["rank_results"][0]["events"]
+    charged = [(e.meta["wave"], e.resources[0]) for e in evs if e.meta.get("once_per_core_us")]
+    assert charged and len(charged) == len(set(charged))
+    # 每个本波做过 dispatch 的核都付过一次
+    worked = {(e.meta["wave"], e.resources[0]) for e in evs if e.meta.get("stage") == "dispatch"}
+    assert set(charged) == worked
+    for role in ("AIC:", "AIV1:"):
+        assert _avoid(evs, role) < 1e-6
