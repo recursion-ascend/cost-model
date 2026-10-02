@@ -289,8 +289,12 @@ class KernelConfig:
     swizzle_direction: int = 1
     activation_n_half: int = ACTIVATION_N_HALF   # SwiGLU 双投影
     l1_tile_k: int = 256              # K-chunk 基线 (select_kl1 自适应)
-    # GMM1 B 复用. 不影响时长: B 流 (权重载入) 不进 GMM tile 公式,
-    # 复用与否都不计费. 字段保留以对应 kernel 选项.
+    # GMM1 B 复用: 切片内只有首个 m-group 付自己列块的 B 流 (builders/gmm1.py:32)。
+    # **影响时长** —— b_load 进 gmm1_tile 公式 (costs.py:294)。实测 hidden=9216 专家=3
+    # 全远端: 开启后 dag_end 988.3->827.1 us (-16.3%), 每专家 4 个 m-group 时 -13.0%。
+    # 注意: p1_override/p2_override=1 把每专家压到 1 个 m-group 时本旋钮退化为无效
+    # (只有一个 m-group, 没有可复用的对象)。
+    # "付几次"的规律尚未定 (见 costs.py gmm1_tile 文档: 按 1/12 算会过冲)。
     gmm1_b_reuse: bool = False
     combine_quant_mode: int = 0       # CombineQuantMode 模板参数: 0=NO_QUANT, 1=QUANT(FP8+scale)
     l1_size: int = 512 * 1024         # DAV_3510 平台

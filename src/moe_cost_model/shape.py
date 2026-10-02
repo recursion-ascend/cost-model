@@ -139,8 +139,10 @@ class ModelOptions:
     # 调度器在派发那一刻选最早空闲的成员, 不变量即可满足。
     #
     # 取值: ("AIC",) / ("AIC", "AIV1") / ("AIC", "AIV0", "AIV1")
-    # 共位约束自动加: ACT 跟随它的 GMM1 落核 (L0C->UB Fixpipe 只在绑定对内),
-    # combine 跟随它的 GMM2 落核。
+    # 共位约束自动加: ACT 跟随它的 GMM1 落核 (L0C->UB Fixpipe 只在绑定对内), 所以
+    # "AIC" 入池隐含 "AIV0" 入池, 整对一起漂移。
+    # combine **不**跟随它的 GMM2: GMM2 写 GM、combine 从 GM 读, 同核不是物理约束,
+    # combine 可落任意空闲 AIV1。
     #
     # 残留保守项: 按核索引的 L1 回压边 (activation->gmm1, 由 gmm1_activation_depth
     # 产生) 在建图时按静态核号生成, 晚绑定后会指向别的核的 ACT。这不违反不变量

@@ -6,6 +6,33 @@
 
 本文件记录当前表达不了的编排维度, 按补齐价值排序。已覆盖的维度见 README。
 
+## 速查: 哪些编排已经能表达
+
+| 维度 | 旋钮 | 备注 |
+| --- | --- | --- |
+| wave 打包 | `wave_packing` | SequentialGreedy / LongestExpertFirst / BalancedWaves, 可自定义 |
+| wave 容量 | `p1_override` / `p2_override` | 经 `calc_m_groups_per_wave` |
+| tile 网格 | `tile_grid` | SwizzledTileGrid / SplitRowsTileGrid, 可自定义 |
+| tile 几何 | `KernelConfig.tile_m` / `tile_n` | 实测 tile_n 128 -> dag_end -6.6%, tile_m 128 -> +39% |
+| swizzle | `KernelConfig.swizzle_offset` / `swizzle_direction` | **仅在每专家多于 1 个 m-group 时有效** (1 组时退化为无效) |
+| tile->核 分配 | `core_assignment` | StaticRoundRobin / GreedyLeastBusy / ContiguousBlock |
+| tile->核 绑定时机 | `ModelOptions.late_bind_pools` | 建图时 / 派发时 (缺口 3 已补齐) |
+| ready 集选序 | `scheduling_policy` | EarliestStart / WorkConservingCriticalPath / PriorityByStage |
+| stage 波偏移 | `InstancePolicy.wave_offsets` | dispatch 超前波数、GMM2 滞后波数 |
+| dispatch 配速 | `ModelOptions.dispatch_pacing` | per_core / wave / none |
+| GMM2 K 分段 | `ModelOptions.gmm2_k_segments` | 2 (kernel) / 0 (逐块) / N |
+| GMM2 kL1 | `ModelOptions.gmm2_kl1` | 自适应或显式 |
+| B 复用 | `KernelConfig.gmm1_b_reuse` | 实测 -16.3% (多 m-group 时); "付几次"的规律未定 |
+| 通信路径 | `KernelConfig.topo_urma` | MTE / URMA Layered 两套建图器 |
+| 建图器本身 | `MegaMoeShape.orchestration` | 扩展点: 可传自己的建图器类 |
+| 相位流水 | `ModelOptions.pipeline` | load/cube/fix 相位拆分 + 每核队列深度 |
+| 跨卡搬运串行化 | `ModelOptions.serialize_dispatch_comm` | `DISPATCH_COMM` 独占资源 |
+
+**只有旋钮、但缺省标定下是空操作的**: `KernelConfig.l1_buf_num` (只在
+`gmm1_tile_restart_us > 0` 时生效, 缺省 0)、`ModelOptions.fabric_channels` (机制已实现,
+无标定证据, 缺省关)、`KernelConfig.weight_nz` (开启需显式给 NZ 带宽, 否则直接报错)、
+`KernelConfig.topk_weights_prefetch` (无读者, 硬门查的是 `ModelOptions` 的同名字段)。
+
 ---
 
 ## 缺口 1: 跨核 K-split (split-K GEMM)
@@ -184,3 +211,40 @@ self._event("epilogue.unpermute",     (), unpermute_bytes / BW_UNPERMUTE_AGG, ..
   直通配对 AIC 的 L1 —— 这条 UB->L1 通路在模型里没有对应的信道
 - A8W4 下激活核换到 AIV1 (`runsActivation = GetSubBlockIdx() == 1`), 依赖缺口 2
 - A4W4 的激活也是 4bit
+
+---
+
+## 缺口 6: 全局栅栏 / 分段式执行表达不了
+
+现在图里只有**每核每引擎**一个排空节点 (`moe_expert_stage_done.{role}.c{core}`,
+`builders/base.py:287` 的 `DRAIN_STAGES`), 对应 kernel 的 `WAIT_GMM_DRAIN`。**全核栅栏**
+没有对应物 —— kernel 里那两个 `SyncAll` 都在波循环**外面**, 模型按"前导/尾段不入图"的
+口径退场了。
+
+试不了的编排:
+
+- **分段式执行**: 像 DeepEP-Ascend 那样把 dispatch / GMM / combine 拆成几个独立 kernel,
+  段间全核对齐。这是"融合 vs 不融合"的收益评估, 而本模型的定位正是评估这类选择。
+- **波间全核对齐**: 下一波的任何事件都等上一波全部做完 (而不是现在的逐核排空)。
+
+要补: 一个"栅栏事件"原语 —— 零时长、依赖某组事件的全部、且后续某组事件全部依赖它。
+`DRAIN_STAGES` 那张表已经是现成的归集机制, 缺的是"把它升格成全核"的旋钮与建图器支持。
+注意这会与晚绑定叠加: 栅栏之后所有核重新开始, 晚绑定的收益可能被栅栏吃掉 —— 正是值得
+量化的那件事。
+
+---
+
+## 缺口 7: 单 Server 假设 (跨 Server 中继未建模)
+
+URMA Layered 路径显式声明了 `serverNum=1` 的建模边界 (`builders/layered.py:11`): 全部 src
+rank 走直连通道, **跨 Server 的一级中继 PUT** (`BuildDispatchRelayQueues` /
+`SendDispatchRelayQueues`) 没有对应事件。
+
+后果: 评估不了"超节点内 vs 跨超节点"的编排差异 —— 而 ep 规模一上去, 中继跳数与带宽分层
+是主要变量。片间信道现在只有一个带宽档 (`bw_remote_bytes_per_us`), 没有"同 Server /
+跨 Server 两档"的概念。
+
+MTE 路径同理: `DispatchMechanisticLatency` 只分 local / remote 两档, 没有第三档。
+
+同一类的小边界 (都在 `layered.py` 顶部有声明): flag 轮询重试、mask 扫描的标量开销、
+`maxOutputSize` 截断、world >= 5 的并发外推。
