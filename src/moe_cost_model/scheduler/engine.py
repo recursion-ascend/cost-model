@@ -19,7 +19,8 @@ from bisect import bisect_right, insort
 from collections import defaultdict
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from .events import Channel, Event, RestructureContext, ScheduledEvent, edge_latency
+from .events import (Channel, Event, RestructureContext, ScheduledEvent,
+                     edge_latency, pool_key)
 
 
 class _TimeCounter:
@@ -195,8 +196,13 @@ class MultiResourceScheduler:
         restructure=None,
         restructure_limit: Optional[int] = None,
         policy=None,
+        pools: Optional[Dict[str, Sequence[str]]] = None,
     ) -> Tuple[float, List[ScheduledEvent]]:
-        """restructure: 每次事件提交后调用的重构钩子
+        """pools: {池名: 成员资源名序列}. 事件 resources 里写 "<池名>:*" 的占位符,
+        调度器在**派发时刻**解析成最早空闲的成员 (晚绑定); Event.colocate_with 指定
+        必须同核号的锚点事件。pools 为空时行为与静态绑定逐位一致。
+
+        restructure: 每次事件提交后调用的重构钩子
         hook(RestructureContext) -> RestructureAction.
         cancel 的事件必须同名 reinject (见 RestructureAction 契约);
         注入事件数上限 restructure_limit (默认 4×初始事件数, 防策略失控).
@@ -207,6 +213,65 @@ class MultiResourceScheduler:
             from .policies import EarliestStart
             policy = EarliestStart()
         chan_state = {name: _ChannelState(ch) for name, ch in channels.items()}
+
+        # ---- L3 晚绑定: 池成员表 + 已绑定核号 ----
+        pool_members: Dict[str, Tuple[str, ...]] = {
+            k: tuple(v) for k, v in (pools or {}).items()}
+        for pk, mem in pool_members.items():
+            if not mem:
+                raise ValueError(f"pool {pk} 的成员表为空")
+        bound_core: Dict[str, str] = {}      # 事件名 -> 绑定的核号后缀
+
+        def _core_of(resource: str) -> str:
+            return resource.rsplit(":", 1)[1] if ":" in resource else resource
+
+        def _candidates(ev: Event, resource: str) -> Tuple[str, ...]:
+            """resource 的候选成员. 具体资源返回自身; 占位符返回池成员, 若本事件
+            colocate_with 的锚点已绑定则收窄为那一个核号。"""
+            pk = pool_key(resource)
+            if pk is None:
+                return (resource,)
+            mem = pool_members.get(pk)
+            if mem is None:
+                raise ValueError(f"event {ev.name} 引用未声明的资源池 {pk}")
+            anchor = ev.colocate_with
+            if anchor is not None and anchor in bound_core:
+                want = bound_core[anchor]
+                same = tuple(r for r in mem if _core_of(r) == want)
+                if not same:
+                    raise ValueError(
+                        f"event {ev.name} 要与 {anchor} 共位于核 {want}, 但池 {pk} 无此成员")
+                return same
+            return mem
+
+        def _res_ready(ev: Event) -> float:
+            """事件的资源就绪时刻. 具体资源取 max (全部都要空闲);
+            占位符取候选里的 min (任一成员空闲即可) —— 这就是晚绑定的全部语义差别。"""
+            t = 0.0
+            for r in ev.resources:
+                cand = _candidates(ev, r)
+                if len(cand) == 1 and pool_key(r) is None:
+                    t = max(t, resource_free.get(cand[0], 0.0))
+                else:
+                    t = max(t, min(resource_free.get(c, 0.0) for c in cand))
+            return t
+
+        def _bind(ev: Event) -> Tuple[str, ...]:
+            """派发时刻把占位符绑定到最早空闲的候选成员 (并列时取名字序, 保证确定性)."""
+            out = []
+            for r in ev.resources:
+                cand = _candidates(ev, r)
+                out.append(cand[0] if len(cand) == 1 else
+                           min(cand, key=lambda c: (resource_free.get(c, 0.0), c)))
+            return tuple(out)
+
+        def _remap_tokens(toks, core: Optional[str]):
+            """队列 token 的核号占位符 "c*" 换成绑定核号 ("Q:aic:c*" -> "Q:aic:c7")."""
+            if core is None:
+                return tuple(toks)
+            return tuple((t[:-1] + core if t.endswith("c*") else t, k) for t, k in toks)
+
+        has_pools = bool(pool_members)
 
         by_name: Dict[str, Event] = {}
         for ev in events:
@@ -292,11 +357,14 @@ class MultiResourceScheduler:
             dep_ready = max(
                 (end_by_name[d] + edge_latency(ev, d) for d in ev.deps), default=0.0
             )
-            res_ready = max((resource_free.get(r, 0.0) for r in ev.resources), default=0.0)
+            res_ready = _res_ready(ev) if has_pools else max(
+                (resource_free.get(r, 0.0) for r in ev.resources), default=0.0)
             ready[name] = None
             dep_ready_at[name] = dep_ready
+            # 占位资源要登记到**全部**候选成员上: 任一成员空出来都应触发重算 t_base。
             for r in ev.resources:
-                ready_by_res.setdefault(r, set()).add(name)
+                for c in (_candidates(ev, r) if has_pools else (r,)):
+                    ready_by_res.setdefault(c, set()).add(name)
             for led in _ledgers(ev):
                 ledger_watch.setdefault(led, {})[name] = None
             _push_ready(name, ev, max(dep_ready, res_ready))
@@ -311,16 +379,17 @@ class MultiResourceScheduler:
             resolved.pop(name, None)
             ev = by_name[name]
             for r in ev.resources:
-                ready_by_res[r].discard(name)
+                for c in (_candidates(ev, r) if has_pools else (r,)):
+                    ready_by_res.get(c, set()).discard(name)
             for led in _ledgers(ev):
                 ledger_watch[led].pop(name, None)
 
         def _resource_committed(resource: str) -> None:
             """resource 的空闲时刻已变: 重算占用它的就绪事件的 t_base."""
-            for n in ready_by_res.get(resource, ()):
+            for n in list(ready_by_res.get(resource, ())):
                 ev_n = by_name[n]
-                res_ready = max((resource_free.get(r, 0.0) for r in ev_n.resources),
-                                default=0.0)
+                res_ready = _res_ready(ev_n) if has_pools else max(
+                    (resource_free.get(r, 0.0) for r in ev_n.resources), default=0.0)
                 tb = max(dep_ready_at[n], res_ready)
                 if tb != tbase[n]:
                     _push_ready(n, ev_n, tb)
@@ -553,9 +622,17 @@ class MultiResourceScheduler:
             dep_ready = (
                 max(end_by_name[d] + edge_latency(ev, d) for d in ev.deps) if ev.deps else 0.0
             )
+            # L3 晚绑定: 派发时刻才把占位资源绑到具体成员。之后一律用 bound_res,
+            # 不再碰 ev.resources —— ScheduledEvent 里记的也是绑定后的名字, 这样
+            # 下游 (利用率、空闲分解、stealing) 看到的都是真实落核。
+            bound_res = _bind(ev) if has_pools else ev.resources
+            if has_pools and bound_res:
+                bound_core[name] = _core_of(bound_res[0])
+            acq = _remap_tokens(ev.acquires, bound_core.get(name)) if has_pools else ev.acquires
+            rel = _remap_tokens(ev.releases, bound_core.get(name)) if has_pools else ev.releases
             blocking_resource = (
-                max(ev.resources, key=lambda r: resource_free.get(r, 0.0), default=None)
-                if ev.resources else None
+                max(bound_res, key=lambda r: resource_free.get(r, 0.0), default=None)
+                if bound_res else None
             )
             res_ready = resource_free.get(blocking_resource, 0.0) if blocking_resource else 0.0
 
@@ -574,28 +651,28 @@ class MultiResourceScheduler:
                 critical_reason = "channel"
 
             end_by_name[name] = end
-            for resource in ev.resources:
+            for resource in bound_res:
                 resource_free[resource] = end
                 resource_last_event[resource] = name
-            for resource in ev.resources:
+            for resource in bound_res:
                 _resource_committed(resource)
-            for res, k in ev.acquires:
+            for res, k in acq:
                 acq_ctr.setdefault(res, _TimeCounter()).add(start, k)
-            for res, k in ev.releases:
+            for res, k in rel:
                 rel_ctr.setdefault(res, _TimeCounter()).add(end, k)
                 insort(rel_times.setdefault(res, []), end)
             for cname, nbytes, _ in ev.channel_bytes:
                 chan_state[cname].commit(start, start + max(dur, 1e-12),
                                          min(nbytes / max(dur, 1e-12), self._rate_cap(channels[cname])))
-            for ledger in dict.fromkeys([res for res, _ in ev.acquires]
-                                        + [res for res, _ in ev.releases]
+            for ledger in dict.fromkeys([res for res, _ in acq]
+                                        + [res for res, _ in rel]
                                         + [c[0] for c in ev.channel_bytes]):
                 _ledger_written(ledger)
 
             scheduled.append(
                 ScheduledEvent(
                     name=name,
-                    resources=ev.resources,
+                    resources=bound_res,
                     start_us=start,
                     end_us=end,
                     dependency_ready_us=dep_ready,

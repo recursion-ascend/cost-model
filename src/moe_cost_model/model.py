@@ -3,12 +3,13 @@
 """
 from __future__ import annotations
 
+import re
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import registry
 from .builders.mte import MteEventBuilder
 from .config.hardware import KernelConfig, BW_WINDOW, ceil_div
-from .scheduler.events import Channel, Event, ScheduledEvent
+from .scheduler.events import POOL_WILDCARD, Channel, Event, ScheduledEvent
 from .scheduler.engine import MultiResourceScheduler
 from .scheduler.policies import CriticalPathFirst, EarliestStart, PriorityByStage
 from .builders.pipeline_expand import apply_pipeline
@@ -19,6 +20,80 @@ from .shape import (
 from .planning.waves import (
     Wave, calc_m_groups_per_wave, plan_waves, plan_layered_waves,
 )
+
+
+#: 可晚绑定的角色池。moe_stage_done 之类"代表某个核"的零时长栅栏不参与。
+POOLABLE_ROLES = ("AIC", "AIV0", "AIV1")
+_CORE_SUFFIX = re.compile(r"c\d+$")
+
+
+def _rewrite_for_late_binding(events: List[Event], roles: Sequence[str], aic_num: int,
+                             pre: str, pools: Dict[str, Tuple[str, ...]]) -> None:
+    """把指定角色的核资源从"建图时定死"改成"派发时绑定最早空闲的核"。
+
+    做法: 事件声明 "AIC:*" 而不是 "AIC:7", 调度器在准入那一刻挑成员 (engine 的
+    _candidates/_bind)。每核的自取自还队列信号量 (Q:aic:c7) 在独占核资源下是空约束,
+    直接去掉 (否则落到核 3 的 tile 会去扣核 7 的队列深度)。
+
+    **不改一条依赖边**: 事件名、deps、dep_latency 全部原样, 变的只有"哪个核来做"。
+
+    物理约束用 colocate_with 保住:
+      GMM1 -> ACT 同核 (L0C->UB Fixpipe 直给配对 AIV0), 所以 AIC 入池即隐含 AIV0 入池,
+      且每个 ACT 必须与它的 GMM1 落同一核号。
+      GMM2 -> combine 不是物理共位 (GMM2 写 GM, combine 读 GM), 故不加约束。
+    """
+    pooled = set(roles)
+    if "AIC" in pooled:
+        pooled.add("AIV0")
+    bad = sorted(pooled - set(POOLABLE_ROLES))
+    if bad:
+        raise ValueError(f"late_bind_pools 只支持 {POOLABLE_ROLES}, 收到 {bad}")
+    for role in sorted(pooled):
+        pools[f"{pre}{role}"] = tuple(f"{pre}{role}:{c}" for c in range(aic_num))
+
+    stage_of = {e.name: str(e.meta.get("stage", "")) for e in events}
+    for ev in events:
+        if str(ev.meta.get("stage", "")) == "moe_stage_done":
+            continue  # 每核排空栅栏: 它代表的就是那个核, 不能漂移
+        new_res, touched = [], False
+        for r in ev.resources:
+            role, _, core_s = r.partition(":")
+            if core_s and role in pooled:
+                new_res.append(role + POOL_WILDCARD)
+                touched = True
+            else:
+                new_res.append(r)
+        if not touched:
+            continue
+        ev.resources = tuple(new_res)
+        core = ev.meta.get("core")
+        if isinstance(core, int):
+            # 本事件自取自还的每核队列 token (Q:aic:c7 之类): 事件同时独占该核资源,
+            # 同核在途数恒 <= 1, 只要深度 >= 1 这个 token 就不起约束 (见
+            # EngineQueueDepths 文档)。晚绑定下它的核号要等派发才知道, 而容量探测
+            # 发生在绑定之前 —— 直接去掉, 语义不变。跨事件持有的按核 token 则无法这样
+            # 处理, 明确拒绝。
+            self_paired = set(ev.acquires) & set(ev.releases)
+            for t, k in ev.acquires + ev.releases:
+                if _CORE_SUFFIX.search(t) and (t, k) not in self_paired:
+                    raise NotImplementedError(
+                        f"事件 {ev.name} 跨事件持有按核信号量 {t}, 暂不支持晚绑定")
+            ev.acquires = tuple(a for a in ev.acquires if not _CORE_SUFFIX.search(a[0]))
+            ev.releases = tuple(r for r in ev.releases if not _CORE_SUFFIX.search(r[0]))
+        if str(ev.meta.get("stage", "")) == "activation":
+            anchor = next((d for d in ev.deps if stage_of.get(d) == "gmm1"), None)
+            if anchor is not None:
+                ev.colocate_with = anchor
+
+    # 相位拆分事件 (.ld/.cb/fix) 自己不持核资源, 只靠带核号的队列 token 绑核;
+    # 晚绑定下这些 token 无从回填, 先明确拒绝而不是算出一个错数。
+    for ev in events:
+        if ev.resources:
+            continue
+        if any(_CORE_SUFFIX.search(t) for t, _ in ev.acquires + ev.releases):
+            raise NotImplementedError(
+                f"事件 {ev.name} 不持核资源却带按核的队列信号量 (相位流水), "
+                "暂不支持与 late_bind_pools 同用")
 
 
 def completion_event(scheduled: Sequence[ScheduledEvent]) -> Optional[ScheduledEvent]:
@@ -148,10 +223,15 @@ class A8W8WaveCostModel:
                                                     bw_total=BW_WINDOW, max_rate_per_event=BW_WINDOW)
                 channels[f"fab_dst:{s_}"] = Channel(f"fab_dst:{s_}",
                                                     bw_total=BW_WINDOW, max_rate_per_event=BW_WINDOW)
-        # 每 rank 一组 (事件, 容量, 信道); 片间信道跨 rank 共享, 单列
-        groups: List[Tuple[List[Event], Dict[str, int], Dict[str, Channel]]] = []
+        # 每 rank 一组 (事件, 容量, 信道, 资源池); 片间信道跨 rank 共享, 单列
+        groups: List[Tuple[List[Event], Dict[str, int], Dict[str, Channel],
+                           Dict[str, Tuple[str, ...]]]] = []
+        late = tuple(self.options.late_bind_pools or ())
         for shape, events, caps, chans, trace in per:
             pre = f"R{shape.rank_id}."
+            pools: Dict[str, Tuple[str, ...]] = {}
+            if late:
+                _rewrite_for_late_binding(events, late, shape.aic_num, pre, pools)
             capacities: Dict[str, int] = {}
             rank_channels: Dict[str, Channel] = {}
             for ev in events:
@@ -176,22 +256,24 @@ class A8W8WaveCostModel:
                 rank_channels[pre + ch_name] = Channel(pre + ch_name,
                                                        bw_total=ch.bw_total,
                                                        max_rate_per_event=ch.max_rate_per_event)
-            groups.append((events, capacities, rank_channels))
+            groups.append((events, capacities, rank_channels, pools))
 
         sched_pol = getattr(self, '_sched_policy', None)
         if not self._ranks_independent(shapes, restructure, sched_pol):
             # 合并调度: 全部 rank 的事件/容量/信道进同一个调度器
             merged_caps: Dict[str, int] = {}
-            for events, capacities, rank_channels in groups:
+            merged_pools: Dict[str, Tuple[str, ...]] = {}
+            for events, capacities, rank_channels, pools in groups:
                 merged_caps.update(capacities)
                 channels.update(rank_channels)
-            groups = [([ev for events, _, _ in groups for ev in events],
-                       merged_caps, channels)]
+                merged_pools.update(pools)
+            groups = [([ev for events, _, _, _ in groups for ev in events],
+                       merged_caps, channels, merged_pools)]
         scheduled: List[ScheduledEvent] = []
-        for events, capacities, rank_channels in groups:
+        for events, capacities, rank_channels, pools in groups:
             _, part = MultiResourceScheduler().schedule(
                 events, capacities=capacities or None, channels=rank_channels or None,
-                restructure=restructure, policy=sched_pol)
+                restructure=restructure, policy=sched_pol, pools=pools or None)
             scheduled.extend(part)
 
         results: Dict[int, Dict[str, object]] = {}

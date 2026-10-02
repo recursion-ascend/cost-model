@@ -16,6 +16,16 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 
+#: 资源名里的池占位符后缀: "R0.AIC:*" 表示"该池的任意一个成员"。
+#: 调度器在**派发时刻**把它解析成最早空闲的成员 (晚绑定), 而不是建图时定死。
+POOL_WILDCARD = ":*"
+
+
+def pool_key(resource: str) -> Optional[str]:
+    """占位资源 -> 池名 ("R0.AIC:*" -> "R0.AIC"); 具体资源返回 None."""
+    return resource[:-len(POOL_WILDCARD)] if resource.endswith(POOL_WILDCARD) else None
+
+
 @dataclass
 class Event:
     name: str
@@ -33,6 +43,11 @@ class Event:
     releases: Tuple[Tuple[str, int], ...] = ()
     # L2 信道需求: (信道名, 字节数, 应得速率 B/µs)
     channel_bytes: Tuple[Tuple[str, float, float], ...] = ()
+    # L3 晚绑定共位: 本事件必须与 colocate_with 命名的事件落在**同一核号**上。
+    # 物理依据: GMM1 的结果经 L0C->UB 的 Fixpipe 硬件通路直给**配对**的 AIV0
+    # (builders/activation.py: "ACT 钉在配对 GMM1 同核的 AIV0 上"), 所以 GMM1 晚绑定到
+    # 核 X 时, 它的 ACT 必须落 AIV0:X。只在 resources 含池占位符时生效。
+    colocate_with: Optional[str] = None
 
 
 @dataclass(frozen=True)

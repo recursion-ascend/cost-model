@@ -131,4 +131,19 @@ class ModelOptions:
     # 代价: 段数越多, flag 轮询次数越多 (kernel 侧每段一次 WaitUntilGmFlagEquals)。
     # 本模型不计这项开销, 所以细粒度的收益是**上界**。
     gmm2_k_segments: int = 2
+    # L3 晚绑定: 哪些角色池的 tile->核 绑定推迟到**派发时刻**。
+    #
+    # 缺省 () = 建图时静态绑定 (复现 kernel 的 startBlockIdx 旋转)。静态绑定下一个已就绪
+    # 的 tile 可能被困在忙核上而别的核空着 —— 即违反 work-conserving 不变量
+    # (analysis/idle.py 的 avoidable_idle_us > 0)。声明池后, 事件只说"我要一个 AIC",
+    # 调度器在派发那一刻选最早空闲的成员, 不变量即可满足。
+    #
+    # 取值: ("AIC",) / ("AIC", "AIV1") / ("AIC", "AIV0", "AIV1")
+    # 共位约束自动加: ACT 跟随它的 GMM1 落核 (L0C->UB Fixpipe 只在绑定对内),
+    # combine 跟随它的 GMM2 落核。
+    #
+    # 残留保守项: 按核索引的 L1 回压边 (activation->gmm1, 由 gmm1_activation_depth
+    # 产生) 在建图时按静态核号生成, 晚绑定后会指向别的核的 ACT。这不违反不变量
+    # (那段空闲会计成 forced), 但墙钟会略微高估。该类边占总边数 1.4%~3.0%。
+    late_bind_pools: Tuple[str, ...] = ()
     engine_queue_depths: Optional[EngineQueueDepths] = None
