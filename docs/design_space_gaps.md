@@ -108,17 +108,54 @@ comm/urma.py:78,96,112,226    (f"AIV1:{core}",)    recv / maskscan / localcopy /
 
 改动最小: 把 f-string 换成一张 `stage -> 角色` 的映射表, 建图时查表。
 
+注意缺口 3 的晚绑定**不覆盖**这一条: 晚绑定只改"同一角色池里哪个核做", 换不了角色本身
+(`combine` 仍然只能是 AIV1)。`_rewrite_for_late_binding` 里的 `POOLABLE_ROLES` 也是写死的
+三个角色。
+
 ---
 
-## 缺口 3: tile->核 的绑定时机只有"建图时"
+## 缺口 3: tile->核 的绑定时机 — **已补齐 (2026-10)**
 
-`core_assignment` 能换策略 (StaticRoundRobin / GreedyLeastBusy / ContiguousBlock), 但
-三者都在**建图时**定核。**派发时刻晚绑定**表达不了 —— 即"事件只声明要一个 AIC, 调度器
-在派发那一刻选最早空闲的成员"。
+原缺口: `core_assignment` 的三种策略 (StaticRoundRobin / GreedyLeastBusy / ContiguousBlock)
+都在**建图时**定核, 表达不了"事件只声明要一个 AIC, 调度器在派发那一刻选最早空闲的成员"。
 
-这是回收 `avoidable idle` (占 AIC 空闲的 22%~54%, 见 README 的空闲分解) 的手段。
-依赖边字面不变 (边按名字解析), 但要改 `engine.py` 的 `res_ready` 三处计算 + 提交路径的
-资源绑定 + 队列 token 重映射, 并给 ACT 加"跟随 GMM1 落核"的共位约束 (物理, 见缺口 2)。
+### 现在怎么用
+
+```python
+options = m.ModelOptions(late_bind_pools=("AIC", "AIV1"))   # 角色入池, 派发时绑定
+res = m.simulate_routing_counts(..., options=options,
+                                scheduling_policy=m.WorkConservingCriticalPath())
+```
+
+- `"AIC"` 入池隐含 `"AIV0"` 入池: `GMM1 -> ACT` 同核是**物理约束** (L0C->UB Fixpipe 直给
+  配对 AIV0), 所以 ACT 用 `Event.colocate_with` 跟着它的 GMM1 落核, 整对一起漂移。
+- `"AIV1"` 入池让 dispatch/combine 落任意空闲 AIV1。`GMM2 -> combine` **不是**物理共位
+  (GMM2 写 GM, combine 从 GM 读), 故不加约束。
+- 每波每核的 dispatch 调用开销改成 `Event.once_per_core`: 由该核**本波第一段 dispatch**
+  承担, 不钉核、不加边 (`DispatchMechanisticLatency.t_call_oh_us`, 缺省 0)。
+- `WorkConservingCriticalPath` 的排序键是 `(start, -remaining_path_us, order, name)`:
+  start 仍排第一位, 所以核不会为等一个更关键但未就绪的事件而空闲 —— 关键路径只在**同样
+  能立刻开始**的候选之间定先后。`remaining_path_us` 由调度器反向拓扑算出 (此前
+  `CriticalPathFirst` 读的 `downstream_slack` 无人写入, 一直在静默退化成 `EarliestStart`)。
+
+### 效果
+
+6 个形状 (hidden 9216/14336/18432 x 专家 3/6) x 3 种 `dispatch_pacing` 下,
+AIC/AIV0/AIV1 的 `avoidable_idle_us` 全为 0; `busy` 与静态绑定逐位相同 (只换"哪个核做")。
+墙钟见 README 的空闲分解一节。缺省 `late_bind_pools=()` 保持静态绑定, 44 个 golden
+用例逐位一致。
+
+### 残留的保守之处
+
+1. **按核建的边在晚绑定后指向"原核号"**: `gmm1_activation_depth` 产生的 L1 反压边
+   (`activation -> gmm1`) 与 `dispatch_pacing="per_core"` 的配速边, 都按建图时的核号连,
+   而那个事件可能已落到别的核。这**不违反不变量** (那段等待计入 `forced`), 但墙钟略微
+   高估。该类边占总边数 1.4%~3.0%。要彻底解决需要在调度过程中才知道的信息, 即用重构钩子
+   表达。
+2. **与相位流水不可同用**: 相位拆分后 `.lg/.ld/fix` 自己不持核资源, 只靠带核号的队列 token
+   绑核, 晚绑定下无从回填 —— 代码直接抛 `NotImplementedError` 而不是算出一个错数。
+3. **一次性开销不参与准入探测**: `once_per_core` 的开销加在事件结束时刻上, 调度器选核时
+   看不到它; 这段时间也不占信道带宽。
 
 ---
 

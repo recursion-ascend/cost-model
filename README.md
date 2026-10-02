@@ -189,7 +189,7 @@ m.register("tile_grid", "split_every_group", SplitEveryGroup)
 | 共享 GMM1 tile | AIC 核 | GMM1 公式 | 无, 从 0 时刻开始 |
 | 共享 ACT tile | AIV0 核 | ACT 公式 | 同 tile 的共享 GMM1 |
 | 门控 | 无 | 0 | 全部共享 ACT |
-| MoE dispatch_call | AIV1 核 | — | 门控 (MTE: 每个波; Layered: 仅首波接收) |
+| MoE dispatch_call | AIV1 核 | `t_call_oh_us` (缺省 **0**) | 门控 (MTE: 每个波; Layered: 仅首波接收) |
 | 共享 GMM2 tile | AIC 核 | GMM2 公式 (纯计算) | 尾段 core_sync + 本 m-group 的全部共享 ACT |
 | 汇合 | 无 | 0 | 全部共享 GMM2 tile |
 | 尾段 rank_sync | 无 | — | 汇合 |
@@ -296,7 +296,7 @@ m.register("tile_grid", "split_every_group", SplitEveryGroup)
 ```bash
 cd moe-cost-model
 pip install -e .          # 或直接 pytest (pyproject 已配 pythonpath)
-pytest tests/             # 177 项测试 (5 项需 tiling 真值, 见下), 约 1 分钟
+pytest tests/             # 190 项测试 (5 项需 tiling 真值, 见下), 约 1 分钟
 python examples/run_scenario.py    # 场景文件 + 改旋钮对比
 python examples/run_basic.py       # 底层入口
 ```
@@ -363,6 +363,63 @@ python tools/check_work_conservation.py <场景> --assert-conserving   # CI: 有
 那是 dispatch 前段与波间排空的固定代价, 换 wave/tile 编排也消不掉; `avoidable` 占空闲的
 22%~54%, 是换绑定方式能动的部分。
 
+### dispatch 每波每核的调用开销
+
+`DispatchMechanisticLatency.t_call_oh_us` 缺省 **0** —— 实测参考值 `T_CALL_OH = 1.006 us`
+(`config/hardware.py`, 来自 dispatch 零行调用), 由算子工程师按自己的实现填。
+
+填了非 0 值时, 开销的归属随绑定方式变:
+
+- **静态绑定**: 每波每核一个 `dispatch_call` 事件承担。
+- **AIV1 晚绑定**: 改成 `Event.once_per_core` —— 由该核**本波第一段 dispatch** 承担,
+  `dispatch_call` 事件时长归 0。这样段可以落任意空闲核, 开销落在真正搬数据的那个核上。
+  若改成"dispatch 跟着 dispatch_call 的核走", 反而会让已就绪的段去等一个忙核 (实测 AIV1
+  avoidable 9.8~18.6 核·us), 与零空闲冲突。
+- 只有**实际做过 dispatch** 的 (波, 核) 组合付这次开销: 9216/6 上静态是 84 个组合各付一次,
+  晚绑定下段集中到较早空闲的核, 只有 76 个组合付费。
+
+### 把 avoidable 清零: 晚绑定 + 关键路径打破平手
+
+```python
+res = m.simulate_routing_counts(
+    ..., scheduling_policy=m.WorkConservingCriticalPath(),
+    options=m.ModelOptions(late_bind_pools=("AIC", "AIV1")))
+```
+
+| 旋钮 | 作用 |
+| --- | --- |
+| `ModelOptions.late_bind_pools` | 角色入池: 事件只声明"要一个 AIC", 调度器在**派发时刻**绑最早空闲的成员。`()` = 静态绑定 (缺省)。`"AIC"` 入池隐含 `"AIV0"` 入池 —— `GMM1 -> ACT` 同核是物理约束, 整对一起漂移 |
+| `WorkConservingCriticalPath` | 排序键 `(start, -remaining_path_us, order, name)`: start 仍排第一位, 核不会为等未就绪的事件空闲; 关键路径只在**同样能立刻开始**的候选之间定先后 |
+| `ModelOptions.dispatch_pacing` | 下一波 dispatch 等什么: `"per_core"` (缺省, 等本核上一波最后一个 combine) / `"wave"` (等该波全部 combine) / `"none"` (不等, 跨波连续 dispatch) |
+
+实测 (hidden=9216 专家=3, rank0), 单位核·us:
+
+| 配置 | AIC busy | 利用率 | forced | avoidable | dag_end |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 静态绑定 + 贪心 | 5455.0 | 59.5% | 1693.2 | **2023.8** | 327.6 us |
+| 双池晚绑定 + 贪心 | 5455.0 | 61.1% | 3479.5 | **0** | 319.1 us |
+| 双池晚绑定 + 关键路径 | 5455.0 | 64.0% | 3071.7 | **0** | **304.5 us** |
+
+6 个形状 x 3 种 `dispatch_pacing` 下 AIC/AIV0/AIV1 的 `avoidable` 全为 0。`busy` 完全不变 ——
+晚绑定只换"哪个核做", 不改工作量。dag_end 相对静态基线:
+
+| 形状 | 静态基线 | 双池 + 贪心 | 双池 + 关键路径 |
+| --- | ---: | ---: | ---: |
+| 9216 / 3 | 327.6 | 319.1 | **304.5** (−7.1%) |
+| 9216 / 6 | 488.1 | 479.6 | **456.9** (−6.4%) |
+| 14336 / 3 | 380.0 | 378.4 | **369.0** (−2.9%) |
+| 14336 / 6 | 705.3 | 711.3 (+0.9%) | **688.6** (−2.4%) |
+| 18432 / 3 | 494.3 | 488.2 | **448.5** (−9.3%) |
+| 18432 / 6 | 880.7 | 911.4 (+3.5%) | 893.8 / **881.2** (`pacing="none"`) |
+
+**零空闲不等于最快**: 纯贪心在两个形状上把墙钟拖长了 (有就绪的活就立刻上核, 可能把更关键
+的 tile 挤后), 关键路径打破平手才把这部分补回来。反过来, 只换策略不开池也不够 —— 静态绑定
+下 6 个形状里 4 个仍有 avoidable (AIC 最多 1711.9 核·us)。两件事互相独立。
+
+⚠️ 两处残留保守: `gmm1_activation_depth` 的 L1 反压边与 `"per_core"` 配速边都按建图时的核号
+连, 晚绑定后可能指向别的核 (占总边数 1.4%~3.0%, 计入 `forced`, 墙钟略高估); 晚绑定与相位
+流水不可同用 (抛 `NotImplementedError`)。详见 `docs/design_space_gaps.md` 缺口 3。
+
 ## tiling 真值与实测工件
 
 `examples/*.toml` 的 `[tiling] path` 指向实测 run 的 `raw/tiling_rank0.bin` —— 这是
@@ -422,7 +479,7 @@ moe-cost-model/
 │   ├── scheduler/               # 第 2 层: 通用离散事件调度引擎
 │   │   ├── events.py            #   Event / Channel / 速率服务器
 │   │   ├── engine.py            #   MultiResourceScheduler
-│   │   └── policies.py          #   EarliestStart / CriticalPathFirst / PriorityByStage
+│   │   └── policies.py          #   EarliestStart / WorkConservingCriticalPath / PriorityByStage
 │   ├── planning/                # 第 3 层: wave 规划 + tile 网格
 │   │   ├── waves.py             #   plan_waves / swizzle / Layered 波规划
 │   │   ├── core_assignment.py   #   StaticRoundRobin / GreedyLeastBusy / ContiguousBlock
