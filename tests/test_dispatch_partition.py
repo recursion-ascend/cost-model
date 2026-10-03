@@ -43,9 +43,12 @@ def test_granularity_changes_parallelism():
     """
     coarse = _run("rows", 0)
     fine = _run("rows", 16)
-    n = lambda rr: len([e for e in rr["events"] if e.meta.get("stage") == "dispatch"])
-    cores = lambda rr: len({e.resources[0] for e in rr["events"]
-                            if e.meta.get("stage") == "dispatch"})
+    def n(rr):
+        return len([e for e in rr["events"] if e.meta.get("stage") == "dispatch"])
+
+    def cores(rr):
+        return len({e.resources[0] for e in rr["events"]
+                    if e.meta.get("stage") == "dispatch"})
     assert n(fine) > n(coarse)
     assert cores(fine) > cores(coarse)
     assert fine["dag_end_us"] < coarse["dag_end_us"]

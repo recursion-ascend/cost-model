@@ -155,6 +155,8 @@ class A8W8WaveCostModel:
         km = self._kernel_cfg(shape)
         if km.topo_urma:
             return 0   # Layered 宏 Wave = 专家范围, 无 m-group 波宽概念
+        if self.options.m_groups_per_wave > 0:
+            return self.options.m_groups_per_wave      # C4: 直接给波宽
         p1 = shape.p1_override if shape.p1_override > 0 else 1
         p2 = shape.p2_override if shape.p2_override > 0 else 1
         return calc_m_groups_per_wave(

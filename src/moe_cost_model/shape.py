@@ -114,6 +114,12 @@ class ModelOptions:
     #   ("wave",)  波间全核对齐 —— 下一波的任何事件都等上一波全做完
     #   ("stage",) 波内每个 stage 之后对齐 —— 最彻底的分段式执行
     # 用来回答"融合 vs 分段", 见 builders/barriers.py。
+    # C4 波宽: 每波装几个 m-group。0 = 由 p1/p2 经 calc_m_groups_per_wave 推导
+    # (p1/p2 未给时取理论下限 1/1 —— kernel 那张按 token 数分档的表
+    #  resolve_gmm1_min_logical_tiles_per_core 只留给复现工具, 模型不用)。
+    # 给了正整数就**直接**当波宽用: 它是算子工程师要扫的决策变量, 不该只能经由
+    # p1/p2 间接表达。
+    m_groups_per_wave: int = 0
     # C6 dispatch 的"谁取哪些行": "kernel" = 复现 kernel 的均衡+轮转按核预切
     # (compare_measured 要用它和实测 trace 对齐); "rows" = 不预切, 只按
     # dispatch_rows_per_item 切整个切片, 核由调度决定。见 builders/comm/mte.py。

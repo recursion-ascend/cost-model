@@ -78,3 +78,38 @@ def test_barriers_cost_wall_clock():
 def test_unknown_barrier_kind_rejected():
     with pytest.raises(ValueError, match="barriers 只支持"):
         _run(barriers=("expert",))
+
+
+# ---------------------------------------------------------------------------
+# C4: 波宽是决策变量
+# ---------------------------------------------------------------------------
+
+def _run_mgw(mgw, local=6, hd=9216):
+    W, PER = 5, 64
+    rc = [[[0 if s == d else PER for s in range(W)] for _ in range(local)] for d in range(W)]
+    tok = sum(rc[d][e][1] for d in range(W) for e in range(local)) // 6
+    return m.simulate_routing_counts(
+        routing_counts=rc, token_num_per_rank=tok, h=5120, hidden_dim=hd, aic_num=28,
+        costs=m.build_analytical_costs(
+            h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency()),
+        p1_override=1, p2_override=1, topk=6,
+        options=m.ModelOptions(m_groups_per_wave=mgw))["rank_results"][0]
+
+
+def test_m_groups_per_wave_is_directly_settable():
+    """给了就直接当波宽用, 不再只能经 p1/p2 间接表达."""
+    for mgw in (1, 2, 3, 4, 6):
+        rr = _run_mgw(mgw)
+        assert rr["m_groups_per_wave"] == mgw
+
+
+def test_derived_wave_width_is_not_the_best():
+    """推导值 (p1=p2=1 -> 2) 不是最优 —— 所以它必须是能扫的维度.
+
+    实测 9216/6: 波宽 1/2/3/4/6 -> 418.55 / 387.07 / 374.96 / 398.80 / 369.79,
+    推导值是 2。
+    """
+    derived = _run_mgw(0)
+    assert derived["m_groups_per_wave"] == 2
+    assert _run_mgw(3)["dag_end_us"] < derived["dag_end_us"]
+    assert _run_mgw(6)["dag_end_us"] < derived["dag_end_us"]
