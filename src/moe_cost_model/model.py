@@ -13,6 +13,7 @@ from .scheduler.events import POOL_WILDCARD, Event, ScheduledEvent
 from .scheduler.engine import MultiResourceScheduler
 from .scheduler.policies import (CriticalPathFirst, EarliestStart, PriorityByStage,
                                  WorkConservingCriticalPath)
+from .builders.barriers import apply_barriers
 from .builders.pipeline_expand import apply_pipeline
 from .costs import PrimitiveCosts
 from .shape import (
@@ -220,6 +221,8 @@ class A8W8WaveCostModel:
         for shape in shapes:
             events, trace = self.build_events(shape)
             self.cursor_traces[shape.rank_id] = trace
+            if self.options.barriers:
+                events = apply_barriers(events, self.options.barriers)
             caps: Dict = {}
             if self.options.pipeline is not None:
                 events, caps = apply_pipeline(

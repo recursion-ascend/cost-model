@@ -110,6 +110,11 @@ class ModelOptions:
     combine_no_quant: bool = True
     topk_weights_prefetch: bool = False
     serialize_dispatch_comm: bool = False
+    # C3 全核栅栏 (编排选择): () = 不加 (缺省, 逐核推进 = 融合算子);
+    #   ("wave",)  波间全核对齐 —— 下一波的任何事件都等上一波全做完
+    #   ("stage",) 波内每个 stage 之后对齐 —— 最彻底的分段式执行
+    # 用来回答"融合 vs 分段", 见 builders/barriers.py。
+    barriers: Tuple[str, ...] = ()
     pipeline: Optional[PipelineConstraints] = None
     gmm2_kl1: Optional[int] = None
     # GMM2 沿 K 维分几段独立就绪 (K = GMM1 的输出列 = ACT 的列范围)。

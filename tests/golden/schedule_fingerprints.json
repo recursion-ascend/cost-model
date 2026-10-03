@@ -9,7 +9,7 @@
      "rank": 0,
      "total_us": 183.52999524856364,
      "dag_end_us": 198.18040366961625,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -23,13 +23,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
-     "schedule_sha256": "0a5cb739030b8c07c1a280dd49e7114400721f4edfd9e57cf1081e9efc7f4145"
+     "schedule_sha256": "1411252ae3a6033cd9111227d3c7f232345d1c8ba4e50091358333ce4517d912"
     },
     {
      "rank": 1,
      "total_us": 186.3246662984917,
      "dag_end_us": 200.97507471954432,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -43,13 +43,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
-     "schedule_sha256": "5adddf8d8def60cf9742e8b333d48ee8910e9a47e6092d376671d58d13a2cc31"
+     "schedule_sha256": "68592108022ed96ac63037f31ae467a5663a447c2a7ee3a961d7afd09ee089b3"
     },
     {
      "rank": 2,
      "total_us": 186.3246662984917,
      "dag_end_us": 200.97507471954432,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -63,13 +63,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
-     "schedule_sha256": "d72a4c8a0b3fcf27bc5d32025634bd026e2bb08d5ceea7fdecaafdc875e3a120"
+     "schedule_sha256": "193751298148630cc5e2c5c19250d7068c4c51faaef25f462e222c1c9f62c82e"
     },
     {
      "rank": 3,
      "total_us": 185.7645249383109,
      "dag_end_us": 200.41493335936352,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -83,7 +83,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
-     "schedule_sha256": "ae8ee9e635f669e88b8363d222844fe9247cd6e308a87c2fdec11cbc24c840c6"
+     "schedule_sha256": "48d8785b3ea96acdb8fbb840e91983410761aed02bc2d32a363037a519e80669"
     }
    ]
   },
@@ -95,7 +95,7 @@
      "rank": 0,
      "total_us": 181.092081270069,
      "dag_end_us": 195.74248969112162,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -109,13 +109,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "140255591d044136dc2d014871823f28bff557ab1c4a12dcaaca2ca5a4044a92"
+     "schedule_sha256": "505fde5de8dc25f33854759180b96848cc2a436a602ff621cf900d865222f3cf"
     },
     {
      "rank": 1,
      "total_us": 183.4779781264487,
      "dag_end_us": 198.12838654750132,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -129,13 +129,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "b8e753ea44462bb32d16dd1a1bf6dd1dad78962ab16a8595a9d938a47c3289fb"
+     "schedule_sha256": "998de81cd4113a6c17d95fc8d692e24dd257fcaa1ba6068362d3f1a4cd166b89"
     },
     {
      "rank": 2,
      "total_us": 183.4779781264487,
      "dag_end_us": 198.12838654750132,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -149,13 +149,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "ac1b8e19d1ff43fbbbeea425763bb1af2819c8e1596f183ed7ba5df242071bbd"
+     "schedule_sha256": "1a82c36c661bf86c85147229e7730206b82ee5ea8295348094e55abed50230a3"
     },
     {
      "rank": 3,
      "total_us": 182.29708407809585,
      "dag_end_us": 196.94749249914847,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -169,7 +169,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "9a704f3be28668ca1b695ba89e46ceec8119c9a6f3608d2f0135c82e79bad673"
+     "schedule_sha256": "8019d3138e35f01de39b89f11c3b2e16d68a7e2fba28b46669f8c21f3ee6cb23"
     }
    ]
   },
@@ -181,7 +181,7 @@
      "rank": 0,
      "total_us": 8570.83805883168,
      "dag_end_us": 8607.83969251589,
-     "events": 1214,
+     "events": 1131,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 698.2248602150466,
@@ -196,13 +196,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 36,
-     "schedule_sha256": "c10e1cacd368b92212218f24648ad20e85de9cef38ab709d6304dfb7efe4266d"
+     "schedule_sha256": "9d13d2a4837e1c492bf107c6cb98402cc7ffb1a2a6eec3d7e82c08752fd9510a"
     },
     {
      "rank": 1,
      "total_us": 8570.83805883168,
      "dag_end_us": 8607.83969251589,
-     "events": 1214,
+     "events": 1131,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 698.2248602150466,
@@ -217,7 +217,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 36,
-     "schedule_sha256": "edbb4dff40624068bb44aaa6a45a3fffbf40dd05aa9fe21815fde501f40a2b15"
+     "schedule_sha256": "097875f32400c438201a0890ef870fec5687c8797f786a3c2b812a5fe900ff93"
     }
    ]
   },
@@ -229,7 +229,7 @@
      "rank": 0,
      "total_us": 8570.83805883168,
      "dag_end_us": 8607.83969251589,
-     "events": 1214,
+     "events": 1131,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 698.2248602150466,
@@ -244,13 +244,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 36,
-     "schedule_sha256": "c10e1cacd368b92212218f24648ad20e85de9cef38ab709d6304dfb7efe4266d"
+     "schedule_sha256": "9d13d2a4837e1c492bf107c6cb98402cc7ffb1a2a6eec3d7e82c08752fd9510a"
     },
     {
      "rank": 1,
      "total_us": 8570.83805883168,
      "dag_end_us": 8607.83969251589,
-     "events": 1214,
+     "events": 1131,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 698.2248602150466,
@@ -265,7 +265,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 36,
-     "schedule_sha256": "edbb4dff40624068bb44aaa6a45a3fffbf40dd05aa9fe21815fde501f40a2b15"
+     "schedule_sha256": "097875f32400c438201a0890ef870fec5687c8797f786a3c2b812a5fe900ff93"
     }
    ]
   },
@@ -277,7 +277,7 @@
      "rank": 0,
      "total_us": 1122.932818298246,
      "dag_end_us": 1137.5832267192986,
-     "events": 455,
+     "events": 372,
      "wave_count": 1,
      "stage_busy_us": {
       "activation": 216.45625806451562,
@@ -292,13 +292,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 18,
-     "schedule_sha256": "5462ca59a12029f18c437a49bc9106dc3df9090f8e041a5b4b23c8d8bec4910b"
+     "schedule_sha256": "a3be02328811cb9d3acb11fbdc3106eacd899e408ab537cfa500ff432945f0f1"
     },
     {
      "rank": 1,
      "total_us": 2499.221006421379,
      "dag_end_us": 2513.8714148424315,
-     "events": 456,
+     "events": 373,
      "wave_count": 1,
      "stage_busy_us": {
       "activation": 216.45625806451744,
@@ -313,13 +313,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "4521608f6cbacb76997dc36f61f6ff97110374d9a88b4598a41cba56b6b8c7a3"
+     "schedule_sha256": "e580a524b5b6b55fc9b0e2110d032ec012837f5cffbe4bb8c5ec19fb045d1ea0"
     },
     {
      "rank": 2,
      "total_us": 2499.221006421379,
      "dag_end_us": 2513.8714148424315,
-     "events": 456,
+     "events": 373,
      "wave_count": 1,
      "stage_busy_us": {
       "activation": 216.45625806451744,
@@ -334,13 +334,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "d1303fd69f9da80875536e431f44a31c1d369c211977f2f5c06e5eb36617c10e"
+     "schedule_sha256": "426ddc11ee27b7d5322b5e7d0ea74a49485b106ddc0721c171ae108eccce0ab7"
     },
     {
      "rank": 3,
      "total_us": 2499.221006421379,
      "dag_end_us": 2513.8714148424315,
-     "events": 457,
+     "events": 374,
      "wave_count": 1,
      "stage_busy_us": {
       "activation": 216.45625806451756,
@@ -355,7 +355,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "68395d9a5688388e09763f647d1bdce1d982bb31c19b62a16bdbb3e84a8b2696"
+     "schedule_sha256": "e1679be36c00b9ddc91f7671545fcea1df8c0ae55c2b020fc58befd55b3d1977"
     }
    ]
   },
@@ -367,7 +367,7 @@
      "rank": 0,
      "total_us": 2219.7766326957885,
      "dag_end_us": 2234.427041116841,
-     "events": 4829,
+     "events": 4746,
      "wave_count": 1,
      "stage_busy_us": {
       "activation": 884.9562150537713,
@@ -382,13 +382,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 157,
-     "schedule_sha256": "43e6f16c65b561833c662b74be31c6819da6432f123dd0cd3d3b798553a62bb1"
+     "schedule_sha256": "09c369987f47657d17ec8c747581e731759d2dd6c6a9844be851f9c30d37269f"
     },
     {
      "rank": 1,
      "total_us": 2219.7766326957885,
      "dag_end_us": 2234.427041116841,
-     "events": 4829,
+     "events": 4746,
      "wave_count": 1,
      "stage_busy_us": {
       "activation": 884.9562150537713,
@@ -403,13 +403,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 157,
-     "schedule_sha256": "8b09c81709af1fde605a0eebbe68453b51e9df8b5c1bf415dd4db376df114676"
+     "schedule_sha256": "689a58791ee0800d4b457ebec1826c338ff5196bdc7a2e347586e525a2eaff92"
     },
     {
      "rank": 2,
      "total_us": 2219.7766326957885,
      "dag_end_us": 2234.427041116841,
-     "events": 4829,
+     "events": 4746,
      "wave_count": 1,
      "stage_busy_us": {
       "activation": 884.9562150537713,
@@ -424,13 +424,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 157,
-     "schedule_sha256": "4b6ddef29a9334833af834748f39e852e4d44a7ec0eb7a442d34be54bd6e6ed9"
+     "schedule_sha256": "c565d3aa5a26fb19e4700d6b69a6cc0da6ed98f3d999609685e7d41c07f60d8a"
     },
     {
      "rank": 3,
      "total_us": 2219.7766326957885,
      "dag_end_us": 2234.427041116841,
-     "events": 4829,
+     "events": 4746,
      "wave_count": 1,
      "stage_busy_us": {
       "activation": 884.9562150537713,
@@ -445,7 +445,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 157,
-     "schedule_sha256": "55320608a95e3065ac063a7174c424b5709e3be23f9fe67a42a6c62357163ea6"
+     "schedule_sha256": "d3bbf2a882c6e93a102ef28a43dd3bf2e9f3d70cc05856bd6f3af9f1940fb396"
     }
    ]
   },
@@ -457,7 +457,7 @@
      "rank": 0,
      "total_us": 380.9939879143603,
      "dag_end_us": 447.7972552827813,
-     "events": 1335,
+     "events": 1252,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 905.2572903225814,
@@ -471,13 +471,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 26,
-     "schedule_sha256": "1947681e996c74349f952f5342208529cab4e8266be24d54af28fc0f63a3821d"
+     "schedule_sha256": "f392315eb061db4b647720fc349623d0a3a4bf856af3888f14f4b7f7226b5600"
     },
     {
      "rank": 1,
      "total_us": 389.0209898910242,
      "dag_end_us": 455.82425725944523,
-     "events": 1335,
+     "events": 1252,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 905.2572903225803,
@@ -491,7 +491,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 26,
-     "schedule_sha256": "796af250c416fa3a446f3e51f36593ba5d40cca557df6dc7e0828887fd900062"
+     "schedule_sha256": "ca02e42e599d3294314b5a7bad8c468e1796b99fbdc9cf21cecae9cc19ba9ab4"
     }
    ]
   },
@@ -503,7 +503,7 @@
      "rank": 0,
      "total_us": 369.16807568251943,
      "dag_end_us": 435.97134305094045,
-     "events": 1335,
+     "events": 1252,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 905.2572903225819,
@@ -517,13 +517,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 28,
-     "schedule_sha256": "b00ab1eff0b8d60c054f3873ce550412266eaaa7a43810ea461e91ed9f6088a7"
+     "schedule_sha256": "f5ec205c1b294fd43b6bd2a8063cfd6fc400f965d9c62602973e46bc47cac076"
     },
     {
      "rank": 1,
      "total_us": 372.40974282860526,
      "dag_end_us": 439.2130101970263,
-     "events": 1335,
+     "events": 1252,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 905.2572903225819,
@@ -537,7 +537,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 28,
-     "schedule_sha256": "972730ce6a23da834f04c8878addd489fe1986cf09d9be20bf951cc6ec83ebdd"
+     "schedule_sha256": "ac45c43fad6945327674cc7d1e136843a57c3ff658bd6dae514c089c39e1032e"
     }
    ]
   },
@@ -549,7 +549,7 @@
      "rank": 0,
      "total_us": 373.5468950000653,
      "dag_end_us": 440.35016236848634,
-     "events": 1335,
+     "events": 1252,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 905.2572903225819,
@@ -563,13 +563,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 25,
-     "schedule_sha256": "9c0429a38dc43a00c2aa577b90251f170244330ce1a16d62b979b5cde54297b3"
+     "schedule_sha256": "13c137fedfe9fa9298a31c2e73a4e2e99c8057df76f24488cfa2a7244618f81c"
     },
     {
      "rank": 1,
      "total_us": 377.6563656135676,
      "dag_end_us": 444.4596329819886,
-     "events": 1335,
+     "events": 1252,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 905.2572903225816,
@@ -583,7 +583,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 23,
-     "schedule_sha256": "92a8ef1af0f2357410aba1d8f56f2666b452399492c5279d35417dcd32daaf75"
+     "schedule_sha256": "2a619e29a63450b7e8c05f7c97a6bde56e2706eb33c32d574b87d7020571d8a4"
     }
    ]
   },
@@ -595,7 +595,7 @@
      "rank": 0,
      "total_us": 369.16807568251943,
      "dag_end_us": 435.97134305094045,
-     "events": 1335,
+     "events": 1252,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 905.2572903225819,
@@ -609,13 +609,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 28,
-     "schedule_sha256": "206be29ae5571b4b2137a99d2f4e9763087df44657f1bbc58609ce323e336f65"
+     "schedule_sha256": "484a6d4291b53943c287b2def2f18738682acce2b67f1c07dc9195df26c0c2f9"
     },
     {
      "rank": 1,
      "total_us": 372.40974282860526,
      "dag_end_us": 439.2130101970263,
-     "events": 1335,
+     "events": 1252,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 905.2572903225819,
@@ -629,7 +629,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 28,
-     "schedule_sha256": "8fe356c204a603bc106f0628801353230bf25248ae99fa6d4c966e2c1d43d635"
+     "schedule_sha256": "e2be2d5690dfed21f3d9bf07447e3453406ffb182406629bc711722d1cda17ee"
     }
    ]
   },
@@ -641,7 +641,7 @@
      "rank": 0,
      "total_us": 372.11105351165685,
      "dag_end_us": 438.91432088007787,
-     "events": 1274,
+     "events": 1191,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 905.257290322581,
@@ -655,13 +655,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 28,
-     "schedule_sha256": "8022187192039575f79adc13ecedaed901892b84ae51bf17cfa752d2d6a07660"
+     "schedule_sha256": "edfd82f815a8422ac71d169c09c4d095d4edcfe3321442ee5da77b296c013025"
     },
     {
      "rank": 1,
      "total_us": 373.3737895424853,
      "dag_end_us": 440.17705691090634,
-     "events": 1274,
+     "events": 1191,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 905.2572903225803,
@@ -675,7 +675,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 29,
-     "schedule_sha256": "501c5f9662b4766235b3b2535d118bd364f8611b27777b762e771ea76f5e9e0b"
+     "schedule_sha256": "90245b0541df5ddeed47a91231434519cc147648d7f3a8ac4d821aa8a5af2626"
     }
    ]
   },
@@ -687,7 +687,7 @@
      "rank": 0,
      "total_us": 373.01321623548637,
      "dag_end_us": 439.8164836039074,
-     "events": 1335,
+     "events": 1252,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 905.257290322581,
@@ -701,13 +701,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 30,
-     "schedule_sha256": "74f864753b96b5182d9d3effab5ca67e5680afa1a4989c4ba5e3e6ae741a1efc"
+     "schedule_sha256": "1ddae781d240a45bdf1bceea2619f82c4ade7f853b7b60ec1c3ccb407826a9d7"
     },
     {
      "rank": 1,
      "total_us": 414.0551409971525,
      "dag_end_us": 480.8584083655735,
-     "events": 1335,
+     "events": 1252,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 905.2572903225803,
@@ -721,7 +721,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 28,
-     "schedule_sha256": "370eda1fba2285f75d7814ce63913b0846d24fe08b5bf133426731e67e9d1da8"
+     "schedule_sha256": "1810d03c272cc155114c879e2deeb0c66514c209263eae0a754501dacde8338e"
     }
    ]
   },
@@ -733,7 +733,7 @@
      "rank": 0,
      "total_us": 609.9858469698607,
      "dag_end_us": 676.7891143382818,
-     "events": 1314,
+     "events": 1267,
      "wave_count": 6,
      "stage_busy_us": {
       "activation": 905.2572903225794,
@@ -747,13 +747,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 52,
-     "schedule_sha256": "18fe28514c43da23c518d27878c1eb30361e1e3cc94f72fbbecd7e5160cfa41d"
+     "schedule_sha256": "8ffd7dcaa87fb92cde597b19b17149b32b91e00b715ca52ba3712ad4d79d8eb2"
     },
     {
      "rank": 1,
      "total_us": 609.9858469698607,
      "dag_end_us": 676.7891143382818,
-     "events": 1314,
+     "events": 1267,
      "wave_count": 6,
      "stage_busy_us": {
       "activation": 905.2572903225794,
@@ -767,7 +767,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 52,
-     "schedule_sha256": "e7903cd76c61a0b45f6348ad89c2c3769bdbc89b3e835878641da04c1f2548cf"
+     "schedule_sha256": "6a5500847c8c110c1071f708b6ba9b63ea756ad45a3eb775845a718110b1bc65"
     }
    ]
   },
@@ -779,7 +779,7 @@
      "rank": 0,
      "total_us": 359.7383122416591,
      "dag_end_us": 426.54157961008013,
-     "events": 1335,
+     "events": 1252,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 905.2572903225814,
@@ -793,13 +793,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 28,
-     "schedule_sha256": "7e546223f9a1fda296afac36c52e1ab7b1c7bf3749197f7867c974cec34a2c36"
+     "schedule_sha256": "5ec459427fc26b33ff498ae4c59528d9f022ca2e416d82fc6606dc9f650262bd"
     },
     {
      "rank": 1,
      "total_us": 367.6359909476468,
      "dag_end_us": 434.4392583160678,
-     "events": 1335,
+     "events": 1252,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 905.2572903225814,
@@ -813,7 +813,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 29,
-     "schedule_sha256": "69cfba50b1a80b35e5383e5a981b292034220f53138acf0ecb01f31a96e60e00"
+     "schedule_sha256": "1737f6a17ba068610efe56bc36a0b46395a9a1eec1386dfc070bffd4de037a7b"
     }
    ]
   },
@@ -825,7 +825,7 @@
      "rank": 0,
      "total_us": 181.09208127006906,
      "dag_end_us": 195.74248969112168,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -839,13 +839,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "1830b9240f4a26445d56282e3fecf8ad0e65ab6a09cfbd335ebcca2020918506"
+     "schedule_sha256": "c11a38d7fc5137d05a6990108c88a34b983cea37e40860942a93255cf8f9e143"
     },
     {
      "rank": 1,
      "total_us": 183.47797812644876,
      "dag_end_us": 198.12838654750138,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -859,13 +859,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "9fe2118dfabe373c343e8e665feb3a788093a0d169333f5e3c97f687d8116f1f"
+     "schedule_sha256": "c0218affa5e83f08df3805eb546b783214cbc400d1dc302f8bb3eceed070134a"
     },
     {
      "rank": 2,
      "total_us": 183.47797812644876,
      "dag_end_us": 198.12838654750138,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -879,13 +879,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "a94324d049fb3b8822e2f8f279d73937ff3ed37dcfc7e6176ae161a1be31aa86"
+     "schedule_sha256": "5a4c886715007be88176b21909c1b33148e1832628977dafd23d9de2c220e9f4"
     },
     {
      "rank": 3,
      "total_us": 182.2970840780959,
      "dag_end_us": 196.94749249914852,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -899,7 +899,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "9fc24419b479a08d50538357a42302d7ccd3ae9005784e55e420400856e17926"
+     "schedule_sha256": "6fda915bee51627690a3f17c5351b8438cc643ea344fad4ac178398f58ba2fae"
     }
    ]
   },
@@ -911,7 +911,7 @@
      "rank": 0,
      "total_us": 181.092081270069,
      "dag_end_us": 195.74248969112162,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -925,13 +925,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "d6ce0fb48684e9e2279a7ddc48475bfb5ed2fcc27a5fa24ae8eec7e92bc4ea84"
+     "schedule_sha256": "79a39afa9c9966eb802748e6b439a012a2a0fe730706ab2945bac5dcad575431"
     },
     {
      "rank": 1,
      "total_us": 183.4779781264487,
      "dag_end_us": 198.12838654750132,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -945,13 +945,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "26ad5007589d0a56d771ca3e9192d777d4a0221c38f5bc04845ad91351a39af1"
+     "schedule_sha256": "3270ba219b003027e1d45f0e4efba16f9122215245f8665456a5996e1aec0834"
     },
     {
      "rank": 2,
      "total_us": 183.4779781264487,
      "dag_end_us": 198.12838654750132,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -965,13 +965,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "b67aa02d5b1741aed70ec124af6f5e779554c36199b6d788bf716a25ee7553ea"
+     "schedule_sha256": "aa5ff0317a0af14f6da4b97abc083bf1412f23d5c29ba2b0276399bdc6d3e21f"
     },
     {
      "rank": 3,
      "total_us": 182.29708407809585,
      "dag_end_us": 196.94749249914847,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -985,7 +985,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "53cc7709ea343f01492a7a0db05f1f313ce95f96da825105ac1a02cae4d2e855"
+     "schedule_sha256": "f70b58bc60fd1b1b90d5c9c434e7afb461fc3155143a9142d4a613c5dc4287a3"
     }
    ]
   },
@@ -997,7 +997,7 @@
      "rank": 0,
      "total_us": 222.61979286471518,
      "dag_end_us": 237.2702012857678,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1011,13 +1011,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
-     "schedule_sha256": "9c653ed467a1ddf94720cc2da057a02ae8451aff036f1aa87a85189c52cea117"
+     "schedule_sha256": "e2b449d90e4b74cafffcc955f8de3f015c846e0c447d0e89c57045dccc134cf1"
     },
     {
      "rank": 1,
      "total_us": 224.25879512483436,
      "dag_end_us": 238.90920354588698,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1031,13 +1031,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
-     "schedule_sha256": "896307545272c0f63ab9727daeada8f3d3449ccd65991853b77b9dbbae5d2e04"
+     "schedule_sha256": "29162f6bffe4a0747a81badf69a9ad6ae863808d314690f7e5f64a8cd28c3f00"
     },
     {
      "rank": 2,
      "total_us": 224.25879512483436,
      "dag_end_us": 238.90920354588698,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1051,13 +1051,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
-     "schedule_sha256": "0ec4c007f874cb62d63f5e3cb331d32ca22ea2284956b0530d5a849b3a777120"
+     "schedule_sha256": "8a4135311896e362a1333d2d7f5014a17cad79fced00d5e3203f0e35c284017b"
     },
     {
      "rank": 3,
      "total_us": 223.67297223599112,
      "dag_end_us": 238.32338065704374,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1071,7 +1071,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
-     "schedule_sha256": "e2d456d3b147149cb74044196b0529fe323f0c257821b72eb37b7f145b727851"
+     "schedule_sha256": "596821969f8a595389618ec8d82d34baca5a95e095ca5a5d272c531fa9cada59"
     }
    ]
   },
@@ -1083,7 +1083,7 @@
      "rank": 0,
      "total_us": 3379.4904164897926,
      "dag_end_us": 3863.5165554371606,
-     "events": 13274,
+     "events": 13191,
      "wave_count": 32,
      "stage_busy_us": {
       "activation": 9656.077763441132,
@@ -1097,13 +1097,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 261,
-     "schedule_sha256": "2d89632cf32155dd636c8d177d85e82e2be993814f041a69af1876dede55d16a"
+     "schedule_sha256": "8f0874b0d6de8a7ebc9d43a3ea10d2436359fd295e896735eceb1acdce88e25b"
     },
     {
      "rank": 1,
      "total_us": 3382.5680532270026,
      "dag_end_us": 3866.5941921743706,
-     "events": 13274,
+     "events": 13191,
      "wave_count": 32,
      "stage_busy_us": {
       "activation": 9656.077763441132,
@@ -1117,7 +1117,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 261,
-     "schedule_sha256": "f124bb920644a1cb8d12e62e275b30810fdc2f81de0c87c1a50fae7f1af9f2f0"
+     "schedule_sha256": "3da6c42b24651af8558c355cf865511e7e2dc89a7530ca1af4c24d2322483546"
     }
    ]
   },
@@ -1129,7 +1129,7 @@
      "rank": 0,
      "total_us": 245.1708516100528,
      "dag_end_us": 270.7509714356283,
-     "events": 701,
+     "events": 618,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.4562580645163,
@@ -1147,13 +1147,13 @@
       "shared_head_done": 0.0
      },
      "critical_path_len": 18,
-     "schedule_sha256": "8bb0bb0ebe425df6983cd7d3fe5395229fafab6b5c0a55c4ac4f1f206aa1aad9"
+     "schedule_sha256": "fd99a81a5341b63a9ef16048585a00363710ff065bb166f25b8b3511bf259d12"
     },
     {
      "rank": 1,
      "total_us": 247.5567484664325,
      "dag_end_us": 273.136868292008,
-     "events": 701,
+     "events": 618,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.4562580645163,
@@ -1171,13 +1171,13 @@
       "shared_head_done": 0.0
      },
      "critical_path_len": 18,
-     "schedule_sha256": "cba1bff3ff675143dc473501618ce04ef91f3365bc2620a8351971c1ded0cc75"
+     "schedule_sha256": "24c8752f2682f308fb01f6dfe2bd8dc9cf840c4427ae1bd1425b37eeb15a3d93"
     },
     {
      "rank": 2,
      "total_us": 247.5567484664325,
      "dag_end_us": 273.136868292008,
-     "events": 701,
+     "events": 618,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.4562580645163,
@@ -1195,13 +1195,13 @@
       "shared_head_done": 0.0
      },
      "critical_path_len": 18,
-     "schedule_sha256": "05c4e3ba73d7052e78cac5b131f260fcafde6704125b05e65bdd3ec1be31d084"
+     "schedule_sha256": "bf60346841b276efc3639c0af792059fd10554315ea4237d36ffe2b43ab6ed5d"
     },
     {
      "rank": 3,
      "total_us": 246.37585441807965,
      "dag_end_us": 271.95597424365513,
-     "events": 701,
+     "events": 618,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451642,
@@ -1219,7 +1219,7 @@
       "shared_head_done": 0.0
      },
      "critical_path_len": 18,
-     "schedule_sha256": "dd743c95e003f9f6596be62824435927753a808f4cf5b7c1afadbcb8a5e98de0"
+     "schedule_sha256": "ec130558da982644e71f4d2bb07ea9857fd9816da75d42b0ca61dff55314f6bf"
     }
    ]
   },
@@ -1231,7 +1231,7 @@
      "rank": 0,
      "total_us": 181.092081270069,
      "dag_end_us": 195.74248969112162,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1245,13 +1245,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "140255591d044136dc2d014871823f28bff557ab1c4a12dcaaca2ca5a4044a92"
+     "schedule_sha256": "505fde5de8dc25f33854759180b96848cc2a436a602ff621cf900d865222f3cf"
     },
     {
      "rank": 1,
      "total_us": 183.4779781264487,
      "dag_end_us": 198.12838654750132,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1265,13 +1265,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "b8e753ea44462bb32d16dd1a1bf6dd1dad78962ab16a8595a9d938a47c3289fb"
+     "schedule_sha256": "998de81cd4113a6c17d95fc8d692e24dd257fcaa1ba6068362d3f1a4cd166b89"
     },
     {
      "rank": 2,
      "total_us": 183.4779781264487,
      "dag_end_us": 198.12838654750132,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1285,13 +1285,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "ac1b8e19d1ff43fbbbeea425763bb1af2819c8e1596f183ed7ba5df242071bbd"
+     "schedule_sha256": "1a82c36c661bf86c85147229e7730206b82ee5ea8295348094e55abed50230a3"
     },
     {
      "rank": 3,
      "total_us": 182.29708407809585,
      "dag_end_us": 196.94749249914847,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1305,7 +1305,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "9a704f3be28668ca1b695ba89e46ceec8119c9a6f3608d2f0135c82e79bad673"
+     "schedule_sha256": "8019d3138e35f01de39b89f11c3b2e16d68a7e2fba28b46669f8c21f3ee6cb23"
     }
    ]
   },
@@ -1317,7 +1317,7 @@
      "rank": 0,
      "total_us": 174.10023180770338,
      "dag_end_us": 188.750640228756,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1331,13 +1331,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "4e3b370989c39f417fdba261ba87e17ea75843c462bd85c612152f1e70d953ea"
+     "schedule_sha256": "454ec7da330c973711db233c33e1c7acc9680f687bd452c4b1017701ebf3ca1c"
     },
     {
      "rank": 1,
      "total_us": 176.8949028576315,
      "dag_end_us": 191.54531127868412,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1351,13 +1351,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "73ac656505ba0ea6373cd7392af88a5a7d77d4887b1aacd05779bbcdd35c34fd"
+     "schedule_sha256": "04e5076d823a2e77d6d28dde68008c084035c95e7006f4c01c73a2ca60ca7c0c"
     },
     {
      "rank": 2,
      "total_us": 176.8949028576315,
      "dag_end_us": 191.54531127868412,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1371,13 +1371,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "b39ff2a8ace035e36846f43a4665f9f79a76cd42d64d13fd0ce208c50400df67"
+     "schedule_sha256": "e7204764a5ff3419a972fa1f423ecd22faf781000dbcfa81d12358720357781d"
     },
     {
      "rank": 3,
      "total_us": 176.3347614974507,
      "dag_end_us": 190.98516991850332,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1391,7 +1391,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "e0cdab5134f5913183d41fbf9f6feef92e643b63d605dbb763172d9aff1a1e4b"
+     "schedule_sha256": "1f9f3cb975808c983c44a4ef16c8c1feb41799c5f7bf5c81352b6095344c16d3"
     }
    ]
   },
@@ -1403,7 +1403,7 @@
      "rank": 0,
      "total_us": 244.46356941820042,
      "dag_end_us": 259.11397783925304,
-     "events": 837,
+     "events": 754,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 240.13625806451626,
@@ -1417,13 +1417,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
-     "schedule_sha256": "e76c3c76c406b20abdfe93d633b3ac63709de59f937c0bb7d9b816e148ba15d8"
+     "schedule_sha256": "4848c1bb69bbee901b0539afc5a389a99d5c8d6e1291f0450c6f878d36efd757"
     },
     {
      "rank": 1,
      "total_us": 245.15282851004346,
      "dag_end_us": 259.8032369310961,
-     "events": 837,
+     "events": 754,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 240.13625806451626,
@@ -1437,13 +1437,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
-     "schedule_sha256": "13a2fa671b9a27baf4dccaaabf329a6db7fbc854d5608fc26e2fbaa9d128632c"
+     "schedule_sha256": "e18d762bd09ffeb2d4f96926cbb391baf229bb3341c4ca838b883cfa9db87455"
     },
     {
      "rank": 2,
      "total_us": 245.15282851004346,
      "dag_end_us": 259.8032369310961,
-     "events": 837,
+     "events": 754,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 240.13625806451626,
@@ -1457,13 +1457,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
-     "schedule_sha256": "5bd2f1c240b3eaa6baa1c8fc69ed9128ea204f2af95e413c17f30b4e028a353e"
+     "schedule_sha256": "c0960832f107810e5441ea32f247e88bb4ef2cd94a2e88cd7466151841818b8c"
     },
     {
      "rank": 3,
      "total_us": 244.50512906670022,
      "dag_end_us": 259.15553748775284,
-     "events": 837,
+     "events": 754,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 240.13625806451626,
@@ -1477,7 +1477,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
-     "schedule_sha256": "15152da2d2863fb831520d5fa3e9ddbe3f350df58bcefe9e76703545c5755149"
+     "schedule_sha256": "c2b34df8a992512af2b772ae4d501fb6d8443c63885832a78fb94221da744662"
     }
    ]
   },
@@ -1489,7 +1489,7 @@
      "rank": 0,
      "total_us": 173.7560640157278,
      "dag_end_us": 188.4064724367804,
-     "events": 1152,
+     "events": 1069,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 275.65625806451567,
@@ -1503,13 +1503,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 22,
-     "schedule_sha256": "61a14e9232871d9e812751ae5096f0836157dcea49a3e3af0324b42b1317718c"
+     "schedule_sha256": "3de0dea198b65e1a0e73362475ebee8c013a509f0e10dd4a270a8a0311f45bc5"
     },
     {
      "rank": 1,
      "total_us": 174.94901244391764,
      "dag_end_us": 189.59942086497026,
-     "events": 1152,
+     "events": 1069,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 275.656258064516,
@@ -1523,13 +1523,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 22,
-     "schedule_sha256": "0b2c5a21e745c73fba79fc051bfb5c136660061ea2836a3a4ba680c7aa4fedb7"
+     "schedule_sha256": "e03e2f970871a3a20f153508d630b4b15b4ceb9ef0ef840536256efd783cbaf2"
     },
     {
      "rank": 2,
      "total_us": 174.94901244391764,
      "dag_end_us": 189.59942086497026,
-     "events": 1152,
+     "events": 1069,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 275.656258064516,
@@ -1543,13 +1543,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 22,
-     "schedule_sha256": "cc54157c2bf7e01a63a0b703ce96a9741d1228eeb858d3c4cdc26f581b4b7df3"
+     "schedule_sha256": "03b7a16419952eadc31aa340391e6d66962f4f1c34f945bb72e0680c36251204"
     },
     {
      "rank": 3,
      "total_us": 172.7694007734841,
      "dag_end_us": 187.41980919453673,
-     "events": 1152,
+     "events": 1069,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 275.65625806451567,
@@ -1563,7 +1563,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 22,
-     "schedule_sha256": "f6e4b3c0d12efc8db6313ba9c1661f075d34ae135f17662fe5faca4d3aebc633"
+     "schedule_sha256": "90c9354dec616d6e078afa13cfe47a63f68b3b81b183a89244f14b6b62d8354c"
     }
    ]
   },
@@ -1575,7 +1575,7 @@
      "rank": 0,
      "total_us": 1715.8665198852063,
      "dag_end_us": 1730.516928306259,
-     "events": 6682,
+     "events": 6599,
      "wave_count": 16,
      "stage_busy_us": {
       "activation": 884.9562150537705,
@@ -1589,13 +1589,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 136,
-     "schedule_sha256": "1e2afb524011606401ff197ef87d83c5d0cd050b0072acb3ca2062188478a018"
+     "schedule_sha256": "93954d1afec8706657d2b78c7f7f6d1427ed729cbbb86043b7c269b633616e38"
     },
     {
      "rank": 1,
      "total_us": 1715.8665198852063,
      "dag_end_us": 1730.516928306259,
-     "events": 6682,
+     "events": 6599,
      "wave_count": 16,
      "stage_busy_us": {
       "activation": 884.9562150537705,
@@ -1609,13 +1609,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 136,
-     "schedule_sha256": "0717e87bbce72fe7a4372b476f56decbc3bb7edc7bc2da2333e80f61a4376055"
+     "schedule_sha256": "194f21aefce4199d36e67baaa7b71f8a4c8458c04becd5a6ff2f7db1ed5d3fab"
     },
     {
      "rank": 2,
      "total_us": 1715.8665198852063,
      "dag_end_us": 1730.516928306259,
-     "events": 6682,
+     "events": 6599,
      "wave_count": 16,
      "stage_busy_us": {
       "activation": 884.9562150537705,
@@ -1629,13 +1629,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 136,
-     "schedule_sha256": "6a9ef43f2441ffc92d2c9e3907a1d612ecd1fbd1255dad993c6e8d43a54c42fc"
+     "schedule_sha256": "3018d987072591e91328da791bfef1c8139bd514fca4ec02dd3cb6c779da8802"
     },
     {
      "rank": 3,
      "total_us": 1715.8665198852063,
      "dag_end_us": 1730.516928306259,
-     "events": 6682,
+     "events": 6599,
      "wave_count": 16,
      "stage_busy_us": {
       "activation": 884.9562150537705,
@@ -1649,7 +1649,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 136,
-     "schedule_sha256": "d0970f7ceaf7a99d7abd3d25f33d4f30aa5506199b9b9430a99ef8e1ff0f093e"
+     "schedule_sha256": "1cb541af862cb46fd8f5b566e6f714021cdcb4856b4a739f6865310bac1d5fc6"
     }
    ]
   },
@@ -1661,7 +1661,7 @@
      "rank": 0,
      "total_us": 174.10023180770338,
      "dag_end_us": 188.750640228756,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.4562580645162,
@@ -1675,13 +1675,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "9781c251aeead50a1dce24d7f7c3a728a349c979754d54b0f04bc561ae038ad0"
+     "schedule_sha256": "61daadf652a7f371ce396fb9a75af7536ff3ece55fec295ed674bd3135d55165"
     },
     {
      "rank": 1,
      "total_us": 176.8949028576315,
      "dag_end_us": 191.54531127868412,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.4562580645162,
@@ -1695,13 +1695,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "43a6e8c3d3ed0a171ba242d2430f4d677c95fc0f46f7a5c9508f6751fcda4a19"
+     "schedule_sha256": "1d547e0b22665e768388728f8ad5934443c69020c85e5e24ea30fcea90a961f4"
     },
     {
      "rank": 2,
      "total_us": 176.8949028576315,
      "dag_end_us": 191.54531127868412,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.4562580645162,
@@ -1715,13 +1715,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "3720b2d76cf85fb879a7caa933ab1cc530f91410ed123c0e2196868cfd7fa7be"
+     "schedule_sha256": "dfaa77cd112218a9d59751aa770bd84cefe6e5d8a755459d8d85c27548b02a5d"
     },
     {
      "rank": 3,
      "total_us": 176.3347614974507,
      "dag_end_us": 190.98516991850332,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.4562580645162,
@@ -1735,7 +1735,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "a8e7ab0ea052fe2c3c0c83140c139136449d2883461b40b09f83f3a35e035667"
+     "schedule_sha256": "9e0e0bd6b5e4df1e43a7d0860a4af5805ddd460ecc9dcf63a9f59c1467a85e78"
     }
    ]
   },
@@ -1747,7 +1747,7 @@
      "rank": 0,
      "total_us": 173.2592217398998,
      "dag_end_us": 187.90963016095242,
-     "events": 643,
+     "events": 560,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451616,
@@ -1761,13 +1761,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "0f88474a6837002422714954f8c52cb671610a5fbcc6c59b76877a2f35607ada"
+     "schedule_sha256": "599ec031aedfa07624bbe63e98310075974a3064bf7c8f8a874e682cec4e5417"
     },
     {
      "rank": 1,
      "total_us": 176.54312136511356,
      "dag_end_us": 191.19352978616618,
-     "events": 643,
+     "events": 560,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451613,
@@ -1781,13 +1781,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
-     "schedule_sha256": "782dd115155badd3c0053db52f5bd176dd2dcffffcc5500dfe2bf5278cee3aaa"
+     "schedule_sha256": "d880865e9a9fdd7f2e7b5c684a0653ddab6472fa1e0539131e94d4f2610c3e2a"
     },
     {
      "rank": 2,
      "total_us": 176.556376347649,
      "dag_end_us": 191.20678476870162,
-     "events": 643,
+     "events": 560,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451613,
@@ -1801,13 +1801,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
-     "schedule_sha256": "e2ab6683093e7819a48831c0489a20e3c33042e3ea6e24baf231004a47270684"
+     "schedule_sha256": "0805f5cd03718b6d0f6de170660a405fe27e16ba79d99e53bcd2fcd2b734ffde"
     },
     {
      "rank": 3,
      "total_us": 176.556376347649,
      "dag_end_us": 191.20678476870162,
-     "events": 643,
+     "events": 560,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451608,
@@ -1821,7 +1821,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
-     "schedule_sha256": "af3d637e94d111713ae47b5659412f95a1402002aa819c4807839de731905a61"
+     "schedule_sha256": "0b050a598d53814883a0b14697639b48200d61da07e5d025db3e8ae8afb30c1e"
     }
    ]
   },
@@ -1833,7 +1833,7 @@
      "rank": 0,
      "total_us": 249.9200746709986,
      "dag_end_us": 264.57048309205123,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1847,13 +1847,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
-     "schedule_sha256": "c502f8a064911e4ef89c0357b3fe17ea3e32250639cf60e73defc69e8169287b"
+     "schedule_sha256": "b647cdd0e3bb793360782ca098bf47195fa9952d42a0488df26974f151ba0044"
     },
     {
      "rank": 1,
      "total_us": 252.3059715273783,
      "dag_end_us": 266.95637994843094,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1867,13 +1867,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
-     "schedule_sha256": "b2f1b22ed371c80a3c6313d97bbebaf57ea8a7185f6af8b302a640c2caf55c5a"
+     "schedule_sha256": "ad99afcba726be6dddf47d17e237896797c2dea03d83c3480cdf72c04250fbaf"
     },
     {
      "rank": 2,
      "total_us": 252.3059715273783,
      "dag_end_us": 266.95637994843094,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1887,13 +1887,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
-     "schedule_sha256": "56db552142077e9b4d87517ad06b184f806da8948e653377568d8a70d8efc51b"
+     "schedule_sha256": "a4cd0954f6f4c09eb8cb120923aa9cc72894df5dfcf4bb24b26365dc63ce21a4"
     },
     {
      "rank": 3,
      "total_us": 249.66077859538734,
      "dag_end_us": 264.31118701644,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1907,7 +1907,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
-     "schedule_sha256": "302ea80a3bba0d1a8902d64817e42eb52bdbbd62f4b038d43bdd50564105957e"
+     "schedule_sha256": "3a17619c7544d695418bf682ba026bac9df804542eca830763f1bc8553df19fe"
     }
    ]
   },
@@ -1919,7 +1919,7 @@
      "rank": 0,
      "total_us": 159.21700475816647,
      "dag_end_us": 173.86741317921908,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1933,13 +1933,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 14,
-     "schedule_sha256": "d1e11f8d3a5889cbfc540e9d265bc666b57ea4789d4e065f14cf68c36d4e28e0"
+     "schedule_sha256": "13f2553ece591052f4b33f776d165810a5df13102725823d6d01ccf5345efec2"
     },
     {
      "rank": 1,
      "total_us": 161.39851451777196,
      "dag_end_us": 176.04892293882457,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1953,13 +1953,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 14,
-     "schedule_sha256": "da38ac6050ad12aa4f5c5e16112299a94658ae7c866a8d30253e99021c76bbac"
+     "schedule_sha256": "5f59bf5fb1cbfa7d9da81bf66ed70baf2424c30dfd2c54f8b7c3865d9dc05e0c"
     },
     {
      "rank": 2,
      "total_us": 161.39851451777196,
      "dag_end_us": 176.04892293882457,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1973,13 +1973,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 14,
-     "schedule_sha256": "851e92d5bfb3e032c26f58c539f9616912474b2ada1908ae9de57196c67744ca"
+     "schedule_sha256": "ab16b7f1219b83d912988faf2bf764fd156dd1842a90a826b31dcc30f021f0cd"
     },
     {
      "rank": 3,
      "total_us": 161.65592154468794,
      "dag_end_us": 176.30632996574056,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -1993,7 +1993,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 14,
-     "schedule_sha256": "458aab79210bb9d3454be71038dda08b80b81a1ffbf2bd24af62111db5f40124"
+     "schedule_sha256": "a5bd83a61240db812599547ddf89bd9e8cddd1fc4f1c7b6ac213afbb3b6a3896"
     }
    ]
   },
@@ -2005,7 +2005,7 @@
      "rank": 0,
      "total_us": 159.21700475816647,
      "dag_end_us": 173.86741317921908,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2019,13 +2019,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 14,
-     "schedule_sha256": "d1e11f8d3a5889cbfc540e9d265bc666b57ea4789d4e065f14cf68c36d4e28e0"
+     "schedule_sha256": "13f2553ece591052f4b33f776d165810a5df13102725823d6d01ccf5345efec2"
     },
     {
      "rank": 1,
      "total_us": 161.39851451777196,
      "dag_end_us": 176.04892293882457,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2039,13 +2039,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 14,
-     "schedule_sha256": "da38ac6050ad12aa4f5c5e16112299a94658ae7c866a8d30253e99021c76bbac"
+     "schedule_sha256": "5f59bf5fb1cbfa7d9da81bf66ed70baf2424c30dfd2c54f8b7c3865d9dc05e0c"
     },
     {
      "rank": 2,
      "total_us": 161.39851451777196,
      "dag_end_us": 176.04892293882457,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2059,13 +2059,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 14,
-     "schedule_sha256": "851e92d5bfb3e032c26f58c539f9616912474b2ada1908ae9de57196c67744ca"
+     "schedule_sha256": "ab16b7f1219b83d912988faf2bf764fd156dd1842a90a826b31dcc30f021f0cd"
     },
     {
      "rank": 3,
      "total_us": 161.65592154468794,
      "dag_end_us": 176.30632996574056,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2079,7 +2079,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 14,
-     "schedule_sha256": "458aab79210bb9d3454be71038dda08b80b81a1ffbf2bd24af62111db5f40124"
+     "schedule_sha256": "a5bd83a61240db812599547ddf89bd9e8cddd1fc4f1c7b6ac213afbb3b6a3896"
     }
    ]
   },
@@ -2091,7 +2091,7 @@
      "rank": 0,
      "total_us": 1541.4349675590342,
      "dag_end_us": 1667.8415022958764,
-     "events": 9178,
+     "events": 9095,
      "wave_count": 32,
      "stage_busy_us": {
       "activation": 1266.5448602150445,
@@ -2105,13 +2105,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 157,
-     "schedule_sha256": "94c718d8efa337f76d237003c8581ed7bcd428aa65d5246868a0639ae9dac5a0"
+     "schedule_sha256": "1a1629bac99dd1ba40d2291cb3f18d4916ff6399019c994b4353dcc5edf06ccd"
     },
     {
      "rank": 1,
      "total_us": 1541.4349675590342,
      "dag_end_us": 1667.8415022958764,
-     "events": 9178,
+     "events": 9095,
      "wave_count": 32,
      "stage_busy_us": {
       "activation": 1266.5448602150445,
@@ -2125,13 +2125,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 157,
-     "schedule_sha256": "a3e9aa4cca6264d957234415734956eb9d7b797ea67f6375c09f4c11fefc4b4d"
+     "schedule_sha256": "f6b4a2fed19f8447921e77576dfd4dc62dbbc51534b795a03af03ca78c809704"
     },
     {
      "rank": 2,
      "total_us": 1525.934967559034,
      "dag_end_us": 1652.3415022958761,
-     "events": 9178,
+     "events": 9095,
      "wave_count": 32,
      "stage_busy_us": {
       "activation": 1266.5448602150445,
@@ -2145,13 +2145,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 157,
-     "schedule_sha256": "e3ad5d1a688ee1580e889b1e105ab4865a224c13684c1f244b75c4022040be82"
+     "schedule_sha256": "2f67a9ddb137fa9e456ce16aa069cd6c3f98c26ffece7e99405a6f7501054fd2"
     },
     {
      "rank": 3,
      "total_us": 1541.4349675590342,
      "dag_end_us": 1667.8415022958764,
-     "events": 9178,
+     "events": 9095,
      "wave_count": 32,
      "stage_busy_us": {
       "activation": 1266.5448602150445,
@@ -2165,7 +2165,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 157,
-     "schedule_sha256": "8a7be082e684de53d594e68bff0877975463c91c6ef5dc7188089197e70de301"
+     "schedule_sha256": "f8c47319dee5be2f8d0377d67abbbf3582ca7a6ed20caf4dff014f20ea711bd6"
     }
    ]
   },
@@ -2177,7 +2177,7 @@
      "rank": 0,
      "total_us": 1092.147650596255,
      "dag_end_us": 1106.7980590173077,
-     "events": 575,
+     "events": 492,
      "wave_count": 1,
      "stage_busy_us": {
       "activation": 216.45625806451562,
@@ -2192,13 +2192,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 20,
-     "schedule_sha256": "f72b86ee12aad0232701ca3063c5c4b0b6b321dd97db1592415aafb8542ef7f1"
+     "schedule_sha256": "c063418feb1fa1eede7f3bfd742c9860cffe13bf27b7b970d843763dc0a3a7af"
     },
     {
      "rank": 1,
      "total_us": 2483.2620084416812,
      "dag_end_us": 2497.9124168627336,
-     "events": 576,
+     "events": 493,
      "wave_count": 1,
      "stage_busy_us": {
       "activation": 216.45625806451744,
@@ -2213,13 +2213,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 10,
-     "schedule_sha256": "bc0728cc3d42c5105af97757e13c6aec6f3fe422e4e498bed4c1212e711590f9"
+     "schedule_sha256": "d5175fb2c2bc1df05c15944add67df8a5df38d979b810fd82ca3d266f759a899"
     },
     {
      "rank": 2,
      "total_us": 2483.2620084416812,
      "dag_end_us": 2497.9124168627336,
-     "events": 576,
+     "events": 493,
      "wave_count": 1,
      "stage_busy_us": {
       "activation": 216.45625806451744,
@@ -2234,13 +2234,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 10,
-     "schedule_sha256": "cc94b274253a83e13c106723f35ab6227cfe70e0bf87553e7ec0b74529672dd7"
+     "schedule_sha256": "a296e39340f514b3bc9c3f536a94fc19b507bd98c3052bb70a37c4217b62d0a8"
     },
     {
      "rank": 3,
      "total_us": 2483.2620084416812,
      "dag_end_us": 2497.9124168627336,
-     "events": 577,
+     "events": 494,
      "wave_count": 1,
      "stage_busy_us": {
       "activation": 216.45625806451756,
@@ -2255,7 +2255,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 10,
-     "schedule_sha256": "36286b108d8b1df6067992fe08bc5d9cd1f7878542924569b428332acc08ed27"
+     "schedule_sha256": "fc3e3ac4ff8936e5524a236031ecd631c882b64329804788c0c8f9a8b80dd93e"
     }
    ]
   },
@@ -2267,7 +2267,7 @@
      "rank": 0,
      "total_us": 181.092081270069,
      "dag_end_us": 195.74248969112162,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2281,13 +2281,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "140255591d044136dc2d014871823f28bff557ab1c4a12dcaaca2ca5a4044a92"
+     "schedule_sha256": "505fde5de8dc25f33854759180b96848cc2a436a602ff621cf900d865222f3cf"
     },
     {
      "rank": 1,
      "total_us": 183.4779781264487,
      "dag_end_us": 198.12838654750132,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2301,13 +2301,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "b8e753ea44462bb32d16dd1a1bf6dd1dad78962ab16a8595a9d938a47c3289fb"
+     "schedule_sha256": "998de81cd4113a6c17d95fc8d692e24dd257fcaa1ba6068362d3f1a4cd166b89"
     },
     {
      "rank": 2,
      "total_us": 183.4779781264487,
      "dag_end_us": 198.12838654750132,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2321,13 +2321,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "ac1b8e19d1ff43fbbbeea425763bb1af2819c8e1596f183ed7ba5df242071bbd"
+     "schedule_sha256": "1a82c36c661bf86c85147229e7730206b82ee5ea8295348094e55abed50230a3"
     },
     {
      "rank": 3,
      "total_us": 182.29708407809585,
      "dag_end_us": 196.94749249914847,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2341,7 +2341,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "9a704f3be28668ca1b695ba89e46ceec8119c9a6f3608d2f0135c82e79bad673"
+     "schedule_sha256": "8019d3138e35f01de39b89f11c3b2e16d68a7e2fba28b46669f8c21f3ee6cb23"
     }
    ]
   },
@@ -2353,7 +2353,7 @@
      "rank": 0,
      "total_us": 159.21700475816647,
      "dag_end_us": 173.86741317921908,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2367,13 +2367,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 14,
-     "schedule_sha256": "d1e11f8d3a5889cbfc540e9d265bc666b57ea4789d4e065f14cf68c36d4e28e0"
+     "schedule_sha256": "13f2553ece591052f4b33f776d165810a5df13102725823d6d01ccf5345efec2"
     },
     {
      "rank": 1,
      "total_us": 161.39851451777196,
      "dag_end_us": 176.04892293882457,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2387,13 +2387,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 14,
-     "schedule_sha256": "da38ac6050ad12aa4f5c5e16112299a94658ae7c866a8d30253e99021c76bbac"
+     "schedule_sha256": "5f59bf5fb1cbfa7d9da81bf66ed70baf2424c30dfd2c54f8b7c3865d9dc05e0c"
     },
     {
      "rank": 2,
      "total_us": 161.39851451777196,
      "dag_end_us": 176.04892293882457,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2407,13 +2407,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 14,
-     "schedule_sha256": "851e92d5bfb3e032c26f58c539f9616912474b2ada1908ae9de57196c67744ca"
+     "schedule_sha256": "ab16b7f1219b83d912988faf2bf764fd156dd1842a90a826b31dcc30f021f0cd"
     },
     {
      "rank": 3,
      "total_us": 161.65592154468794,
      "dag_end_us": 176.30632996574056,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2427,7 +2427,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 14,
-     "schedule_sha256": "458aab79210bb9d3454be71038dda08b80b81a1ffbf2bd24af62111db5f40124"
+     "schedule_sha256": "a5bd83a61240db812599547ddf89bd9e8cddd1fc4f1c7b6ac213afbb3b6a3896"
     }
    ]
   },
@@ -2439,7 +2439,7 @@
      "rank": 0,
      "total_us": 159.21700475816647,
      "dag_end_us": 173.86741317921908,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2453,13 +2453,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 14,
-     "schedule_sha256": "d1e11f8d3a5889cbfc540e9d265bc666b57ea4789d4e065f14cf68c36d4e28e0"
+     "schedule_sha256": "13f2553ece591052f4b33f776d165810a5df13102725823d6d01ccf5345efec2"
     },
     {
      "rank": 1,
      "total_us": 161.39851451777196,
      "dag_end_us": 176.04892293882457,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2473,13 +2473,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 14,
-     "schedule_sha256": "da38ac6050ad12aa4f5c5e16112299a94658ae7c866a8d30253e99021c76bbac"
+     "schedule_sha256": "5f59bf5fb1cbfa7d9da81bf66ed70baf2424c30dfd2c54f8b7c3865d9dc05e0c"
     },
     {
      "rank": 2,
      "total_us": 161.39851451777196,
      "dag_end_us": 176.04892293882457,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2493,13 +2493,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 14,
-     "schedule_sha256": "851e92d5bfb3e032c26f58c539f9616912474b2ada1908ae9de57196c67744ca"
+     "schedule_sha256": "ab16b7f1219b83d912988faf2bf764fd156dd1842a90a826b31dcc30f021f0cd"
     },
     {
      "rank": 3,
      "total_us": 161.65592154468794,
      "dag_end_us": 176.30632996574056,
-     "events": 779,
+     "events": 696,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2513,7 +2513,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 14,
-     "schedule_sha256": "458aab79210bb9d3454be71038dda08b80b81a1ffbf2bd24af62111db5f40124"
+     "schedule_sha256": "a5bd83a61240db812599547ddf89bd9e8cddd1fc4f1c7b6ac213afbb3b6a3896"
     }
    ]
   },
@@ -2525,7 +2525,7 @@
      "rank": 0,
      "total_us": 182.892081270069,
      "dag_end_us": 197.54248969112163,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2539,13 +2539,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "0fb4b52546a6cdfdf520766a80a9b38333906721ee0928981a72a46e046eaa5a"
+     "schedule_sha256": "9468bf630d81655f34b8c69588b6c561942c478f800372ca4dfd00e4726839b8"
     },
     {
      "rank": 1,
      "total_us": 185.27797812644872,
      "dag_end_us": 199.92838654750133,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2559,13 +2559,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "df1c07dca0501f041155bee1d37466552d72e6cd679df172dc62f9449d4bccc9"
+     "schedule_sha256": "4d62e2825e1f33da8f8f4e1d00f72d5ad5087cbb2b7ccd1a6e3bb76797cf3f35"
     },
     {
      "rank": 2,
      "total_us": 185.27797812644872,
      "dag_end_us": 199.92838654750133,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2579,13 +2579,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "5a4de532bc679a1f71bafd069bd56ac5678cacde1f4327b7fffad53de257082b"
+     "schedule_sha256": "6ff5175c30d6dca13f13cee04a3b312d898d9d46d6f448f4da3d29edbff7e59c"
     },
     {
      "rank": 3,
      "total_us": 183.29708407809585,
      "dag_end_us": 197.94749249914847,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451625,
@@ -2599,7 +2599,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
-     "schedule_sha256": "64da7a196e6c13d72621723a832a3b07df1c8a4f2b6ce173a2afce5e4c5af889"
+     "schedule_sha256": "d474f7c9cf6b810e530b1a018a9aaad601d34ac7926e2c6d5b9d35fb807dfe40"
     }
    ]
   },
@@ -2611,7 +2611,7 @@
      "rank": 0,
      "total_us": 380.9939879143603,
      "dag_end_us": 447.7972552827813,
-     "events": 1335,
+     "events": 1252,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 905.2572903225814,
@@ -2625,13 +2625,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 26,
-     "schedule_sha256": "1947681e996c74349f952f5342208529cab4e8266be24d54af28fc0f63a3821d"
+     "schedule_sha256": "f392315eb061db4b647720fc349623d0a3a4bf856af3888f14f4b7f7226b5600"
     },
     {
      "rank": 1,
      "total_us": 389.0209898910242,
      "dag_end_us": 455.82425725944523,
-     "events": 1335,
+     "events": 1252,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 905.2572903225803,
@@ -2645,7 +2645,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 26,
-     "schedule_sha256": "796af250c416fa3a446f3e51f36593ba5d40cca557df6dc7e0828887fd900062"
+     "schedule_sha256": "ca02e42e599d3294314b5a7bad8c468e1796b99fbdc9cf21cecae9cc19ba9ab4"
     }
    ]
   },
@@ -2657,7 +2657,7 @@
      "rank": 0,
      "total_us": 370.4308117133478,
      "dag_end_us": 437.2340790817688,
-     "events": 1335,
+     "events": 1252,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 905.2572903225812,
@@ -2671,13 +2671,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 29,
-     "schedule_sha256": "0106e81f5bd49cb1dc6e6ba0338f4e03a5d4b90b2e06ede9d22cd09adf2825c2"
+     "schedule_sha256": "8ba3cc82d679c044345a84b824dc8a83edc64327b870ef26114d540c73b31f7f"
     },
     {
      "rank": 1,
      "total_us": 373.6724788594336,
      "dag_end_us": 440.47574622785464,
-     "events": 1335,
+     "events": 1252,
      "wave_count": 3,
      "stage_busy_us": {
       "activation": 905.2572903225812,
@@ -2691,7 +2691,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 29,
-     "schedule_sha256": "4294e8f578fd04d29376a228ff395e0e068a71e6a7f251ad011c1100c6ddc38c"
+     "schedule_sha256": "165bad9759de56af274c69ad9aa8e3afdadb31ee92f597ae29d16c34b4a4df87"
     }
    ]
   },
@@ -2703,7 +2703,7 @@
      "rank": 0,
      "total_us": 282.83094148512276,
      "dag_end_us": 297.4813499061754,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451608,
@@ -2717,13 +2717,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 40,
-     "schedule_sha256": "dd112b4a33d59953b5b7fbfb5a5e17d6951536938f859a6a65c25dc00601f9ed"
+     "schedule_sha256": "c638409dcd50311d3d2fe6d49b740bc9cc693989af48fed671f5e7eb6511b3ff"
     },
     {
      "rank": 1,
      "total_us": 308.95519896055924,
      "dag_end_us": 323.6056073816119,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451608,
@@ -2737,13 +2737,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 63,
-     "schedule_sha256": "0de434452fe4e8607f039a91cf1ebcdbc9f0dfa1714f5ae22d398c93226dfae5"
+     "schedule_sha256": "6e8a884f03f74b8fc3c621d556a2b394662524fd5d4f85f698fd01fb0dcce55b"
     },
     {
      "rank": 2,
      "total_us": 306.03397315410757,
      "dag_end_us": 320.6843815751602,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.45625806451608,
@@ -2757,13 +2757,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 62,
-     "schedule_sha256": "e590c18f8cd2f07419cfdafa4547eba3006ef2b63a34128eb901998c2675394a"
+     "schedule_sha256": "8ebf01945184269170a8e98459e3e48d1c027a8fb69f0647100e08ef6efbdfc5"
     },
     {
      "rank": 3,
      "total_us": 309.03563327319813,
      "dag_end_us": 323.6860416942508,
-     "events": 659,
+     "events": 576,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 216.4562580645162,
@@ -2777,7 +2777,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 29,
-     "schedule_sha256": "bd87e95d5e81ba50bf7d3b26aa1ba5bbfcf63ba7609785c0fd07f7814405b0e3"
+     "schedule_sha256": "dd1ec510d7453ca671b02b0b65da7ac8b6d41bf8a5d73275d4c6a221f6a99314"
     }
    ]
   },
@@ -2789,7 +2789,7 @@
      "rank": 0,
      "total_us": 276.98834543203753,
      "dag_end_us": 313.98997911624804,
-     "events": 920,
+     "events": 837,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 603.504860215055,
@@ -2803,13 +2803,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 22,
-     "schedule_sha256": "4f9d0523066b28ff7720fcef99155f06dead74944d753d84c46bf60028d6eefd"
+     "schedule_sha256": "c4fbdf1be2f9fcc496b90cc9ed469dacae8834f1f3538cd52ef9bf4b2a8562d9"
     },
     {
      "rank": 1,
      "total_us": 283.62328810719686,
      "dag_end_us": 320.62492179140736,
-     "events": 920,
+     "events": 837,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 603.504860215055,
@@ -2823,7 +2823,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 22,
-     "schedule_sha256": "34626a248a547a5399d36807070d2b4c201d0396fbe1383ae67163adb1c84b9c"
+     "schedule_sha256": "32d25cfe95ef29d2bbef3fcc594862041bc1a33a3b21e28ccb5d22dff2bbf19e"
     }
    ]
   },
@@ -2835,7 +2835,7 @@
      "rank": 0,
      "total_us": 253.5869720713563,
      "dag_end_us": 290.5886057555668,
-     "events": 1112,
+     "events": 1029,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 603.504860215055,
@@ -2849,13 +2849,13 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 14,
-     "schedule_sha256": "f3e18dc1af716f8fcfc645baaf9d3558da3d33c6ee68a70d4614c4cf081acf75"
+     "schedule_sha256": "b62219891b211a75981b3d87c154c7dd423deafa62ca2b85237b8277391fdede"
     },
     {
      "rank": 1,
      "total_us": 260.22191474651555,
      "dag_end_us": 297.22354843072605,
-     "events": 1112,
+     "events": 1029,
      "wave_count": 2,
      "stage_busy_us": {
       "activation": 603.504860215055,
@@ -2869,7 +2869,7 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
-     "schedule_sha256": "deb09cee4af20ac39e2c6056b08d4145304ea27c7ef924701326870a3d0e7595"
+     "schedule_sha256": "b5ce8d81984822a2b5bc3fa4919b1c91cd88a1535b61a90c8a80ba2d278c934a"
     }
    ]
   }

@@ -101,7 +101,8 @@ def test_default_pin():
     #   AnalyticalGmmCosts.gmm1_phases 的口径沿革
     assert abs(res["kernel_total_us"] - 183.478) < 0.01
     assert abs(res["kernel_dag_end_us"] - 198.128) < 0.01
-    assert len(res["rank_results"][0]["events"]) == 659
+    # C3: 逐核排空节点 (28 核 x 3 引擎 = 84 个) 换成一个全核排空栅栏 -> 659 - 83 = 576
+    assert len(res["rank_results"][0]["events"]) == 576
     # 排队模型生效标志: 资源争用出现 (旧模型恒为 0)
     rq = sum(1 for e in res["rank_results"][0]["events"] if e.resource_queue_us > 0)
     assert rq > 100, f"resource_queue>0 仅 {rq} 次, 排队模型未生效"

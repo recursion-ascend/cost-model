@@ -292,29 +292,22 @@ class EventBuilderBase:
     )
 
     def _add_completion(self, p):
-        """每核每引擎一个排空节点 (对应内核 WAIT_GMM_DRAIN), 返回全部节点名.
+        """MoE 阶段的排空栅栏: **一个**零时长节点, 依赖全部 MoE 事件.
 
-        依赖取本核该引擎的**全部**事件, 不是最后一个: 同核同引擎的先后由资源
-        互斥在调度期决定, 建图序不等于时间序, 只挂最后建的那个会漏。节点零时长,
-        多挂边不影响时长, 只保证"排空"这个语义真的成立。
+        C3: 原先是每核每引擎一个节点 (28 x 3 = 84 个), 复刻内核的 WAIT_GMM_DRAIN。
+        但 cost model 真正需要表达的只是"尾段要等这批工作全做完" —— 尾段本来就依赖
+        全部 84 个节点, 而每个节点依赖本核该引擎的全部事件, 所以传递闭包就是"依赖
+        全部 MoE 事件"。一个栅栏与 84 个逐核节点**对尾段完全等价**, 却少 83 个节点、
+        83 条出边, 而且名字不带核号 (见 C1)。
 
-        修复前: aic 挂的是 ACT (ACT 跑在 AIV0), aiv0/aiv1 一条边都没有, 而且 84 个
-        节点没有任何消费者 —— 是个既不约束也不被约束的死栅栏。
+        它也不再占核资源: 零时长事件占资源只会让"同一时刻先处理 end 再处理 start"
+        的次序出问题 (analysis/idle.py 里记过这个坑), 而排空语义不需要占核。
+
+        想表达"波间全核对齐"(分段式执行) 用 ModelOptions.barriers, 见 builders/
+        barriers.py —— 那是编排选择, 和这里的排空栅栏是两回事。
         """
-        role_of = {st: role for role, stages in self.DRAIN_STAGES for st in stages}
-        members = {}
-        for ev in self.events:
-            role = role_of.get(str(ev.meta.get("stage", "")))
-            core = ev.meta.get("core")
-            if role is None or core is None:
-                continue
-            members.setdefault((role, core), []).append(ev.name)
-        names = []
-        for core in range(p):
-            for role, res in (("aic", f"AIC:{core}"), ("aiv0", f"AIV0:{core}"),
-                              ("aiv1", f"AIV1:{core}")):
-                names.append(self._event(
-                    f"moe_expert_stage_done.{role}.c{core}", (res,), 0.0,
-                    deps=tuple(members.get((role, core), ())),
-                    meta={"stage": "moe_stage_done", "role": role, "core": core}))
-        return tuple(names)
+        stages = {st for _role, sts in self.DRAIN_STAGES for st in sts}
+        deps = tuple(ev.name for ev in self.events
+                     if str(ev.meta.get("stage", "")) in stages)
+        return (self._event("moe_stage_done", (), 0.0, deps=deps,
+                            meta={"stage": "moe_stage_done"}),)

@@ -69,7 +69,6 @@ def test_static_aiv1_violates_under_per_core_pacing():
 
 
 def test_bad_pacing_rejected():
-    import pytest
     with pytest.raises(ValueError):
         _run(9216, 3, (), "bogus")
 
