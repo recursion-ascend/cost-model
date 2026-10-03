@@ -255,14 +255,12 @@ def test_cube_rate_is_optional():
 
 
 def test_gmm_tile_formulas():
-    """GMM1 = max(A流+B流, 计算); GMM2 = max(B流, 计算); 单缓冲 = 相加 + restart.
+    """GMM1 = max(max(A流,B流), 计算); GMM2 = max(B流, 计算); 单缓冲加 restart.
 
-    载入相加, 由三点定 (见 AnalyticalGmmCosts.gmm1_phases 的口径修订史):
-      bs36  m= 72, 1 个 m-group: 实测 55.645, 模型 A+B = 57.61 (+3.5%)
-      bs128 m=256, 1 个 m-group: 实测 74.810, 模型 A+B = 75.76 (+1.3%)
-    bs36->bs128 是干净的单变量对比 (只有 m 变), 实测斜率 0.10416 对 A 流斜率
-    0.09865, 比值 1.06 —— A 流是加性项。
-    (曾据 bs36 vs bs8192 改成 max, 那是混淆变量: bs8192 同时变了 m 与 m-group 数。)
+    搬运口径 = max(A流, B流): A/B 两股并发, 事件时长取较慢的一股 (2026-10-03 定)。
+    已知与实测冲突 (见 AnalyticalGmmCosts.gmm1_phases 的口径沿革): B 流恒大于 A 流时
+    本口径的 tile 时长不随 m 变, 而 bs36(m=72)->bs128(m=256) 的单变量实测是
+    55.645 -> 74.810。采用本口径即接受在 1 个 m-group 的形状上低估 9%~32%。
     """
     bw, rate = 50000.0, 1.0e7
     g = m.AnalyticalGmmCosts(bw_bytes_per_us=bw, cube_mac_per_us=rate)
@@ -272,22 +270,26 @@ def test_gmm_tile_formulas():
     b_flow2 = k2 * cols / bw
     compute1 = 2.0 * m_rows * cols * k / rate
     compute2 = m_rows * cols * k2 / rate
-    assert g.gmm1_tile(m_rows, k, cols) == max(a_flow + b_flow1, compute1)
+    assert g.gmm1_tile(m_rows, k, cols) == max(max(a_flow, b_flow1), compute1)
     assert g.gmm2_tile(m_rows, k2, cols) == max(b_flow2, compute2)
-    assert g.gmm1_phases(m_rows, k, cols) == (a_flow + b_flow1, compute1)
+    assert g.gmm1_phases(m_rows, k, cols) == (max(a_flow, b_flow1), compute1)
     assert g.gmm2_phases(m_rows, k2, cols) == (b_flow2, compute2)
     # B 复用: 非首组的 tile 不付 B 流, 载入只剩 A 流
     assert g.gmm1_tile(m_rows, k, cols, False) == max(a_flow, compute1)
     # 计算快到让载入绑定
     fast = m.AnalyticalGmmCosts(bw_bytes_per_us=bw, cube_mac_per_us=1.0e12)
-    assert fast.gmm1_tile(m_rows, k, cols) == a_flow + b_flow1
-    # 载入绑定时 tile 时长随 m 线性增长, 斜率 = A 流斜率 (bs36->bs128 实测比值 1.06)
-    assert (fast.gmm1_tile(256, k, cols) - fast.gmm1_tile(64, k, cols)
-            == pytest.approx((256 - 64) * k / bw))
+    assert fast.gmm1_tile(m_rows, k, cols) == max(a_flow, b_flow1)
+    # max 口径的推论: B 流主导时 tile 时长完全不随 m 变 (与 bs36->bs128 实测冲突)
+    assert b_flow1 > 256 * k / bw      # 本参数下 B 流确实主导
+    assert fast.gmm1_tile(256, k, cols) == fast.gmm1_tile(64, k, cols)
+    # A 流主导时才重新随 m 线性增长
+    assert (fast.gmm1_tile(4096, k, cols) - fast.gmm1_tile(2048, k, cols)
+            == pytest.approx((4096 - 2048) * k / bw))
     assert fast.gmm2_tile(m_rows, k2, cols) == b_flow2
     serial = m.AnalyticalGmmCosts(bw_bytes_per_us=bw, cube_mac_per_us=rate,
                                   l1_buf_num=1, tile_restart_us=0.5, l1_tile_k=256)
-    assert serial.gmm1_tile(m_rows, k, cols) == a_flow + b_flow1 + compute1 + 24 * 0.5
+    assert (serial.gmm1_tile(m_rows, k, cols)
+            == max(a_flow, b_flow1) + compute1 + 24 * 0.5)
     assert serial.gmm2_tile(m_rows, k2, cols) == b_flow2 + compute2 + 8 * 0.5
 
 

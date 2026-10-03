@@ -220,8 +220,9 @@ def test_gm_channel_carries_both_gmm_loads():
         stage = ev.meta.get("stage")
         if stage == "gmm1":
             (name, nbytes, _), = ev.channel_bytes
-            # 载入相位 = A流 m·K + B流 2·K·n
-            want = ev.meta["m_rows"] * 6144 + 2 * 6144 * ev.meta["logical_n"]
+            # 载入相位 = max(A流 m·K, B流 2·K·n) —— max 口径下信道只上报较大的一股
+            # (两股并发就不在同一条串行通路上, 按 A+B 计压是双重计费)
+            want = max(ev.meta["m_rows"] * 6144, 2 * 6144 * ev.meta["logical_n"])
             assert abs(nbytes - want) < 1e-3
             assert any(q.startswith("QUEUE:mte_aic") for q, _ in ev.acquires)
         elif stage == "gmm2":

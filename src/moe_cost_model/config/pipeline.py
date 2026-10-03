@@ -157,7 +157,9 @@ class PhaseRates:
     GMM1 的 load / cube 相位时长不在这里给: 取自 GMM 公式的 A 流与计算分解
     (载入带宽与 Cube 速率以公式为唯一来源), 与闭式时长同口径.
     """
-    fix_bw_bytes_per_us: Optional[float] = None   # FixPipe 带宽 (B/µs)
+    # FixPipe 带宽 (B/µs)。**当前不影响时长**: 结果写出 (数据释放事件) 按口径忽略
+    # 不计, 见 builders/pipeline_expand.py 的 fix 相位。字段保留以备改口径。
+    fix_bw_bytes_per_us: Optional[float] = None
     act_load_bw_bytes_per_us: Optional[float] = None  # ACT GM→UB 读带宽
     combine_load_bw_bytes_per_us: Optional[float] = None  # COMBINE GM 读带宽
 

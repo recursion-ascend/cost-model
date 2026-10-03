@@ -210,7 +210,6 @@ def _expand_gmm1(
     km = km if km is not None else KernelConfig()
     stage = _STAGE_GMM1
     core = ev.meta.get("core")
-    m_rows = int(ev.meta.get("m_rows", 0))
     base_dur = ev.duration_us
     load_us = ev.meta.get("load_us")
     compute_us = ev.meta.get("compute_us")
@@ -219,7 +218,12 @@ def _expand_gmm1(
             f"{ev.name}: 缺 A 流/计算分解 — gmm1_tile 是自定义 callable. "
             "相位拆分 (queues.mte_aic > 1) 与 gm_to_l1 信道需要 AnalyticalGmmCosts 的公式")
     # 字节 = 载入相位时长 x 应得速率 (无争用服务时长 = load_us), 信道因此中性。
-    # 载入相位 = A流 + B流 (相加), 折算出的字节就是两条流的总字节, 无缺口。
+    #
+    # 注意 max 口径下这里**不再等于两条流的总字节**: load_us = max(A流, B流), 折算出
+    # 的字节只有较大那一股。这是"A/B 并发"这个假设的必然推论 —— 若两股并发, 它们就
+    # 不在同一条串行通路上, 一条聚合 gm_to_l1 信道按 A+B 计压就是双重计费。代价是这
+    # 条信道上报的字节低于真实搬运量 (差值 = 较小那一股), 争用判定会偏松。
+    # 缺省不开 gm_to_l1 信道, 故缺省路径不受影响。
     #
     # 已声明未建模: 本批 run 是 MXFP8 (config.json5 的 dtype=fp8_e5m2 ->
     # PROFILE_QUANT=E5M2_QUANT), 载入还有 MX scale 两条流 (A-scale m*k/32,
@@ -241,10 +245,11 @@ def _expand_gmm1(
             channel_bytes=ch,
         )]
 
-    # 尾 N-tile 精确: 写回按实际列数, 不按整 tileN (缺省 meta 时退回整 tile)
-    logical_n = int(ev.meta.get("logical_n", km.tile_n))
-    fix_bw = cons.phases.fix_bw_bytes_per_us
-    fix_dur = (m_rows * logical_n * 2 / fix_bw) if fix_bw else 0.0
+    # 数据释放事件 (结果 L0C -> GM/UB) 忽略不计 —— 与闭式公式同口径
+    # (gmm1_phases/gmm2_phases 都只计搬入, 不计写出)。fix 相位保留成 0 时长的节点:
+    # 它仍然承载 QUEUE:fix 与归还 mte 缓冲槽的语义, 只是不再贡献时长。
+    # 因此 PipelineConstraints.phases.fix_bw_bytes_per_us 不再影响任何时长。
+    fix_dur = 0.0
     closed_form = max(load_us, compute_us)      # 走到这里必为双缓冲 (入口已校验)
     overhead = max(0.0, base_dur - closed_form)
     load_longer = load_us > compute_us

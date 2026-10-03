@@ -96,8 +96,11 @@ def test_default_pin():
     #   184.484 -> 220.483
     # 2026-10 dispatch_call 调用开销缺省改 0 (由算子工程师按实现填, 实测参考
     #   T_CALL_OH=1.006): 220.483 -> 219.477
-    assert abs(res["kernel_total_us"] - 219.477) < 0.01
-    assert abs(res["kernel_dag_end_us"] - 234.127) < 0.01
+    # 2026-10-03 搬运口径改 max(A流, B流) (原为相加), 结果写出 (数据释放事件) 不计:
+    #   219.477 -> 183.478。与 1 个 m-group 的两个实测点冲突 (低估 9%~32%), 见
+    #   AnalyticalGmmCosts.gmm1_phases 的口径沿革
+    assert abs(res["kernel_total_us"] - 183.478) < 0.01
+    assert abs(res["kernel_dag_end_us"] - 198.128) < 0.01
     assert len(res["rank_results"][0]["events"]) == 659
     # 排队模型生效标志: 资源争用出现 (旧模型恒为 0)
     rq = sum(1 for e in res["rank_results"][0]["events"] if e.resource_queue_us > 0)
@@ -228,7 +231,7 @@ def _run_costs():
 def test_kl1_override_restores_legacy():
     """kL1=256 显式覆盖应恢复与 auto 相同值 (结构等价性自检)."""
     res = _run(options=m.ModelOptions(gmm2_kl1=256))
-    assert abs(res["kernel_total_us"] - 219.477) < 0.5
+    assert abs(res["kernel_total_us"] - 183.478) < 0.5
 
 
 def test_primitive_costs_requires_all():
