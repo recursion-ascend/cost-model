@@ -79,6 +79,7 @@ from .analysis import (
     idle_core_stealing, resource_utilization,
 )
 from .api import simulate_routing_counts
+from .profiles import MEGAMOE_A8W8, ReferenceProfile
 from .registry import register
 from . import guardrails
 from .scenario import (Calibration, Scenario, TilingSource, Workload,

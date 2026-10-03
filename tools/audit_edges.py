@@ -12,8 +12,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from artifacts import cube_rate
 from moe_cost_model.model import A8W8WaveCostModel
-from moe_cost_model.shape import MegaMoeShape, ModelOptions, EngineQueueDepths
-from moe_cost_model.config.hardware import KernelConfig, T_COUNT_GATE
+from moe_cost_model.profiles import MEGAMOE_A8W8 as PROFILE
+from moe_cost_model.shape import MegaMoeShape, EngineQueueDepths
+from moe_cost_model.config.hardware import T_COUNT_GATE
 from moe_cost_model.scheduler import MultiResourceScheduler
 from moe_cost_model.costs import (
     PrimitiveCosts, DispatchMechanisticLatency, AnalyticalGmmCosts,
@@ -41,7 +42,7 @@ def make_shape(aic, p1, local, per_expert_rows, world=2, h=6144, hidden=4096):
     return MegaMoeShape(
         expert_tokens=expert_tokens, token_num=token, h=h, hidden_dim=hidden,
         aic_num=aic, rank_id=0, p1_override=p1, p2_override=1,
-        expert_source_tokens=src_tokens, kernel=KernelConfig())
+        expert_source_tokens=src_tokens, **PROFILE.shape_kw())
 
 
 def strip_fab(events):
@@ -63,7 +64,7 @@ def schedule(events, aic):
 
 def audit(tag, aic, p1, local, per_expert_rows, chain=True):
     shape = make_shape(aic, p1, local, per_expert_rows)
-    model = A8W8WaveCostModel(make_costs(), ModelOptions())
+    model = A8W8WaveCostModel(make_costs(), PROFILE.options)
     events, trace = model.build_events(shape)
     strip_fab(events)
     by_name = {e.name: e for e in events}

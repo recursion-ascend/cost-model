@@ -21,6 +21,7 @@ from moe_cost_model import (
     AnalyticalActCosts, AnalyticalCombineCosts, AnalyticalGmmCosts,
     DispatchMechanisticLatency, simulate_routing_counts,
     calc_m_groups_per_wave, parse_tiling, T_COUNT_GATE,
+    InstancePolicy, MEGAMOE_A8W8 as PROFILE,
 )
 from moe_cost_model.analysis import bottleneck_report, what_if
 from routing import make_routing
@@ -85,7 +86,7 @@ def make_simulator(t, C):
 
     p1, p2 = p1p2()
 
-    def sim(options=None, full=False, p1_ovr=None, p2_ovr=None):
+    def sim(options=None, policy=None, full=False, p1_ovr=None, p2_ovr=None):
         _gmm = AnalyticalGmmCosts(cube_mac_per_us=cube_rate())
         _act = AnalyticalActCosts()
         _comb = AnalyticalCombineCosts()
@@ -102,7 +103,9 @@ def make_simulator(t, C):
             routing_counts=rc, token_num_per_rank=t["bs"], h=t["h"],
             hidden_dim=t["hidden"], aic_num=t["aic"], costs=costs,
             topk=t["topk"], shared_expert_num=t["shared"],
-            options=options or ModelOptions(),
+            options=options if options is not None else PROFILE.options,
+            policy=policy if policy is not None else PROFILE.policy,
+            **PROFILE.shape_kw(kernel=None, policy=None, options=None),
             p1_override=p1_ovr if p1_ovr is not None else p1,
             p2_override=p2_ovr if p2_ovr is not None else p2)
         return res if full else res["kernel_total_us"]
@@ -157,7 +160,7 @@ def report(run: Path, compare: Path = None):
         "mgw 扫描 p1=2": dict(p1_ovr=2, p2_ovr=1),
         "mgw 扫描 p1=4": dict(p1_ovr=4, p2_ovr=1),
         "mgw 扫描 p1=8": dict(p1_ovr=8, p2_ovr=1),
-        "gmm1→act 深度=2": dict(options=ModelOptions(gmm1_activation_depth=2)),
+        "gmm1→act 深度=2": dict(policy=InstancePolicy(gmm1_activation_depth=2)),
         "kL1=256 显式": dict(options=ModelOptions(gmm2_kl1=256)),
     }
     if t["bs"] >= 1024:

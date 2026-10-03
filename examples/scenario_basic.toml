@@ -4,6 +4,7 @@
 # 表名与字段名就是对象属性名: [policy] 对应 InstancePolicy, [kernel] 对应
 # KernelConfig, [options] 对应 ModelOptions. 写错字段名会直接报错并给出提示.
 
+profile = "megamoe-a8w8"   # 以那份实现的取值为底 (缺省是"最少假设", 不复现任何实现)
 name = "bs64-baseline"
 h = 6144
 hidden_dim = 4096

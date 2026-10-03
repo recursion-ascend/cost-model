@@ -1,5 +1,6 @@
 # 由 data/20260930_154323_285292_bs36_h5120_i4608_k6_cyclic_shared 生成。路由用该 run 实测的 routing_rank*.csv (explicit), 零路由误差 ——
 # 模型内置的 cyclic 公式与这批 run 的实际路由不一致, 故不用生成式路由。
+profile = "megamoe-a8w8"   # 以那份实现的取值为底 (缺省是"最少假设", 不复现任何实现)
 name = "285292_bs36_shared"
 h = 5120
 hidden_dim = 9216

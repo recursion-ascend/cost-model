@@ -5,6 +5,7 @@
 #   每个源 rank 发 72 × 6 = 432 行, 均分到 8 × 3 = 24 个专家 → C[dst][expert][src] = 18
 #   每个专家共收 18 × 8 = 144 行, 每张卡共收 432 行
 
+profile = "megamoe-a8w8"   # 以那份实现的取值为底 (缺省是"最少假设", 不复现任何实现)
 name = "bs72-8rank-topk6"
 h = 5120
 hidden_dim = 4608            # intermediate

@@ -197,6 +197,9 @@ class Scenario:
     hidden_dim: int = 4096
     aic_num: int = 28
     name: str = ""
+    # 实例层 profile: 以某一份实现的取值为底 (profiles.PROFILES 的名字), 文件里
+    # 显式写出的字段再覆盖它。不给 = 模型缺省 = 最少假设, 不复现任何实现。
+    profile: str = ""
     p1_override: int = 0
     p2_override: int = 0
     kernel: KernelConfig = field(default_factory=KernelConfig)
@@ -238,7 +241,7 @@ class Scenario:
         if isinstance(wl, dict) and "counts" in wl and "routing" not in wl:
             wl["routing"] = "explicit"
         data["workload"] = wl
-        return _build(cls, data, "")
+        return _build(cls, data, "", base=_profile_base(data.get("profile")))
 
     def with_overrides(self, overrides: Mapping[str, object]) -> "Scenario":
         """按点分路径改旋钮, 返回新场景. 例: {"policy.gmm2_lag_waves": 2}."""
@@ -440,8 +443,8 @@ def _default(f: dataclasses.Field):
     return None
 
 
-def _convert(cls, key: str, value, path: str):
-    """校验并转换一个字段值."""
+def _convert(cls, key: str, value, path: str, base=None):
+    """校验并转换一个字段值. base = 该字段的起步取值 (profile), 嵌套表以它为底."""
     f = _field(cls, key, path)
     where = _join(path, key)
     if (cls, key) in _STRATEGY_FIELDS:
@@ -450,7 +453,9 @@ def _convert(cls, key: str, value, path: str):
     nested = _NESTED.get((cls, key))
     if nested is not None:
         if isinstance(value, dict):
-            return _build(nested, value, where)
+            sub = {f.name: getattr(base, f.name) for f in dataclasses.fields(base)} \
+                if isinstance(base, nested) else None
+            return _build(nested, value, where, sub)
         if value is None or isinstance(value, nested):
             return value
         raise ValueError(f"{where}: 应为表 (对应 {nested.__name__}), 得到 {value!r}")
@@ -487,11 +492,28 @@ def _leaf_kind(f: dataclasses.Field) -> str:
     return "数值"
 
 
-def _build(cls, data, path: str):
+def _build(cls, data, path: str, base: Optional[Mapping[str, object]] = None):
+    """字典 → 对象. base 给出"起步取值" (profile): 文件写了的字段覆盖它.
+
+    嵌套表 (如 [options]) 以 base 里的同名对象为底做 replace, 所以场景文件只需写
+    它想改的那几项, 其余沿用 profile 而不是类缺省。
+    """
     if not isinstance(data, Mapping):
         raise ValueError(f"{path or '场景'}: 应为表, 得到 {data!r}")
-    kwargs = {key: _convert(cls, key, value, path) for key, value in data.items()}
+    base = dict(base or {})
+    kwargs = {key: _convert(cls, key, value, path, base.get(key))
+              for key, value in data.items()}
+    for key, val in base.items():
+        kwargs.setdefault(key, val)
     return _construct(cls, kwargs, path)
+
+
+def _profile_base(name) -> Dict[str, object]:
+    """profile= 的取值 → 起步字段表; 没给就空表 (纯缺省)."""
+    if not name:
+        return {}
+    from .profiles import resolve_profile
+    return dict(resolve_profile(str(name)).scenario_fields())
 
 
 def _construct(cls, kwargs, path: str):
@@ -506,7 +528,7 @@ def _set_path(obj, keys, value, path: str):
     cls = type(obj)
     _field(cls, key, path)
     if len(keys) == 1:
-        new = _convert(cls, key, value, path)
+        new = _convert(cls, key, value, path, getattr(obj, key, None))
     else:
         nested = _NESTED.get((cls, key))
         if nested is None:

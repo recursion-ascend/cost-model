@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from moe_cost_model import (
     PrimitiveCosts, simulate_routing_counts, calc_m_groups_per_wave,
     AnalyticalGmmCosts, AnalyticalActCosts, AnalyticalCombineCosts,
-    DispatchMechanisticLatency, T_COUNT_GATE, parse_tiling, KernelConfig,
+    DispatchMechanisticLatency, T_COUNT_GATE, parse_tiling,    MEGAMOE_A8W8 as PROFILE,
 )
 from routing import make_routing
 from artifacts import cube_rate
@@ -194,7 +194,9 @@ for run in RUN_DIRS:
         routing_counts=rc, token_num_per_rank=t["bs"], h=t["h"], hidden_dim=t["hidden"],
         aic_num=t["aic"], costs=costs, p1_override=p1, p2_override=p2,
         topk=t["topk"], shared_expert_num=t["shared"],
-        kernel=KernelConfig(weight_nz=(t.get("groupedMatmulMode") == 2)),
+        **PROFILE.shape_kw(
+            kernel=PROFILE.with_kernel(weight_nz=(t.get("groupedMatmulMode") == 2)),
+            options=PROFILE.options),
     )
     label = f"{run.parent.name}/{run.name}"[:32]
     extra = f"[p1={p1},p2={p2}]" if p1 or p2 else ""

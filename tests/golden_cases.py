@@ -18,6 +18,10 @@ from moe_cost_model.shape import MegaMoeShape
 
 H, HIDDEN, AIC = 6144, 4096, 28
 
+# golden 固定的是"复现那份实现"的那组取值, 所以显式引用 profile 而不是靠缺省值。
+# 模型缺省是"最少假设", 跟这份实现不是一个点 —— 两者不同是信息, 不是回归。
+P = m.MEGAMOE_A8W8
+
 
 # ---------------------------------------------------------------------------
 # 路由与公式
@@ -67,6 +71,7 @@ def analytical_costs(kernel=None):
 # ---------------------------------------------------------------------------
 
 def run_api(routing, token_num, *, costs=None, aic_num=AIC, p1=2, p2=1, **kw):
+    kw = dict(P.shape_kw(options=P.options), **kw)
     return m.simulate_routing_counts(
         routing_counts=routing, token_num_per_rank=token_num, h=H, hidden_dim=HIDDEN,
         aic_num=aic_num, costs=costs if costs is not None else manual_costs(),
@@ -78,8 +83,9 @@ def run_shapes(routing, token_num, *, costs=None, aic_num=AIC, p1=2, p2=1,
                **shape_kw) -> Dict[str, object]:
     """经 MegaMoeShape 直达 model: 覆盖 api 入口未暴露的策略旋钮
     (scheduling_policy / core_assignment / wave_packing)."""
+    kernel = kernel if kernel is not None else P.kernel
     costs = _rebind_costs_to_kernel(costs if costs is not None else manual_costs(), kernel)
-    model = A8W8WaveCostModel(costs, options or m.ModelOptions())
+    model = A8W8WaveCostModel(costs, options or P.options)
     shapes = []
     for dst, rows in enumerate(routing):
         src_rows = tuple(tuple(int(x) for x in r) for r in rows)
@@ -88,8 +94,9 @@ def run_shapes(routing, token_num, *, costs=None, aic_num=AIC, p1=2, p2=1,
             h=H, hidden_dim=HIDDEN, aic_num=aic_num, rank_id=dst,
             p1_override=p1, p2_override=p2, expert_source_tokens=src_rows,
             dispatch_layout=m.DispatchDataLayout.from_hidden(H),
-            kernel=kernel, policy=policy if policy is not None else m.InstancePolicy(),
-            **shape_kw))
+            **dict(P.shape_kw(kernel=kernel,
+                              policy=policy if policy is not None else P.policy),
+                   **shape_kw)))
     ranks = model.simulate_multi(shapes, restructure=restructure)
     slowest = max(ranks, key=lambda r: float(ranks[r]["total_us"]))
     return {"kernel_total_us": float(ranks[slowest]["total_us"]),
@@ -98,7 +105,7 @@ def run_shapes(routing, token_num, *, costs=None, aic_num=AIC, p1=2, p2=1,
 
 
 def _pipeline(**kw):
-    return m.ModelOptions(pipeline=m.PipelineConstraints(**kw))
+    return P.with_options(pipeline=m.PipelineConstraints(**kw))
 
 
 # ---------------------------------------------------------------------------
@@ -110,8 +117,8 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
     w3 = lambda: uniform_routing(2, 6, 256)          # 3 波: 6 专家 × 512 行
     steal = lambda: uniform_routing(2, 4, 256)       # 4 专家 × 512 行, 转移生效的最小规模
     off = m.StageWaveOffsets
-    pol = m.InstancePolicy
-    kc = m.KernelConfig
+    pol = P.with_policy          # 以 profile 的策略为底, 只改指定项
+    kc = P.with_kernel
     split = dict(queues=m.QueueDepths(mte_aic=2, cube=2, fix=2))
 
     c: Dict[str, Callable[[], Dict[str, object]]] = {}
@@ -142,7 +149,7 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
         costs=analytical_costs(kc(l1_buf_num=1, combine_quant_mode=1)))
     c["mte_l1_tile_k512"] = lambda: run_api(sk(), 64, kernel=kc(l1_tile_k=512))
     c["mte_b_reuse"] = lambda: run_api(w3(), 512, kernel=kc(gmm1_b_reuse=True))
-    c["mte_gmm2_kl1_256"] = lambda: run_api(sk(), 64, options=m.ModelOptions(gmm2_kl1=256))
+    c["mte_gmm2_kl1_256"] = lambda: run_api(sk(), 64, options=P.with_options(gmm2_kl1=256))
 
     # ---- 策略旋钮 (经 MegaMoeShape) ----
     c["policy_priority_by_stage"] = lambda: run_shapes(
@@ -184,7 +191,7 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
         sk(), 64, options=_pipeline(queues=m.QueueDepths(mte_aic=2),
                                     phases=m.PhaseRates(fix_bw_bytes_per_us=2.0e5)))
     c["pipeline_engine_queue2"] = lambda: run_api(
-        sk(), 64, options=m.ModelOptions(
+        sk(), 64, options=P.with_options(
             pipeline=m.PipelineConstraints(**split),
             engine_queue_depths=m.EngineQueueDepths(aic=2, vec0=2, aiv1=2)))
     c["pipeline_large_split"] = lambda: run_api(
@@ -192,7 +199,7 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
     c["pipeline_layered_split"] = lambda: run_api(
         sk(), 64, kernel=kc(topo_urma=True), options=_pipeline(**split))
     c["serialize_dispatch_comm"] = lambda: run_api(
-        sk(), 64, options=m.ModelOptions(serialize_dispatch_comm=True))
+        sk(), 64, options=P.with_options(serialize_dispatch_comm=True))
 
     # ---- 运行时图重构 (钩子每次提交扫描全部未提交事件, 规模取小) ----
     c["stealing_gmm1"] = lambda: run_api(steal(), 256, restructure=m.idle_core_stealing())

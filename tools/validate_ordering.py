@@ -21,7 +21,7 @@ from artifacts import cube_rate, read_prof_bin
 from moe_cost_model import (
     AnalyticalActCosts, AnalyticalCombineCosts, AnalyticalGmmCosts,
     DispatchMechanisticLatency, PrimitiveCosts, T_COUNT_GATE,
-    simulate_routing_counts, parse_tiling,
+    simulate_routing_counts, parse_tiling,    MEGAMOE_A8W8 as PROFILE,
 )
 from routing import make_routing
 
@@ -125,7 +125,8 @@ def main():
             routing_counts=rc, token_num_per_rank=t["bs"], h=t["h"],
             hidden_dim=t["hidden"], aic_num=t["aic"], costs=costs,
             p1_override=p1, p2_override=p2, topk=t["topk"],
-            shared_expert_num=t["shared"])
+            shared_expert_num=t["shared"],
+            **PROFILE.shape_kw(options=PROFILE.options))
         model_wall = max(res["rank_results"][r]["dag_end_us"]   # 实测墙钟含尾段
                          for r in range(t["ep"]))
         rows.append({"name": run.name, "p1": p1, "p2": p2, "mgw": t["mGroupsPerWave"],
