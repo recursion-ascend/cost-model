@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Dict, Iterator, Tuple
 
 from ...costs import DispatchDataLayout
-from ..base import rows_by_source_rank
+from ..base import build_dispatch_expert_ir, rows_by_source_rank
 from ..context import BuildContext
 from ..pipeline_expand import CH_DISPATCH_READ, CH_DISPATCH_WRITE
 from .base import CombineTransport, DispatchTransport
@@ -39,10 +39,10 @@ class MteDispatch(DispatchTransport):
         la = policy.effective_wave_offsets(shape.token_num).dispatch + 1
         TILE_M = km.tile_m
         wave_contrib: Dict[Tuple[int, int, list], list] = {}
+        per_core_deps: Dict[int, Tuple[tuple, str]] = {}
         call_irs = [builder._dispatch_call_ir(shape, w, core) for core in range(p)]
         layout0 = shape.dispatch_layout or DispatchDataLayout.from_hidden(shape.h)
         for core in range(p):
-            call_ir = call_irs[core]
             deps = [shared_gates] if shared_gates else []
             pacing_wave = w.index - la
             pacing = builder.options.dispatch_pacing
@@ -60,74 +60,101 @@ class MteDispatch(DispatchTransport):
                 acquires=(q_aiv1,), releases=(q_aiv1,),
                 meta={"stage": "dispatch_call", "wave": w.index, "core": core})
 
-            rel_begin, count = builder._rotated_balanced_range(w.rows, core, p,
-                                                               w.begin.global_row)
-            if count == 0:
-                continue
-            cb = w.begin.global_row + rel_begin
-            ce = cb + count
-            expert_ir_by_id = {e.expert: e for e in call_ir.experts}
-            b_row = layout0.bytes_read_per_row()
-            b_write = layout0.bytes_written_per_row()
-            batch_rows = layout0.route_items_per_batch
-            first_remote = True
-            for sl in w.slices:
-                ob = max(cb, sl.global_row_begin)
-                oe = min(ce, sl.global_row_end)
-                if ob >= oe:
+            per_core_deps[core] = (tuple(deps), call_name)
+
+        # ---- C6: 一份 dispatch 工作 = (专家切片, 源卡段) 切出来的一批行 ----
+        # "谁去取哪些行"是**调度决策**, 不该写在建图里。两种切法:
+        #   "kernel" (缺省): 先按 kernel 的均衡+轮转把波的行分给 28 核, 每核再切批
+        #                    —— 复现 kernel, compare_measured 要用它和实测 trace 对齐
+        #   "rows":          不做按核预切, 只按 rows_per_item 切整个切片; 核号只是
+        #                    轮转占位, AIV1 入池后由调度器在派发时刻决定
+        mode = builder.options.dispatch_partition
+        if mode not in ("kernel", "rows"):
+            raise ValueError(f"dispatch_partition 只能是 kernel/rows, 收到 {mode!r}")
+        b_row = layout0.bytes_read_per_row()
+        b_write = layout0.bytes_written_per_row()
+        batch_rows = builder.options.dispatch_rows_per_item or layout0.route_items_per_batch
+        first_remote: Dict[int, bool] = {core: True for core in range(p)}
+
+        def emit(core, sl, si, src, b_begin, b_rows):
+            deps_c, call_name_c = per_core_deps[core]
+            b_end = b_begin + b_rows
+            rate_r = (c.dispatch_mechanistic.bw_local_bytes_per_us if src == shape.rank_id
+                      else c.dispatch_mechanistic.bw_remote_bytes_per_us)
+            bw_loc = c.dispatch_mechanistic.bw_local_bytes_per_us
+            bw_rem = c.dispatch_mechanistic.bw_remote_bytes_per_us
+            # C1: 名字不带核号。行区间按核互不重叠, 所以
+            # (专家, 段, 行区间) 已经唯一标识这一份搬运工作。
+            name = (f"W{w.index}.dispatch.e{sl.expert}.s{si}"
+                    f".r{b_begin}_{b_end}")
+            resources = [f"AIV1:{core}"]
+            if builder.options.serialize_dispatch_comm and src != shape.rank_id:
+                resources.append("DISPATCH_COMM")
+            duration = c.dispatch_mechanistic.segment_us(
+                src, shape.rank_id, b_rows, layout0) + c.dispatch_ready_publish_us
+            # 每行: 读 rowBytes (源卡窗口) + 写 b_write (本卡 workspace)。
+            rx, wx = b_rows * b_row, b_rows * b_write
+            ch_bytes = [(CH_DISPATCH_READ, rx, rate_r),
+                        (CH_DISPATCH_WRITE, wx, bw_loc)]
+            if src != shape.rank_id:
+                if first_remote[core]:
+                    # T_GMM1_OVERLAP 暂时留着: dispatch 与 GMM1 抢访存的机制要靠
+                    # 整卡访存带宽的实测才能算出来。那天到了这一项必须同时删掉。
+                    duration += c.dispatch_mechanistic.gmm1_overlap_us_per_call
+                    first_remote[core] = False
+                ch_bytes += [(f"fab_src:{src}", rx, bw_rem),
+                             (f"fab_dst:{shape.rank_id}", rx, bw_rem)]
+            meta = {"stage": "dispatch", "wave": w.index, "core": core,
+                    "expert": sl.expert, "src_rank": src,
+                    "row_begin": b_begin, "row_end": b_end, "rows": b_rows}
+            ev = builder._event(name, resources, duration, deps=deps_c,
+                                meta=meta, channel_bytes=tuple(ch_bytes))
+            for grp in range(b_begin // TILE_M, (b_end - 1) // TILE_M + 1):
+                gb = grp * TILE_M
+                ge = min(gb + TILE_M, shape.expert_tokens[sl.expert])
+                rows_g = max(0, min(b_end, ge) - max(b_begin, gb))
+                if rows_g:
+                    wave_contrib.setdefault((sl.expert, grp), []).append(
+                        (ev, rows_g, core, call_name_c))
+
+        if mode == "kernel":
+            for core in range(p):
+                rel_begin, count = builder._rotated_balanced_range(w.rows, core, p,
+                                                                   w.begin.global_row)
+                if count == 0:
                     continue
-                lb = sl.row_begin + (ob - sl.global_row_begin)
-                expert_ir = expert_ir_by_id[sl.expert]
-                seg_start = lb
-                for si, (src, rows) in enumerate(expert_ir.segments):
-                    seg_end = seg_start + rows
-                    if rows <= 0:
+                cb = w.begin.global_row + rel_begin
+                ce = cb + count
+                expert_ir_by_id = {e.expert: e for e in call_irs[core].experts}
+                for sl in w.slices:
+                    ob = max(cb, sl.global_row_begin)
+                    oe = min(ce, sl.global_row_end)
+                    if ob >= oe:
                         continue
-                    rate_r = (c.dispatch_mechanistic.bw_local_bytes_per_us if src == shape.rank_id
-                              else c.dispatch_mechanistic.bw_remote_bytes_per_us)
-                    bw_loc = c.dispatch_mechanistic.bw_local_bytes_per_us
-                    bw_rem = c.dispatch_mechanistic.bw_remote_bytes_per_us
-                    for b_begin, b_rows in _route_batches(seg_start, rows, batch_rows):
-                        b_end = b_begin + b_rows
-                        # C1: 名字不带核号。行区间按核互不重叠, 所以
-                        # (专家, 段, 行区间) 已经唯一标识这一份搬运工作。
-                        name = (f"W{w.index}.dispatch.e{sl.expert}.s{si}"
-                                f".r{b_begin}_{b_end}")
-                        resources = [f"AIV1:{core}"]
-                        if builder.options.serialize_dispatch_comm and src != shape.rank_id:
-                            resources.append("DISPATCH_COMM")
-                        duration = c.dispatch_mechanistic.segment_us(
-                            src, shape.rank_id, b_rows, layout0) + c.dispatch_ready_publish_us
-                        # 每行: 读 rowBytes (源卡窗口) + 写 b_write (本卡 workspace)。
-                        # 读侧 dispatch_read, 写侧 dispatch_write。原先 dispatch 只申报
-                        # 远端读的片间字节, 本卡读与全部写在调度器眼里根本不存在 ——
-                        # DAG 里少了一整条访存通路。
-                        rx, wx = b_rows * b_row, b_rows * b_write
-                        ch_bytes = [(CH_DISPATCH_READ, rx, rate_r),
-                                    (CH_DISPATCH_WRITE, wx, bw_loc)]
-                        if src != shape.rank_id:
-                            if first_remote:
-                                # T_GMM1_OVERLAP 暂时留着: dispatch 与 GMM1 抢访存的
-                                # 机制要靠"两者并到同一条聚合为整卡访存带宽的信道"
-                                # 才能算出来, 而整卡聚合带宽尚无实测 (不能拿每核速率
-                                # x核数当整卡值)。那天到了这一项必须同时删掉, 否则
-                                # 就是双重计费。
-                                duration += c.dispatch_mechanistic.gmm1_overlap_us_per_call
-                                first_remote = False
-                            ch_bytes += [(f"fab_src:{src}", rx, bw_rem),
-                                         (f"fab_dst:{shape.rank_id}", rx, bw_rem)]
-                        meta = {"stage": "dispatch", "wave": w.index, "core": core,
-                                "expert": sl.expert, "src_rank": src,
-                                "row_begin": b_begin, "row_end": b_end, "rows": b_rows}
-                        ev = builder._event(name, resources, duration, deps=deps,
-                                            meta=meta, channel_bytes=tuple(ch_bytes))
-                        for grp in range(b_begin // TILE_M, (b_end - 1) // TILE_M + 1):
-                            gb = grp * TILE_M
-                            ge = min(gb + TILE_M, shape.expert_tokens[sl.expert])
-                            rows_g = max(0, min(b_end, ge) - max(b_begin, gb))
-                            if rows_g:
-                                wave_contrib.setdefault((sl.expert, grp), []).append(
-                                    (ev, rows_g, core, call_name))
+                    lb = sl.row_begin + (ob - sl.global_row_begin)
+                    seg_start = lb
+                    for si, (src, rows) in enumerate(expert_ir_by_id[sl.expert].segments):
+                        seg_end = seg_start + rows
+                        if rows > 0:
+                            for b_begin, b_rows in _route_batches(seg_start, rows, batch_rows):
+                                emit(core, sl, si, src, b_begin, b_rows)
+                        seg_start = seg_end
+        else:
+            # 轮转只是占位: 它给静态绑定一个中性的分核 (不是 kernel 的那套),
+            # AIV1 入池时由调度器覆盖。
+            nxt = 0
+            for sl in w.slices:
+                ir = build_dispatch_expert_ir(
+                    expert=sl.expert, dst_rank=shape.rank_id,
+                    source_counts=shape.expert_source_tokens[sl.expert],
+                    row_begin=sl.row_begin, row_end=sl.row_end, layout=layout0)
+                seg_start = sl.row_begin
+                for si, (src, rows) in enumerate(ir.segments):
+                    seg_end = seg_start + rows
+                    if rows > 0:
+                        for b_begin, b_rows in _route_batches(seg_start, rows, batch_rows):
+                            emit(nxt % p, sl, si, src, b_begin, b_rows)
+                            nxt += 1
                     seg_start = seg_end
 
         for sl in w.slices:

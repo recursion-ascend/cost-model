@@ -114,6 +114,12 @@ class ModelOptions:
     #   ("wave",)  波间全核对齐 —— 下一波的任何事件都等上一波全做完
     #   ("stage",) 波内每个 stage 之后对齐 —— 最彻底的分段式执行
     # 用来回答"融合 vs 分段", 见 builders/barriers.py。
+    # C6 dispatch 的"谁取哪些行": "kernel" = 复现 kernel 的均衡+轮转按核预切
+    # (compare_measured 要用它和实测 trace 对齐); "rows" = 不预切, 只按
+    # dispatch_rows_per_item 切整个切片, 核由调度决定。见 builders/comm/mte.py。
+    dispatch_partition: str = "kernel"
+    # 一份 dispatch 工作覆盖多少行; 0 = 用 tiling 的 routeItemsPerBatch
+    dispatch_rows_per_item: int = 0
     barriers: Tuple[str, ...] = ()
     pipeline: Optional[PipelineConstraints] = None
     gmm2_kl1: Optional[int] = None

@@ -365,3 +365,34 @@ dispatch 的名字去掉核号后仍然唯一, 因为行区间按核互不重叠
 | --- | ---: | --- |
 | `dispatch_call -> moe_stage_done` | 56 | C5 (把每波每核的调用开销彻底变成 once_per_core) |
 | `moe_stage_done -> epilogue` | 84 | C3 (逐核排空栅栏换成栅栏原语) |
+
+---
+
+## C6 (2026-10-03): dispatch 的行->核分配变成调度决策
+
+原先 `_rotated_balanced_range` 把一个波的行按 kernel 的"均衡 + 轮转"先分给 28 核, 每核
+再按 `routeItemsPerBatch` 切批。前半步是 kernel 的记账: 物理事实只是"这些行要被取回来",
+谁取哪一行是调度决策。
+
+`ModelOptions.dispatch_partition`:
+
+| 取值 | 切法 |
+| --- | --- |
+| `"kernel"` (缺省) | 先按核预切, 再切批 —— 复现 kernel, `compare_measured` 用它对齐实测 trace |
+| `"rows"` | 不预切, 只按 `dispatch_rows_per_item` 切整个切片; 核号只是轮转占位, AIV1 入池后由调度器决定 |
+
+`ModelOptions.dispatch_rows_per_item` 把工作项的行粒度变成旋钮 (0 = 用 tiling 的
+`routeItemsPerBatch`)。实测 9216/3:
+
+| 配置 | 工作项 | 用到的核 | dag_end |
+| --- | ---: | ---: | ---: |
+| `kernel` | 66 | 28 | 251.81 |
+| `rows`, 缺省粒度 (256 行) | 12 | 8 | 257.89 |
+| `rows`, 16 行 | 48 | 28 | **249.72** |
+
+缺省粒度下每个 (专家, 源卡) 段就是一项, 只有 12 项喂 28 核 —— 比 kernel 差。切到 16 行
+就比 kernel 还快。**粒度本身是个要扫的维度**, 这是预切掩盖掉的东西。
+
+`"kernel"` 模式逐位复现: 40 个基准用例的事件名、起止时刻、落核完全一致 (指纹变化只来自
+建图序字段 `order`)。行守恒由建图器原有的 `contributed_rows == required_rows` 校验看着,
+`tests/test_dispatch_partition.py` 把四种切法都钉住。
