@@ -645,9 +645,10 @@ class MultiResourceScheduler:
             bound_res = _bind(ev, start) if has_pools else ev.resources
             if has_pools and bound_res:
                 bound_core[name] = _core_of(bound_res[0])
+            # C5: 一次性开销在静态绑定下同样生效 —— 核号直接取绑定到的资源, 不依赖池。
             once_us = 0.0
-            if has_pools and ev.once_per_core is not None and name in bound_core:
-                ck = (ev.once_per_core[0], bound_core[name])
+            if ev.once_per_core is not None and bound_res:
+                ck = (ev.once_per_core[0], _core_of(bound_res[0]))
                 if ck not in charged_once:
                     charged_once.add(ck)
                     once_us = max(0.0, ev.once_per_core[1])

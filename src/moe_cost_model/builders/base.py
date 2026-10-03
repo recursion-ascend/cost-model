@@ -261,25 +261,39 @@ class EventBuilderBase:
         一个 ACT (209.6us) 晚于该核最后一个 COMBINE (149.9us), 只是恰好被核 0/1 的
         晚 COMBINE (231.0us) 盖住 —— 换个路由就会让尾段起得太早。
         """
-        counts_export = self._event("epilogue.counts_export", (), T_COUNTS_EXPORT_US,
+        # C5: 五项固定开销可配置 (ModelOptions.epilogue_overheads); 缺省沿用实测常数
+        oh = getattr(self.options, "epilogue_overheads", None)
+
+        def _oh(field: str, fallback: float) -> float:
+            if oh is None:
+                return fallback
+            v = getattr(oh, field, 0.0)
+            return v if (v or getattr(oh, "literal", False)) else fallback
+
+        counts_export = self._event("epilogue.counts_export", (),
+                                    _oh("counts_export_us", T_COUNTS_EXPORT_US),
                                     deps=tuple(drains),
                                     meta={"stage": "epilogue", "part": "counts_export"})
-        core_sync = self._event("epilogue.output_core_sync", (), T_CORE_SYNC_BARRIER_US, deps=(counts_export,),
+        core_sync = self._event("epilogue.output_core_sync", (),
+                                _oh("core_sync_us", T_CORE_SYNC_BARRIER_US),
+                                deps=(counts_export,),
                                 meta={"stage": "epilogue", "part": "output_core_sync"})
         tail_head = core_sync
         if shape.shared_expert_num > 0:
             tail_head = self._add_shared_gmm2(shape, km, ACT_HALF, p, c, after=core_sync)
-        rank_sync = self._event("epilogue.output_rank_sync", (), T_RANK_SYNC_RTT_US, deps=(tail_head,),
+        rank_sync = self._event("epilogue.output_rank_sync", (),
+                                _oh("rank_sync_us", T_RANK_SYNC_RTT_US), deps=(tail_head,),
                                 meta={"stage": "epilogue", "part": "output_rank_sync"})
-        out_init = self._event("epilogue.output_buffer_init", (), T_OUTPUT_INIT_US, deps=(rank_sync,),
+        out_init = self._event("epilogue.output_buffer_init", (),
+                               _oh("output_init_us", T_OUTPUT_INIT_US), deps=(rank_sync,),
                                meta={"stage": "epilogue", "part": "output_buffer_init"})
         unpermute_bytes = shape.token_num * (shape.topk * shape.h * 2 + shape.h * 2)
         if shape.shared_expert_num > 0:
             unpermute_bytes += shape.shared_expert_num * shape.token_num * shape.h * 2
         unpermute = self._event("epilogue.unpermute", (), unpermute_bytes / BW_UNPERMUTE_AGG,
                                 deps=(out_init,), meta={"stage": "epilogue", "part": "unpermute"})
-        self._event("epilogue.finalize", (), T_FINALIZE_US, deps=(unpermute,),
-                    meta={"stage": "epilogue", "part": "finalize"})
+        self._event("epilogue.finalize", (), _oh("finalize_us", T_FINALIZE_US),
+                    deps=(unpermute,), meta={"stage": "epilogue", "part": "finalize"})
 
     # ---- 完成事件 ----
 

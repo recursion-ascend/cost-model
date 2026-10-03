@@ -114,6 +114,8 @@ class ModelOptions:
     #   ("wave",)  波间全核对齐 —— 下一波的任何事件都等上一波全做完
     #   ("stage",) 波内每个 stage 之后对齐 —— 最彻底的分段式执行
     # 用来回答"融合 vs 分段", 见 builders/barriers.py。
+    # C5 尾段固定开销 (某一版实现的实测残留, 不是物理); None = 全用模块常数
+    epilogue_overheads: object = None     # config.hardware.EpilogueOverheads
     # C4 波宽: 每波装几个 m-group。0 = 由 p1/p2 经 calc_m_groups_per_wave 推导
     # (p1/p2 未给时取理论下限 1/1 —— kernel 那张按 token 数分档的表
     #  resolve_gmm1_min_logical_tiles_per_core 只留给复现工具, 模型不用)。

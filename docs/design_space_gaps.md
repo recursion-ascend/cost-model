@@ -396,3 +396,32 @@ dispatch 的名字去掉核号后仍然唯一, 因为行区间按核互不重叠
 `"kernel"` 模式逐位复现: 40 个基准用例的事件名、起止时刻、落核完全一致 (指纹变化只来自
 建图序字段 `order`)。行守恒由建图器原有的 `contributed_rows == required_rows` 校验看着,
 `tests/test_dispatch_partition.py` 把四种切法都钉住。
+
+---
+
+## C5 (2026-10-03): 固定开销按"实现残留"对待
+
+分清两类:
+
+| | 性质 | 怎么处理 |
+| --- | --- | --- |
+| 尾段五项 (counts_export / core_sync / rank_sync / output_init / finalize) | **实现残留** —— 某一版 kernel 的实测耗时, 换一版就变 | `ModelOptions.epilogue_overheads` (`EpilogueOverheads`); 缺省沿用实测常数, `literal=True` 时按字面取 (含 0) 跑"纯物理"基线 |
+| 每波每核的 dispatch 调用开销 | **实现残留** | `DispatchMechanisticLatency.t_call_oh_us` (缺省已是 0); `"rows"` 切法下由 `Event.once_per_core` 挂在该核本波第一段 dispatch 上 |
+| unpermute | **物理** —— token 数 x topk x h 的字节量 / 带宽 | 不动 |
+
+实测 9216/3: 五项归零后 dag_end 251.807 -> 244.607, 正好少 7.2 = 1 + 2 + 2.2 + 1 + 1。
+
+`once_per_core` 现在在**静态绑定下同样生效** (核号直接取绑定到的资源, 不依赖资源池)。
+
+### 顺带: `"rows"` 切法下一个带核号的事件名都不剩
+
+`dispatch_call` 是唯一剩下的按核事件。它在 `"kernel"` 切法里保留 —— 实测 trace 有
+`DISPATCH_SCHEDULE` 包络, `tools/compare_measured.py` 按它对齐。而 `"rows"` 切法里没有
+按核的调用结构, 所以不发这个事件, 开销走 `once_per_core`。于是:
+
+```
+dispatch_partition="rows", t_call_oh_us=1.006:
+  dispatch_call 事件 0 个
+  带核号的事件名 0 个          <- C1 的目标在这条路径上完全达成
+  once_per_core 计次 44       = 实际搬过数据的 (波, 核) 组合数
+```

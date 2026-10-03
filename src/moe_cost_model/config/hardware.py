@@ -237,6 +237,26 @@ T_INIT_US = SourcedValue(2.0, 'measured:INIT 阶段时长')
 #                                        (两尺度残差 8~32µs 取中, 不确定度 ±12µs)
 # 标定: span 中位 ~1µs, 与 B 无关.
 T_COUNTS_EXPORT_US = SourcedValue(1.0, 'measured:COUNTS_EXPORT 阶段时长')
+
+
+@dataclass(frozen=True)
+class EpilogueOverheads:
+    """尾段的固定开销 (C5): 全是**某一版实现**的实测残留, 不是物理定律.
+
+    把它们从模块常数提成一组可配置值, 算子工程师按自己的实现填; 缺省沿用实测值,
+    这样默认结果不变。注意 unpermute 不在这里 —— 它是真实的数据搬运, 由
+    token 数 x topk x h 的字节量除以 BW_UNPERMUTE_AGG 算出来, 属于物理。
+
+    counts_export / output_core_sync / output_rank_sync / output_buffer_init /
+    finalize: 这五项是前导尾段的固定耗时, 换一版 kernel 就会变。
+    """
+    counts_export_us: float = 0.0        # 0 = 用模块常数 T_COUNTS_EXPORT_US
+    core_sync_us: float = 0.0            # 0 = T_CORE_SYNC_BARRIER_US
+    rank_sync_us: float = 0.0            # 0 = T_RANK_SYNC_RTT_US
+    output_init_us: float = 0.0          # 0 = T_OUTPUT_INIT_US
+    finalize_us: float = 0.0             # 0 = T_FINALIZE_US
+    #: True 时上面五项按字面取 (含 0), 不回落到模块常数 —— 用来跑"纯物理"基线
+    literal: bool = False
 # 标定: WAIT_OUTPUT_CORE_SYNC p5 下限.
 T_CORE_SYNC_BARRIER_US = SourcedValue(2.0, 'measured:核间同步屏障时长')
 # 标定: 跨 rank 最小 p5 (最晚到达核 floor).

@@ -42,6 +42,12 @@ class MteDispatch(DispatchTransport):
         per_core_deps: Dict[int, Tuple[tuple, str]] = {}
         call_irs = [builder._dispatch_call_ir(shape, w, core) for core in range(p)]
         layout0 = shape.dispatch_layout or DispatchDataLayout.from_hidden(shape.h)
+        # C5: "rows" 切法下没有按核的调用结构, 所以不发 dispatch_call 事件 —— 每波每核
+        # 的调用开销由 Event.once_per_core 挂在该核本波第一段 dispatch 上。
+        # "kernel" 切法保留这个事件: 实测 trace 有 DISPATCH_SCHEDULE 包络,
+        # tools/compare_measured.py 按它对齐。
+        emit_call_events = builder.options.dispatch_partition == "kernel"
+        call_us = c.dispatch_mechanistic.call_base_us()
         for core in range(p):
             deps = [shared_gates] if shared_gates else []
             pacing_wave = w.index - la
@@ -53,12 +59,15 @@ class MteDispatch(DispatchTransport):
                 deps.extend(ctx.combines_by_wave.get(pacing_wave, ()))
             elif pacing != "none" and pacing not in ("per_core", "wave"):
                 raise ValueError(f"dispatch_pacing 只能是 per_core/wave/none, 收到 {pacing!r}")
-            q_aiv1 = (f"Q:aiv1:c{core}", 1)
-            call_name = builder._event(
-                f"W{w.index}.dispatch_call.c{core}", (f"AIV1:{core}",),
-                c.dispatch_mechanistic.call_base_us(), deps=deps,
-                acquires=(q_aiv1,), releases=(q_aiv1,),
-                meta={"stage": "dispatch_call", "wave": w.index, "core": core})
+            if emit_call_events:
+                q_aiv1 = (f"Q:aiv1:c{core}", 1)
+                call_name = builder._event(
+                    f"W{w.index}.dispatch_call.c{core}", (f"AIV1:{core}",),
+                    call_us, deps=deps,
+                    acquires=(q_aiv1,), releases=(q_aiv1,),
+                    meta={"stage": "dispatch_call", "wave": w.index, "core": core})
+            else:
+                call_name = None
 
             per_core_deps[core] = (tuple(deps), call_name)
 
@@ -109,6 +118,9 @@ class MteDispatch(DispatchTransport):
                     "row_begin": b_begin, "row_end": b_end, "rows": b_rows}
             ev = builder._event(name, resources, duration, deps=deps_c,
                                 meta=meta, channel_bytes=tuple(ch_bytes))
+            if not emit_call_events and call_us > 0:
+                # 每 (波, 核) 只算一次, 落在该核本波真正搬数据的第一段上
+                builder.events[-1].once_per_core = (f"W{w.index}.dispatch_call", call_us)
             for grp in range(b_begin // TILE_M, (b_end - 1) // TILE_M + 1):
                 gb = grp * TILE_M
                 ge = min(gb + TILE_M, shape.expert_tokens[sl.expert])
@@ -181,7 +193,9 @@ class MteDispatch(DispatchTransport):
                     "contributor_events": tuple(x[0] for x in contrib),
                     "contributor_rows": tuple(x[1] for x in contrib),
                     "contributor_cores": tuple(x[2] for x in contrib),
-                    "contributor_call_events": tuple(x[3] for x in contrib)})
+                    # "rows" 切法下没有 dispatch_call 事件, 这一项为空
+                    "contributor_call_events": tuple(
+                        x[3] for x in contrib if x[3] is not None)})
                 ctx.dispatch_ready_event[key] = rn
 
 
