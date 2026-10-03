@@ -5,6 +5,7 @@
 from pathlib import Path
 
 import moe_cost_model as m
+from linkutil import links
 from moe_cost_model.scheduler import Event, MultiResourceScheduler
 
 P = m.PipelineConstraints
@@ -98,14 +99,12 @@ def test_l1_buffer_depth_sweep():
     """
     stat = dict(pipeline=P(), late_bind_pools=STATIC)
     base = _run(options=m.ModelOptions(**stat))
-    deeper = _run(options=m.ModelOptions(**stat),
-                  policy=m.InstancePolicy(gmm1_activation_depth=2))
+    deeper = _run(options=m.ModelOptions(**stat, links=links(2)))
     assert deeper["kernel_total_us"] <= base["kernel_total_us"]
 
     lb = dict(pipeline=P())                      # 缺省晚绑定
     b2 = _run(options=m.ModelOptions(**lb))["kernel_total_us"]
-    d2 = _run(options=m.ModelOptions(**lb),
-              policy=m.InstancePolicy(gmm1_activation_depth=2))["kernel_total_us"]
+    d2 = _run(options=m.ModelOptions(**lb, links=links(2)))["kernel_total_us"]
     assert b2 > 0 and d2 > 0                     # 不断言方向: 异常已被观察到
 
 

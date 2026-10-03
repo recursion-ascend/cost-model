@@ -9,6 +9,7 @@ import collections
 import pytest
 
 import moe_cost_model as m
+from linkutil import links
 
 
 def _run(depth, pipe=None, local=3, hidden_dim=9216):
@@ -20,11 +21,10 @@ def _run(depth, pipe=None, local=3, hidden_dim=9216):
         costs=m.build_analytical_costs(
             h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency()),
         p1_override=1, p2_override=1, topk=6,
-        policy=m.InstancePolicy(gmm1_activation_depth=depth),
         # 相位拆分目前只在静态绑定下可表达 (相位事件不持核资源, 靠按核的队列
         # token 绑核, 晚绑定下无从回填 —— 见 model.py 的显式拒绝)。所以拆相位的
         # 组合显式钉核; 不拆相位的组合走缺省晚绑定。
-        options=m.ModelOptions(pipeline=pipe,
+        options=m.ModelOptions(pipeline=pipe, links=links(depth),
                                late_bind_pools=() if pipe is not None else
                                m.ModelOptions().late_bind_pools),
         )["rank_results"][0]

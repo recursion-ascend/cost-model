@@ -21,7 +21,7 @@ from moe_cost_model import (
     AnalyticalActCosts, AnalyticalCombineCosts, AnalyticalGmmCosts,
     DispatchMechanisticLatency, simulate_routing_counts,
     calc_m_groups_per_wave, parse_tiling, T_COUNT_GATE,
-    InstancePolicy, MEGAMOE_A8W8 as PROFILE,
+    StageLink, MEGAMOE_A8W8 as PROFILE,
 )
 from moe_cost_model.analysis import bottleneck_report, what_if
 from routing import make_routing
@@ -160,8 +160,11 @@ def report(run: Path, compare: Path = None):
         "mgw 扫描 p1=2": dict(p1_ovr=2, p2_ovr=1),
         "mgw 扫描 p1=4": dict(p1_ovr=4, p2_ovr=1),
         "mgw 扫描 p1=8": dict(p1_ovr=8, p2_ovr=1),
-        "gmm1→act 深度=2": dict(policy=InstancePolicy(gmm1_activation_depth=2)),
-        "kL1=256 显式": dict(options=ModelOptions(gmm2_kl1=256)),
+        "gmm1→act UB 深度=2": dict(options=PROFILE.with_options(links=(
+            StageLink("gmm1", "activation", location="onchip", depth=2,
+                      colocated_by_hardware=True),
+            StageLink("activation", "gmm2", readiness=2)))),
+        "kL1=256 显式": dict(options=PROFILE.with_options(gmm2_kl1=256)),
     }
     if t["bs"] >= 1024:
         variant_kwargs["pipeline+信道"] = dict(options=ModelOptions(

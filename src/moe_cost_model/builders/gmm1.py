@@ -78,7 +78,7 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             #  已不存在: 现在 ACT 之间没有任何程序序边, 同核 ACT 的先后由资源互斥定。)
             # depth=0 = 不建这个约束 (假设 UB 不构成瓶颈)。
             ub_slot = (f"UB:gmm1act:c{core}", 1)
-            depth = policy.gmm1_activation_depth
+            depth = builder.options.link("gmm1", "activation").depth
             acq = (q_aic, ub_slot) if depth > 0 else (q_aic,)
 
             if first_owned[core]:

@@ -6,6 +6,10 @@
 
 本文件记录当前表达不了的编排维度, 按补齐价值排序。已覆盖的维度见 README。
 
+**stage 边收成一个概念** (2026-10): `gmm2_k_segments` / `act_to_gmm2` /
+`InstancePolicy.gmm1_activation_depth` 三个旋钮合并为 `ModelOptions.links`
+(一条边一个 `StageLink`, 见 `config/links.py`)。旧名字已移除 —— 留着等于保留两套说法。
+
 **取值的含义不引用实现** (2026-10 分层): 缺省值一律是"最少假设", 某一版实现的取值集中在
 `profiles.MEGAMOE_A8W8`。所以下表的"备注"里写 `MEGAMOE_A8W8` 的地方, 意思是"那份实现选了
 这个", 不是"缺省是这个"。
@@ -26,8 +30,9 @@
 | stage 波偏移 | `InstancePolicy.wave_offsets` | dispatch 超前波数、GMM2 滞后波数 |
 | dispatch 配速 | `ModelOptions.dispatch_pacing` | none (缺省) / per_core (`MEGAMOE_A8W8`) / wave |
 | dispatch 分工 | `ModelOptions.dispatch_partition` | pooled (缺省) / precut (`MEGAMOE_A8W8`) |
-| ACT->GMM2 落点 | `ModelOptions.act_to_gmm2` | gm (缺省) / onchip (不物化, 代价是 m-group 共位) |
-| GMM2 K 分段 | `ModelOptions.gmm2_k_segments` | 1 (缺省, 等齐) / 2 (`MEGAMOE_A8W8`) / 0 (逐块) / N |
+| stage 边: 就绪粒度 | `StageLink.readiness` | 1 (缺省, 等齐) / 2 (`MEGAMOE_A8W8`) / 0 (逐块) / N |
+| stage 边: 落点 | `StageLink.location` | gm (缺省) / onchip (不物化, 代价是共位) |
+| stage 边: 片上槽数 | `StageLink.depth` | gmm1→act 缺省 1 (UB 单槽); 0 = 不设限 |
 | GMM2 kL1 | `ModelOptions.gmm2_kl1` | 自适应或显式 |
 | B 复用 | `KernelConfig.gmm1_b_reuse` | 实测 -16.3% (多 m-group 时); "付几次"的规律未定 |
 | 通信路径 | `KernelConfig.topo_urma` | MTE / URMA Layered 两套建图器 |

@@ -8,6 +8,7 @@
   并且"这个空闲核"自己的槽也要有余量 —— 核空着不等于槽空着
 """
 import moe_cost_model as m
+from linkutil import links
 from moe_cost_model.analysis import idle_decomposition
 
 
@@ -94,5 +95,5 @@ def test_static_binding_still_reports_real_violations():
 
     静态发牌是某实现的分核方式 (缺省已是晚绑定), 所以这里显式给 ()。
     """
-    rr = _run(6, 9216, options=m.ModelOptions(late_bind_pools=(), gmm2_k_segments=2))
+    rr = _run(6, 9216, options=m.ModelOptions(late_bind_pools=(), links=links(readiness=2)))
     assert _avoid(rr, "AIC") > 1.0

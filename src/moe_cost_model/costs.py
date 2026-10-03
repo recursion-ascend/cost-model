@@ -243,7 +243,7 @@ class AnalyticalGmmCosts:
                 ACT 把结果写回 GM, GMM2 的 A 再从 GM 读回来。
                 gmm2_a_from_gm=False = 不物化编排: A 留在片上 (UB→L1),
                 A 流不付 GM 字节。这不是硬件常数, 是编排选择
-                (ModelOptions.act_to_gmm2), 两种编排的 DAG 约束不同,
+                (ModelOptions.links 里 activation->gmm2 的 location), 两种编排的 DAG 约束不同,
                 由 model 层统一摆平。
         计算 = m·cols·K2 MACs
         b=2: T = max(载入/BW, 计算/R_cube)
@@ -282,7 +282,7 @@ class AnalyticalGmmCosts:
         self.cube_rate = cube_mac_per_us
         self.chunk_restart = tile_restart_us
         # GMM2 的 A 是否要从 GM 读回 (物化编排); 见类 docstring 与
-        # ModelOptions.act_to_gmm2。
+        # ModelOptions.links 里 activation->gmm2 的 location。
         self.gmm2_a_from_gm = bool(gmm2_a_from_gm)
         self._k_l1 = int(l1_tile_k)
 

@@ -141,7 +141,11 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
 
     # ---- MTE 路径: 流控与编译期旋钮 ----
     c["mte_act_depth2_credit2"] = lambda: run_api(
-        w3(), 512, policy=pol(gmm1_activation_depth=2, gmm2_combine_credit=2))
+        w3(), 512, policy=pol(gmm2_combine_credit=2),
+        options=P.with_options(links=(
+            m.StageLink("gmm1", "activation", location="onchip", depth=2,
+                        colocated_by_hardware=True),
+            m.StageLink("activation", "gmm2", readiness=2))))
     c["mte_tile_m128"] = lambda: run_api(sk(), 64, kernel=kc(tile_m=128))
     c["mte_tile_n128"] = lambda: run_api(sk(), 64, kernel=kc(tile_n=128))
     c["mte_l1buf1_quant1"] = lambda: run_api(

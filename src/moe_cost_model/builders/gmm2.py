@@ -19,6 +19,8 @@ from .tiling import resolve_grid, tile_label
 def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                   policy, TILE_M, TILE_N, ACT_HALF, call_iteration) -> None:
     grid = resolve_grid(shape)
+    # 这条 stage 边的编排: 消费者沿 K 分几段就绪 + 中间结果落哪 (config/links.py)
+    link = builder.options.link("activation", "gmm2")
     cursor = ctx.cursor
     k_gmm2 = shape.hidden_dim // ACT_HALF
     for si, sl in enumerate(w.slices):
@@ -62,7 +64,7 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                 first_owned[core] = False
 
             ordered = sorted(acts, key=lambda a: (a.col_begin, a.row_begin))
-            bounds = _k_segment_bounds(k_gmm2, kl1, builder.options.gmm2_k_segments)
+            bounds = _k_segment_bounds(k_gmm2, kl1, link.readiness)
 
             ntile = t.col_begin // TILE_N
             label = tile_label(t, sl.rows, shape.h, TILE_M, TILE_N)
@@ -79,7 +81,7 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             # 物化编排下 GMM2 的 A 要从 GM 读回 (ACT 写出的量化激活); 申报到
             # gm_to_l1 访存量上。max(A流,B流) 口径下只有较大那一股折算成时长,
             # 但两股字节都真实发生 —— 这里按字节申报, 不按时长折算。
-            a_gm = (t.rows * k_gmm2) if _a_from_gm(c) else 0
+            a_gm = (t.rows * k_gmm2) if link.materialised else 0
             # C1: 名字不带核号 (见 gmm1.py 的说明)
             gname = f"W{w.index}.E{sl.expert}.S{si}.gmm2.{label}"
             n_seg = len(bounds)
@@ -122,19 +124,10 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                 gname, global_group, call_iteration)
 
 
-def _a_from_gm(costs) -> bool:
-    """GMM2 的 A 是否从 GM 读回: 由 gmm2_tile 背后的公式对象说话.
-
-    自定义 callable 无从内省, 按物化处理 (与 ModelOptions.act_to_gmm2 缺省一致)。
-    """
-    owner = getattr(costs.gmm2_tile, "__self__", None)
-    return bool(getattr(owner, "gmm2_a_from_gm", True))
-
-
 def _k_segment_bounds(k_gmm2: int, kl1: int, segments: int):
     """GMM2 沿 K 的分段边界 [(k_lo, k_hi), ...], 末段到 k_gmm2.
 
-    segments == 2 (缺省): 复现现有 kernel —— 首个 kL1 块一段, 其余合成一段。
+    segments == 2: 首个 kL1 块一段, 其余合成一段 (MEGAMOE_A8W8 用这个)。
         与旧实现逐字节等价: head 等 col_begin < kl1 的 ACT, tail 等 col_end > kl1 的。
     segments == 0: 每个 kL1 块各一段 (最细)。
     segments > 2: 按 kL1 块数均分成 segments 段 (块数不足时退化为块数)。
@@ -149,7 +142,7 @@ def _k_segment_bounds(k_gmm2: int, kl1: int, segments: int):
     if segments == 0 or segments >= n_chunks:
         return [(j * kl1, min((j + 1) * kl1, k_gmm2)) for j in range(n_chunks)]
     if segments < 1:
-        raise ValueError("gmm2_k_segments must be >= 0")
+        raise ValueError("StageLink.readiness must be >= 0")
     if segments == 1:
         return [(0, k_gmm2)]
     # 把 n_chunks 个块尽量均匀地分到 segments 段里

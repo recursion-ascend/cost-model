@@ -1,7 +1,7 @@
 """第 0 层: 实例层策略绑定 (运行时策略取值)."""
 from dataclasses import dataclass
 
-from .hardware import DAV3510_NONINTERLEAVED_GMM1_ACTIVATION_DEPTH
+
 
 
 @dataclass(frozen=True)
@@ -15,12 +15,9 @@ class InstancePolicy:
     gmm2_lag_threshold: int = 4096         # tokenNum ≥ 阈值 → GMM2 lag 一波
     gmm2_lag_waves: object = None          # 显式 GMM2 滞后波数 (None=按阈值两档缺省);
                                            # kernel 实例只用 0/1, 其他取值为模型参数空间的未验证点
-    # GMM1->ACT 的 UB 握手深度 = UB 里能同时存几块 GMM1 结果。GMM1 结果经 L0C->UB 的
-    # Fixpipe 直给配对 AIV0 (不落 GM), 所以第 i 个 GMM1 要等第 i-depth 个 ACT 把 UB 腾空。
-    #   1 (缺省, 有出处): 单槽 —— 每个 GMM1 都等上一个 ACT 读完
-    #   2, 3...: 多槽 ping-pong —— 等更早的那个 ACT
-    #   0: 不建这条边 = 假设 UB 不构成约束 (上界, 非物理)
-    gmm1_activation_depth: int = DAV3510_NONINTERLEAVED_GMM1_ACTIVATION_DEPTH
+    # (原 gmm1_activation_depth 已移到 ModelOptions.links:
+    #  StageLink("gmm1","activation", location="onchip", depth=N) —— 它和"落哪、等多少"
+    #  是同一组问题, 见 config/links.py)
     gmm2_combine_credit: object = None     # kernel 实例未启用 (None=关); 取值为模型参数空间的未验证点
     wave_offsets: object = None            # 显式 StageWaveOffsets; None=由 dispatch_lookahead
                                            # 与 gmm2_lag 推导 (kernel 实例语义, 缺省)

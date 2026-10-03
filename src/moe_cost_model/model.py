@@ -124,7 +124,7 @@ def _rewrite_for_late_binding(events: List[Event], roles: Sequence[str], aic_num
 
 
 def _reconcile_act_to_gmm2(costs: PrimitiveCosts, mode: str) -> PrimitiveCosts:
-    """让 gmm2 公式的 A 流口径与 ModelOptions.act_to_gmm2 一致.
+    """让 gmm2 公式的 A 流口径与 activation->gmm2 这条边的落点一致.
 
     gmm2_tile 是自定义 callable 时无从改写, 原样返回 (调用方自负一致)。
     """
@@ -152,7 +152,7 @@ def _reconcile_act_to_gmm2(costs: PrimitiveCosts, mode: str) -> PrimitiveCosts:
 
 
 def _apply_onchip_act_to_gmm2(events: List[Event], pooled: Sequence[str]) -> None:
-    """不物化编排的共位约束: 一个 m-group 的 GMM1/ACT/GMM2 全落同一个核.
+    """activation->gmm2 这条边落片上时的共位约束: 一个 m-group 的全部工作同核.
 
     为什么是整个 m-group: GMM2 的 K 就是 GMM1 切分的 N 轴, 一个 GMM2 tile 要累完
     整个 K, 即吃该 m-group 的全部 ACT。A 不落 GM 就只能在产它的那个核的片上, 所以
@@ -169,8 +169,9 @@ def _apply_onchip_act_to_gmm2(events: List[Event], pooled: Sequence[str]) -> Non
     """
     if "AIC" not in set(pooled):
         raise ValueError(
-            'act_to_gmm2="onchip" 需要 late_bind_pools 含 "AIC": 共位靠派发时刻'
-            "绑定表达, 建图时静态钉核无从表达 (钉死的核号本来就各不相同)")
+            'StageLink("activation","gmm2", location="onchip") 需要 late_bind_pools '
+            '含 "AIC": 共位靠派发时刻绑定表达, 建图时静态钉核无从表达 '
+            "(钉死的核号本来就各不相同)")
     anchor: Dict[tuple, str] = {}
     for ev in events:
         stage = str(ev.meta.get("stage", ""))
@@ -214,13 +215,11 @@ class A8W8WaveCostModel:
             raise NotImplementedError("v3 models A8W8 COMBINE_NO_QUANT only")
         if options.topk_weights_prefetch:
             raise NotImplementedError("v3 models TopkWeightsPrefetch=false only")
-        if options.act_to_gmm2 not in ("gm", "onchip"):
-            raise ValueError(
-                f'act_to_gmm2 只能是 "gm" / "onchip", 收到 {options.act_to_gmm2!r}')
-        # 编排与公式必须同口径: "onchip" 下 GMM2 的 A 不付 GM 字节, "gm" 下要付。
-        # 调用方给的 costs 可能两边都不是, 这里按选定的编排改写公式, 不让两套
-        # 口径混在一张图里 (混着就会把物化算成近乎免费)。
-        self.costs = _reconcile_act_to_gmm2(costs, options.act_to_gmm2)
+        # 编排与公式必须同口径: activation->gmm2 这条边落片上时 GMM2 的 A 不付 GM
+        # 字节, 落 GM 时要付。调用方给的 costs 可能两边都不是, 这里按选定的编排改写
+        # 公式, 不让两套口径混在一张图里 (混着就会把物化算成近乎免费)。
+        self.costs = _reconcile_act_to_gmm2(
+            costs, options.link("activation", "gmm2").location)
         self.options = options
         self._order = 0
         self._rank = 0
@@ -304,7 +303,7 @@ class A8W8WaveCostModel:
             if self.options.barriers:
                 events = apply_barriers(
                     events, self.options.barriers,
-                    ub_depth=shape.policy.gmm1_activation_depth,
+                    ub_depth=self.options.link("gmm1", "activation").depth,
                     aic_num=shape.aic_num,
                     pooled=bool(self.options.late_bind_pools))
             caps: Dict = {}
@@ -312,7 +311,8 @@ class A8W8WaveCostModel:
                 events, caps = apply_pipeline(
                     events, self.options.pipeline,
                     aic_num=shape.aic_num, h=shape.h,
-                    gmm1_act_depth=shape.policy.gmm1_activation_depth, kernel=shape.kernel)
+                    gmm1_act_depth=self.options.link("gmm1", "activation").depth,
+                    kernel=shape.kernel)
             per.append((shape, events, caps, trace))
 
         # 每 rank 一组 (事件, 容量, 资源池)
@@ -324,7 +324,7 @@ class A8W8WaveCostModel:
             pools: Dict[str, Tuple[str, ...]] = {}
             if late:
                 _rewrite_for_late_binding(events, late, shape.aic_num, pre, pools)
-            if self.options.act_to_gmm2 == "onchip":
+            if self.options.link("activation", "gmm2").location == "onchip":
                 # 共位在加 rank 前缀之前打: colocate_with 记的是事件名, 不带前缀。
                 _apply_onchip_act_to_gmm2(events, late)
             capacities: Dict[str, int] = {}
@@ -338,7 +338,7 @@ class A8W8WaveCostModel:
                     (c, b, rt) if c.startswith("fab_") else (pre + c, b, rt)
                     for c, b, rt in ev.channel_bytes)
             qd = self.options.engine_queue_depths or EngineQueueDepths()
-            ub_depth = shape.policy.gmm1_activation_depth
+            ub_depth = self.options.link("gmm1", "activation").depth
             for core in range(shape.aic_num):
                 capacities[pre + f"Q:aic:c{core}"] = qd.aic
                 capacities[pre + f"Q:vec0:c{core}"] = qd.vec0

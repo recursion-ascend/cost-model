@@ -2,6 +2,7 @@
 import pytest
 
 import moe_cost_model as m
+from linkutil import links
 
 
 def _rank(hidden_dim, local, late, pacing="per_core", k_segments=None):
@@ -14,7 +15,7 @@ def _rank(hidden_dim, local, late, pacing="per_core", k_segments=None):
         p1_override=1, p2_override=1, topk=6,
         options=m.ModelOptions(
             late_bind_pools=late, dispatch_pacing=pacing,
-            **({} if k_segments is None else {"gmm2_k_segments": k_segments})))
+            **({} if k_segments is None else {"links": links(readiness=k_segments)})))
     return res["rank_results"][0]
 
 
@@ -154,7 +155,7 @@ def test_remaining_path_computed_only_when_policy_asks():
     assert all("remaining_path_us" not in e.meta for e in greedy["events"])
 
 
-def test_gmm1_activation_depth_zero_drops_the_ub_constraint():
+def test_ub_depth_zero_drops_the_constraint():
     """depth=0 = 不要 GMM1->ACT 的 UB 槽约束.
 
     两段历史: 以前这里是一条"距离依赖"边, 且 depth=0 会取到 history[-0]=history[0]
@@ -170,7 +171,7 @@ def test_gmm1_activation_depth_zero_drops_the_ub_constraint():
             costs=m.build_analytical_costs(
                 h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency()),
             p1_override=1, p2_override=1, topk=6,
-            policy=m.InstancePolicy(gmm1_activation_depth=depth))["rank_results"][0]
+            options=m.ModelOptions(links=links(depth)))["rank_results"][0]
 
     name = "R0.W0.E1.S1.gmm1.m0.n10"   # C1 后事件名不带核号
     d1 = {e.name: e for e in run(1)["events"]}[name]

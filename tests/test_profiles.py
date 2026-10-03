@@ -15,8 +15,10 @@ def test_profile_carries_every_implementation_specific_choice():
     P = m.MEGAMOE_A8W8
     assert P.options.dispatch_partition  # 谁取哪些行
     assert P.options.dispatch_pacing     # 下一波 dispatch 等什么
-    assert P.options.act_to_gmm2         # 中间结果落点
-    assert P.options.gmm2_k_segments >= 1
+    g2 = P.options.link("activation", "gmm2")
+    assert g2.location == "gm" and g2.readiness == 2   # 物化 + 两段就绪
+    g1 = P.options.link("gmm1", "activation")
+    assert g1.location == "onchip" and g1.depth == 1 and g1.colocated_by_hardware
     assert P.options.epilogue_overheads is not None
     assert P.kernel is not None and P.policy is not None
     assert type(P.tile_grid).__name__ == "SwizzledTileGrid"
@@ -29,8 +31,8 @@ def test_profile_has_a_source():
 
 def test_with_options_only_changes_what_is_named():
     P = m.MEGAMOE_A8W8
-    changed = P.with_options(gmm2_k_segments=0)
-    assert changed.gmm2_k_segments == 0
+    changed = P.with_options(m_groups_per_wave=4)
+    assert changed.m_groups_per_wave == 4
     assert changed.dispatch_partition == P.options.dispatch_partition
     assert changed.epilogue_overheads is P.options.epilogue_overheads
 
@@ -45,9 +47,9 @@ def test_scenario_profile_is_a_base_that_explicit_fields_override(tmp_path):
     """场景文件 profile= 给底, 文件里写出的字段覆盖它 (只写一项, 其余沿用)."""
     src = open("examples/scenario_basic.toml").read()
     f = tmp_path / "s.toml"
-    f.write_text(src + "\n[options]\ngmm2_k_segments = 0\n")
+    f.write_text(src + "\n[options]\nm_groups_per_wave = 4\n")
     sc = m.load_scenario(str(f))
-    assert sc.options.gmm2_k_segments == 0                       # 文件说的
+    assert sc.options.m_groups_per_wave == 4                     # 文件说的
     assert sc.options.dispatch_partition == \
         m.MEGAMOE_A8W8.options.dispatch_partition                # profile 说的
     assert type(sc.tile_grid).__name__ == "SwizzledTileGrid"     # profile 说的

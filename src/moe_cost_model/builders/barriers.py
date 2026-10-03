@@ -142,10 +142,10 @@ def _check_stage_feasible(events, by_wave, waves, ub_depth: int, aic_num: int,
             worst, where = need, w
     if worst > ub_depth:
         raise ValueError(
-            f'barriers 含 "stage" 与 gmm1_activation_depth={ub_depth} 不相容: '
+            f'barriers 含 "stage" 与 gmm1->activation 的 depth={ub_depth} 不相容: '
             f"波 {where} 里有核要做 {worst} 个 GMM1 tile (> {ub_depth}), 而 stage 栅栏要求"
             f"该波全部 GMM1 先于任何 ACT 完成 —— 第 {ub_depth + 1} 个 GMM1 等 ACT 还 UB 槽 "
             f"({held}), 那个 ACT 又等该波全部 GMM1, 成环。\n"
-            "三条出路: (1) gmm1_activation_depth=0 —— 分段式执行里 GMM1 走 L0C->GM, "
+            "三条出路: (1) 把那条边的 depth 设 0 —— 分段式执行里 GMM1 走 L0C->GM, "
             f"UB 不是交接缓冲; (2) 把波宽调小到每核最多 {ub_depth} 个 tile "
             "(ModelOptions.m_groups_per_wave); (3) 把 UB 深度加到 >= 该值。")

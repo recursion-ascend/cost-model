@@ -4,6 +4,7 @@
 任何默认行为的改动都会在这里被抓住.
 """
 import moe_cost_model as m
+from linkutil import links
 
 # 测试夹具值, 非标定常数: Cube 速率没有缺省, 测试统一取此值
 CUBE_RATE = 2.7e7
@@ -195,7 +196,7 @@ def test_gmm2_act_edges_by_ntile():
                                    for _ in range(local)),
         kernel=m.KernelConfig())
     # 本测试讲的是 head/tail 两段各等哪些 ACT, 所以显式要 2 段 (缺省是 1 段不分)
-    model = A8W8WaveCostModel(_run_costs(), m.ModelOptions(gmm2_k_segments=2))
+    model = A8W8WaveCostModel(_run_costs(), m.ModelOptions(links=links(readiness=2)))
     events, _ = model.build_events(shape)
     by_name = {e.name: e for e in events}
 

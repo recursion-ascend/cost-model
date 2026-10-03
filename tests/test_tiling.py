@@ -8,6 +8,7 @@ import dataclasses
 import pytest
 
 import moe_cost_model as m
+from linkutil import links
 from golden_cases import CUBE_RATE, run_api, skewed_routing, uniform_routing
 
 CAL = m.Calibration(cube_mac_per_us=CUBE_RATE)
@@ -127,7 +128,7 @@ def test_gmm2_follows_act_coverage_after_row_split():
         aic_num=28, expert_source_tokens=rows, p1_override=2, p2_override=1, topk=6,
         kernel=m.KernelConfig(), tile_grid=m.SplitRowsTileGrid(parts=2))
     events, _ = A8W8WaveCostModel(
-        manual_costs(), m.ModelOptions(gmm2_k_segments=2)).build_events(shape)
+        manual_costs(), m.ModelOptions(links=links(readiness=2))).build_events(shape)
     by_name = {e.name: e for e in events}
     k_gmm2 = HIDDEN // 2
     for e in events:
@@ -246,12 +247,12 @@ def test_strategy_fields_round_trip():
 def _seg_run(segments):
     """固定形状跑一次, 只变 GMM2 的 K 分段数."""
     return run_api(uniform_routing(2, 4, 128), 128, topk=6, aic_num=28,
-                   options=m.ModelOptions(gmm2_k_segments=segments))
+                   options=m.ModelOptions(links=links(readiness=segments)))
 
 
-def test_gmm2_k_segments_default_is_one_segment():
+def test_readiness_default_is_one_segment():
     """缺省不分段: 一个 GMM2 tile 等齐整个 K 的 ACT 再开工 (最少假设)."""
-    assert m.ModelOptions().gmm2_k_segments == 1
+    assert m.ModelOptions().link("activation", "gmm2").readiness == 1
     g2 = [e for e in _seg_run(1)["rank_results"][0]["events"]
           if e.meta.get("stage") == "gmm2"]
     assert {str(e.meta.get("part")) for e in g2} == {"tail"}
@@ -268,7 +269,7 @@ def test_two_segments_keep_the_head_tail_names():
     assert any(e.name.endswith(".h") for e in g2)
 
 
-def test_gmm2_k_segments_bounds_cover_k_without_gap():
+def test_readiness_bounds_cover_k_without_gap():
     """分段边界必须无缺口无重叠地覆盖 [0, k); 各段时长占比之和 == 1."""
     from moe_cost_model.builders.gmm2 import _k_segment_bounds
     for k, kl1 in ((4608, 256), (4608, 512), (5120, 256), (256, 256), (300, 256)):

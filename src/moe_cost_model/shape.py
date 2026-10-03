@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 from .config.hardware import EpilogueOverheads
+from .config.links import DEFAULT_LINKS, StageLink, resolve_link, validate_links
 from .config.policy import InstancePolicy
 from .costs import DispatchDataLayout
 from .config.pipeline import PipelineConstraints
@@ -130,25 +131,6 @@ class ModelOptions:
     # 给了正整数就**直接**当波宽用: 它是算子工程师要扫的决策变量, 不该只能经由
     # p1/p2 间接表达。
     m_groups_per_wave: int = 0
-    # ACT -> GMM2 的交接编排 (C7). ACT 产出的是 GMM2 的 A (量化激活)。
-    #
-    #   "gm" (缺省) 物化: ACT 写回 GM, GMM2 的 A 从 GM 读回来。这是最少假设 ——
-    #            不声称实现能把中间结果留在片上。某实现走这条
-    #            (epilogue 写 workspaceInfo.activationQuantDataPtr,
-    #             GMM2 从 Location::GM 取同一个指针)。
-    #            代价: GMM2 每 tile 多付 A 流 m·K2 字节 (与 B 流取 max)。
-    #            收益: tile->核 自由 —— 一个 m-group 的 18 个 ACT 可以散在 18 个核上,
-    #            它的 40 个 GMM2 tile 也可以散开。
-    #   "onchip" 不物化: A 留在片上 (硬件有 UB->L1 通路,
-    #            Blaze::Gemm::Tile::CopyUB2L1Weight8Bit)。A 流不付 GM 字节,
-    #            ACT 也不申报 GM 写。代价是**共位**: 一个 GMM2 tile 要吃该 m-group
-    #            整个 K (= 全部 18 个 ACT), 所以这个 m-group 的 GMM1/ACT/GMM2 必须
-    #            全落在同一个核上 -> 并行度上限 = m-group 数, 不是核数。
-    #            需要 late_bind_pools 含 "AIC" (静态绑定下这个共位无从表达)。
-    #
-    # 不设第三种"跨核 K-split": 那要把 18 份 fp32 部分和落 GM 再归约
-    # (每份 m·TILE_N·4B), 当前事件图没有归约事件 (见 docs 的 gap 1)。
-    act_to_gmm2: str = "gm"
     # dispatch 的"谁取哪些行":
     #   "pooled" (缺省): 不按核预切, 只按 dispatch_rows_per_item 把切片切成若干份,
     #                    哪个核去取由调度器在派发时刻定。最少假设 —— 不预设分工。
@@ -161,23 +143,10 @@ class ModelOptions:
     barriers: Tuple[str, ...] = ()
     pipeline: Optional[PipelineConstraints] = None
     gmm2_kl1: Optional[int] = None
-    # GMM2 沿 K 维分几段独立就绪 (K = GMM1 的输出列 = ACT 的列范围)。
-    #
-    # GMM2 的 K 就是 GMM1 切分的那个 N 轴, 所以一个 ACT tile 只产出 GMM2 在 K 上
-    # 1/ceil(k/TILE_N) 的部分; GMM2 要累完整个 K 才有结果。分几段就绪是**编排选择**,
-    # 不是物理约束 —— L0C 本来就沿 kL1 分块累加 (block_mmad 的 ProcessTileL1), 所以
-    # 每段只等覆盖自己 K 范围的 ACT 在物理上可行。
-    #
-    #   1 (缺省): 不分段 —— 一个 GMM2 tile 等齐覆盖整个 K 的全部 ACT 再开工。
-    #       最少假设: 不声称实现能在只拿到部分 K 时就起步。
-    #   2: 首个 kL1 块一段 (只等 1 个 ACT), 其余合成一段。k=4608/kl1=256 时第一段只
-    #      占 1/18 = 5.6% 时长, 94.4% 仍等满 18 个 ACT。
-    #   0: 每个 kL1 块各一段, 第 j 段只等覆盖第 j 块的 ACT —— 最细粒度。
-    #   N>2: 均分成 N 段。
-    #
-    # 代价: 段数越多, flag 轮询次数越多 (kernel 侧每段一次 WaitUntilGmFlagEquals)。
-    # 本模型不计这项开销, 所以细粒度的收益是**上界**。
-    gmm2_k_segments: int = 1
+    # stage 之间那条边: 消费者等多少 / 中间结果放哪 / 片上存几块。
+    # 一条边一个 StageLink, 见 config/links.py。取代原先三个各自为政的旋钮
+    # (gmm2_k_segments / act_to_gmm2 / InstancePolicy.gmm1_activation_depth)。
+    links: Tuple[object, ...] = DEFAULT_LINKS     # config.links.StageLink
     # L3 晚绑定: 哪些角色池的 tile->核 绑定推迟到**派发时刻**。
     #
     # 缺省 = 三个池全入 (派发时刻绑定)。理由是模型的不变量: 决不允许"某 tile 的前置
@@ -191,7 +160,7 @@ class ModelOptions:
     # combine **不**跟随它的 GMM2: GMM2 写 GM、combine 从 GM 读, 同核不是物理约束,
     # combine 可落任意空闲 AIV1。
     #
-    # 残留保守项: 按核索引的 L1 回压边 (activation->gmm1, 由 gmm1_activation_depth
+    # 残留保守项: 按核索引的 L1 回压边 (activation->gmm1, 由 gmm1->activation 的 depth
     # 产生) 在建图时按静态核号生成, 晚绑定后会指向别的核的 ACT。这不违反不变量
     # (那段空闲会计成 forced), 但墙钟会略微高估。该类边占总边数 1.4%~3.0%。
     late_bind_pools: Tuple[str, ...] = ("AIC", "AIV1")
@@ -204,3 +173,10 @@ class ModelOptions:
     #   "wave"        等该波全部 combine
     dispatch_pacing: str = "none"
     engine_queue_depths: Optional[EngineQueueDepths] = None
+
+    def __post_init__(self) -> None:
+        validate_links(self.links)
+
+    def link(self, producer: str, consumer: str) -> StageLink:
+        """取这条 stage 边的设置 (没给就回落到缺省)."""
+        return resolve_link(self.links, producer, consumer)

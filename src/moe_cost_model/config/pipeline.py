@@ -119,8 +119,8 @@ class SyncLatency:
 
 @dataclass(frozen=True)
 class BufferSlots:
-    """gmm1→act 深度不用槽位字段: 距离依赖由 ModelOptions.gmm1_activation_depth
-    由 ModelOptions.gmm1_activation_depth 参数化 (距离依赖保序无环).
+    """gmm1→act 深度不用槽位字段: 它是 ModelOptions.links 里 gmm1->activation
+    那条边的 depth (计数信号量, 见 config/links.py).
 
     以下为 tiling 真值 (from_tiling 填充); wave 路径中 gmm2/combine 同步 slot
     恒 0 (combineSyncSlotCountPerExpert 是 layered 内核专用字段).
@@ -194,7 +194,7 @@ class PipelineConstraints:
         """从 tiling 真值构建.
 
         gmm1→act 深度不在 tiling 中 (kernel 结构常数), 走
-        ModelOptions.gmm1_activation_depth 默认; gmm2/combine 同步 slot 在
+        gmm1->activation 那条边的 depth 默认; gmm2/combine 同步 slot 在
         wave 路径恒 0 (layered 专用), 不强行接线.
         """
         return cls(

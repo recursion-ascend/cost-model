@@ -27,6 +27,7 @@ from .config.hardware import (
     URMA_GET_LAT_US, URMA_PUT_BW_SINGLE, URMA_PUT_LAT_US, VEC_ELEM_FP32,
     VEC_REG_WIDTH, _gmm2_head_tail_fractions, ceil_div, select_kl1,
 )
+from .config.links import DEFAULT_LINKS, StageLink
 from .config.policy import InstancePolicy, StageWaveOffsets
 from .config.pipeline import (
     BufferSlots, PhaseRates, PipelineConstraints, QueueDepths, SyncLatency,
@@ -76,8 +77,9 @@ from .builders.mte import MteEventBuilder
 from .builders.pipeline_expand import apply_pipeline
 from .model import A8W8WaveCostModel
 from .analysis import (
-    bottleneck_report, critical_path_breakdown, extract_critical_path,
-    idle_core_stealing, resource_utilization,
+    bottleneck_report, critical_path_breakdown, design_space,
+    extract_critical_path, format_design_space, idle_core_stealing,
+    resource_utilization,
 )
 from .api import simulate_routing_counts
 from .profiles import MEGAMOE_A8W8, ReferenceProfile

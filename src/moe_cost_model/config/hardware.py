@@ -153,7 +153,7 @@ GMM2_MIN_LOGICAL_TILES_PER_CORE = SourcedInt(1, 'kernel:p2 缺省: 每核最少 
 GMM2_LAG_MIN_TOKEN_NUM = SourcedInt(4096, 'kernel:GMM2 滞后一波的 token 阈值')
 # 来自 kernel
 ACTIVATION_N_HALF = SourcedInt(2, 'kernel:SwiGLU 投影数, gate+up 共 2')
-# InstancePolicy.gmm1_activation_depth 的缺省来源
+# config.links 里 gmm1->activation 那条边 depth 的缺省来源
 DAV3510_NONINTERLEAVED_GMM1_ACTIVATION_DEPTH = SourcedInt(1, 'kernel:GMM1→ACT UB 握手深度, 非交织路径')
 
 def _gmm2_head_tail_fractions(k_gmm2: int, kl1: int = 0) -> tuple:

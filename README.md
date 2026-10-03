@@ -9,7 +9,7 @@ Ascend NPU MegaMoE 流水编排性能评估工具。算子工程师改参数、�
 | 层 | 内容 | 谁定 |
 | --- | --- | --- |
 | 物理 | 带宽、Cube 速率、L1/UB 容量、tile 几何 | 硬件 |
-| 编排 | 切分 / stage 边 (就绪粒度、落点、缓冲深度) / 分核 / 栅栏 / 波宽 | 算子工程师要扫的决策变量 |
+| 编排 | 切分 / stage 边 (`StageLink`: 就绪粒度、落点、缓冲深度) / 分核 / 栅栏 / 波宽 | 算子工程师要扫的决策变量 |
 | 实例 | 以上的一组具体取值 + 某一版实现的实测固定开销 | `profiles.MEGAMOE_A8W8` |
 
 所以**缺省值是"最少假设"**: 不声称实现做了任何特殊的事 —— 消费者等齐生产者、中间结果
@@ -27,6 +27,55 @@ simulate_routing_counts(..., **P.shape_kw(), options=P.with_options(gmm2_k_segme
 ```
 
 缺省跑出来的数与那份实现的数不同, 这是信息 (差多少 = 那些编排选择值多少), 不是 bug。
+
+### stage 边: 一条边三个问题
+
+stage 之间的编排收在 `StageLink` 里 (`config/links.py`), 对**任意**一条生产者→消费者的边
+都是同一组问题 —— 原先这三件事是三个各自为政、只对一条特定边说话的旋钮:
+
+| 字段 | 问的是 | 取值 |
+| --- | --- | --- |
+| `readiness` | 消费者要等生产者产出多少才能开工 | `1` 等齐 (缺省) / `0` 最细 (每 L1 块一段) / `N` 均分 |
+| `location` | 中间结果放哪 | `"gm"` 物化 (缺省) / `"onchip"` 留片上 (不付 GM 字节, 代价是共位) |
+| `depth` | 片上能同时存几块 (计数信号量) | `0` 不设限 / `N` 槽数 |
+| `colocated_by_hardware` | 同核是硬件强制还是编排选择 | `gmm1→activation` 为真 (Fixpipe 只在绑定对内), 不让 `location` 去推它 |
+
+```python
+from moe_cost_model import ModelOptions, StageLink as L
+ModelOptions(links=(
+    L("gmm1", "activation", location="onchip", depth=1, colocated_by_hardware=True),
+    L("activation", "gmm2", readiness=0)))                 # GMM2 逐 K 块就绪
+```
+
+场景文件里写成表数组:
+
+```toml
+[[options.links]]
+producer = "activation"
+consumer = "gmm2"
+readiness = 0
+```
+
+### 扫一遍, 看每个选择值多少钱
+
+```bash
+python examples/run_design_space.py
+```
+
+```
+方案                       时长        Δ       Δ%  关键路径变化 (stage)     最大等待         访存量差          护栏
+基线 (最少假设)           196.92    +0.00    +0.0%  -                      - 0us           -               ok (基线)
+GMM2 逐 K 块就绪          196.25    -0.67    -0.3%  gmm2-10.1, act+9.4     - 0us           -               ok
+UB 深度 2 (交织路径)      174.19   -22.73   -11.5%  gmm2-22.7              - 0us           -               ok
+ACT 不物化 (留片上)      1551.78 +1354.85  +688.0%  gmm1+808, gmm2+386     capacity 160us  gm_to_l1-70.78MB ok
+波间全核对齐              261.85   +64.92   +33.0%  gmm1+50.5, gmm2-22.7   capacity 9us    -               ok
+静态发牌                  243.56   +46.64   +23.7%  gmm1+50.5, act+9.4     capacity 9us    -               违反 AIV1 264
+那份实现                  234.95   +38.03   +19.3%  gmm1+50.5, gmm2-25.3   capacity 9us    -               违反 AIC 10
+```
+
+每一行回答的不是"多少 us", 而是: **收益落在关键路径的哪个 stage**、改完卡在什么等待上、
+少搬多少字节、以及这个方案下模型自己的不变量守住了没有 ——"违反"那一行的时长偏慢,
+收益不可比。`design_space()` / `format_design_space()` 给的就是这张表。
 
 一个缺省带来的直接后果: 缺省晚绑定满足模型的不变量 ——
 **决不出现"某 tile 前置依赖已完成、又有核空闲, 它却还在等"** (`avoidable_idle_us == 0`)。

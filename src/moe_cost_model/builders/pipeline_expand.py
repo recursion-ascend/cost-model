@@ -15,7 +15,7 @@ GMM 口径 (与 costs.AnalyticalGmmCosts 一致). 占用与计时是两回事:
   GMM1  载入走 GM→L1: 占 L1 缓冲槽 + gm_to_l1 信道; 计算占 Cube 队列.
         load / cube 相位时长取事件 meta 的 load_us / compute_us (公式分解).
   GMM2  载入走 GM→L1: 占 L1 缓冲槽 + gm_to_l1 信道 + Cube 队列. 载入 = max(A流, B流),
-        A 流只在物化编排 (ModelOptions.act_to_gmm2="gm") 下存在.
+        A 流只在 activation->gmm2 落 GM (物化) 时存在.
 """
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ def apply_pipeline(
     """施加约束, 返回 (事件表, 容量表).
 
     aic_num/h: 形状参数 (保留以兼容调用方; 相位时长取自事件 meta)
-    gmm1_act_depth: ModelOptions.gmm1_activation_depth, BUF 槽位默认值
+    gmm1_act_depth: gmm1->activation 那条边的 depth, BUF 槽位默认值
     """
     km = kernel if kernel is not None else KernelConfig()
     if km.l1_buf_num == 1 and cons.queues.mte_aic > 1:
@@ -86,7 +86,7 @@ def apply_pipeline(
     # 保留 build_events 的距离依赖 (gmm1[i] deps act[i-depth]), 拆相位时自动
     # 落到 load 相位. 不用可互换信号量: 信号量配对在乱序调度下会与 act 的程序序
     # 依赖成环 (load_A 等 token, act_B 程序序等 act_A, fix_A, load_A).
-    # 距离依赖天然保序无环, 深度由 ModelOptions.gmm1_activation_depth 参数化.
+    # 距离依赖天然保序无环, 深度由 gmm1->activation 那条边的 depth 参数化.
 
     # ---- L1/L2: 队列计数信号量 + 信道需求 (gmm1 需要时拆相位) ----
     # 深度 1 = 闭式时长整体标注; 深度 >1 才有跨 tile 的 load/cube 重叠可建模

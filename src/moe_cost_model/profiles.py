@@ -13,7 +13,11 @@
     from moe_cost_model.profiles import MEGAMOE_A8W8 as P
     simulate_routing_counts(..., **P.shape_kw(), options=P.options)
     # 只改一项:
-    simulate_routing_counts(..., **P.shape_kw(), options=P.with_options(gmm2_k_segments=0))
+    simulate_routing_counts(..., **P.shape_kw(), options=P.with_options(
+    #   只改一条边: 让 GMM2 逐 K 块就绪
+    links=(StageLink("gmm1", "activation", location="onchip", depth=1,
+                     colocated_by_hardware=True),
+           StageLink("activation", "gmm2", readiness=0))))
 """
 from __future__ import annotations
 
@@ -22,6 +26,7 @@ from dataclasses import dataclass
 from typing import Any, Dict
 
 from .config.hardware import EpilogueOverheads, KernelConfig
+from .config.links import StageLink
 from .config.policy import InstancePolicy
 from .planning.core_assignment import StaticRoundRobin
 from .planning.tile_grid import SwizzledTileGrid
@@ -91,11 +96,17 @@ MEGAMOE_A8W8 = ReferenceProfile(
         "固定开销来自 20260930 的实测 trace"
     ),
     options=ModelOptions(
-        # ACT 写 GM、GMM2 从 GM 读回 (epilogue 写 workspaceInfo.activationQuantDataPtr,
-        # stage/mega_moe_gmm2_combine.h:770 从 Location::GM 取同一个指针)
-        act_to_gmm2="gm",
-        # GMM2 沿 K 两段就绪: 首个 kL1 块一段 (只等 1 个 ACT), 其余合成一段
-        gmm2_k_segments=2,
+        # stage 边:
+        #   gmm1->activation  片上直给配对 AIV0 (Fixpipe), UB 单槽
+        #     (vecSetSyncCom=1, stage/mega_moe_gmm1_activation.h:251-285)
+        #   activation->gmm2  物化: ACT 写 workspaceInfo.activationQuantDataPtr,
+        #     GMM2 从 Location::GM 取同一个指针 (stage/mega_moe_gmm2_combine.h:770);
+        #     沿 K 两段就绪 —— 首个 kL1 块一段 (只等 1 个 ACT), 其余合成一段
+        links=(
+            StageLink("gmm1", "activation", readiness=1, location="onchip", depth=1,
+                      colocated_by_hardware=True),
+            StageLink("activation", "gmm2", readiness=2, location="gm"),
+        ),
         # dispatch 按核预切: 均衡分配 + startBlockIdx 轮转
         dispatch_partition="precut",
         # AIV1 循环体先 combine 再下一波 dispatch

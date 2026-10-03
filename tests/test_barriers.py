@@ -2,6 +2,7 @@
 import pytest
 
 import moe_cost_model as m
+from linkutil import links
 
 
 def _run(hd=9216, local=3, barriers=(), depth=1):
@@ -13,8 +14,8 @@ def _run(hd=9216, local=3, barriers=(), depth=1):
         costs=m.build_analytical_costs(
             h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency()),
         p1_override=1, p2_override=1, topk=6,
-        options=m.ModelOptions(barriers=barriers),
-        policy=m.InstancePolicy(gmm1_activation_depth=depth))["rank_results"][0]
+        options=m.ModelOptions(barriers=barriers, links=links(depth)),
+        )["rank_results"][0]
 
 
 def test_default_has_no_barrier_and_one_drain_node():
@@ -59,8 +60,9 @@ def _run_mgw_depth(mgw, depth, barriers=("stage",), local=3, hd=9216, late=()):
         costs=m.build_analytical_costs(
             h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency()),
         p1_override=1, p2_override=1, topk=6,
-        options=m.ModelOptions(barriers=barriers, m_groups_per_wave=mgw, late_bind_pools=late),
-        policy=m.InstancePolicy(gmm1_activation_depth=depth))["rank_results"][0]
+        options=m.ModelOptions(barriers=barriers, m_groups_per_wave=mgw,
+                               late_bind_pools=late, links=links(depth)),
+        )["rank_results"][0]
 
 
 def test_stage_barrier_vs_ub_depth_is_conditional_and_per_wave():
@@ -95,7 +97,7 @@ def test_stage_barrier_error_names_the_three_ways_out():
     with pytest.raises(ValueError) as ei:
         _run_mgw_depth(2, 1)
     msg = str(ei.value)
-    assert "gmm1_activation_depth=0" in msg
+    assert "depth 设 0" in msg
     assert "m_groups_per_wave" in msg
     assert "UB 深度加到" in msg
 

@@ -24,6 +24,7 @@ from .config.hardware import KernelConfig
 from .config.pipeline import parse_tiling
 from .config.pipeline import (BufferSlots, PhaseRates, PipelineConstraints,
                               QueueDepths, SyncLatency)
+from .config.links import StageLink
 from .config.policy import InstancePolicy, StageWaveOffsets
 from .costs import (DispatchDataLayout, DispatchMechanisticLatency, PrimitiveCosts,
                     UrmaMechanisticLatency, build_analytical_costs)
@@ -419,6 +420,10 @@ _NESTED = {
     (Calibration, "dispatch"): DispatchMechanisticLatency,
     (Calibration, "urma"): UrmaMechanisticLatency,
 }
+# 值为"对象数组"的字段: (所属类, 字段名) → 元素类。场景文件里写 [[options.links]]
+_LIST_NESTED = {
+    (ModelOptions, "links"): StageLink,
+}
 # 策略字段: 名字 / 表 / 对象, 由 registry 校验
 _STRATEGY_FIELDS = {(Scenario, kind) for kind in registry.KINDS}
 
@@ -450,6 +455,16 @@ def _convert(cls, key: str, value, path: str, base=None):
     if (cls, key) in _STRATEGY_FIELDS:
         registry.resolve(key, value, where=where)
         return value
+    item = _LIST_NESTED.get((cls, key))
+    if item is not None:
+        if value is None:
+            return ()
+        if not isinstance(value, (list, tuple)):
+            raise ValueError(
+                f"{where}: 应为表数组 (对应 {item.__name__} 的列表), 得到 {value!r}")
+        return tuple(
+            v if isinstance(v, item) else _build(item, v, f"{where}[{i}]")
+            for i, v in enumerate(value))
     nested = _NESTED.get((cls, key))
     if nested is not None:
         if isinstance(value, dict):
