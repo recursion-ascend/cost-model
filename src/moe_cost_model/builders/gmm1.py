@@ -96,7 +96,10 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                 # 相位流水按这组数拆 load/cube 相位并折算 GM→L1 信道字节
                 meta["load_us"], meta["compute_us"] = phases
             label = tile_label(t, sl.rows, gmm1_sched_n, TILE_M, TILE_N)
-            gname = f"W{w.index}.E{sl.expert}.S{si}.gmm1.{label}.c{core}"
+            # C1: 事件名**不带核号** —— 事件的身份是"哪一份工作", 核是调度的产出。
+            # 名字带核号的后果是依赖边也带: 换一种分核方式, 图的结构就跟着变, 那是在
+            # 复现 kernel 的记账而不是建模。(URMA 路径一直就是这样命名的。)
+            gname = f"W{w.index}.E{sl.expert}.S{si}.gmm1.{label}"
             builder._event(gname, (f"AIC:{core}",), duration, deps=deps,
                            acquires=acq, releases=(q_aic,), meta=meta)
 

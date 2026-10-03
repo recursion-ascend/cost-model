@@ -164,7 +164,7 @@ def test_gmm1_activation_depth_zero_drops_the_ub_constraint():
             p1_override=1, p2_override=1, topk=6,
             policy=m.InstancePolicy(gmm1_activation_depth=depth))["rank_results"][0]
 
-    name = "R0.W0.E1.S1.gmm1.m0.n10.c0"
+    name = "R0.W0.E1.S1.gmm1.m0.n10"   # C1 后事件名不带核号
     d1 = {e.name: e for e in run(1)["events"]}[name]
     d0 = {e.name: e for e in run(0)["events"]}[name]
     # depth=1: 等 UB 槽 (容量); depth=0: 无此约束, 只被自己的核卡住

@@ -89,7 +89,9 @@ class MteDispatch(DispatchTransport):
                     bw_rem = c.dispatch_mechanistic.bw_remote_bytes_per_us
                     for b_begin, b_rows in _route_batches(seg_start, rows, batch_rows):
                         b_end = b_begin + b_rows
-                        name = (f"W{w.index}.dispatch.c{core}.e{sl.expert}.s{si}"
+                        # C1: 名字不带核号。行区间按核互不重叠, 所以
+                        # (专家, 段, 行区间) 已经唯一标识这一份搬运工作。
+                        name = (f"W{w.index}.dispatch.e{sl.expert}.s{si}"
                                 f".r{b_begin}_{b_end}")
                         resources = [f"AIV1:{core}"]
                         if builder.options.serialize_dispatch_comm and src != shape.rank_id:
@@ -162,7 +164,8 @@ class MteCombine(CombineTransport):
                      ntile, core, gname, global_group, call_iteration):
         c = builder.costs
         q_aiv1 = (f"Q:aiv1:c{core}", 1)
-        cname = f"W{w.index}.E{sl.expert}.S{si}.combine.{label}.c{core}"
+        # C1: 名字不带核号 (见 gmm1.py 的说明)
+        cname = f"W{w.index}.E{sl.expert}.S{si}.combine.{label}"
         # 本窗每行要写回它的来源卡: 行区间按源卡分段, 逐卡行数精确数出。
         # 跨卡行是 COMBINE 的主导项, 所以 EP 摆放/本地亲和度会直接改 combine 代价。
         abs_begin = sl.row_begin + t.row_begin

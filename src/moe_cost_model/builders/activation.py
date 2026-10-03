@@ -23,7 +23,8 @@ def add_activation_tile(builder, ctx: BuildContext, w, si, sl, t, label, ntile,
     out_begin = t.col_begin // out_div
     out_end = t.col_end // out_div
     q_vec = (f"Q:vec0:c{core}", 1)
-    aname = f"W{w.index}.E{sl.expert}.S{si}.act.{label}.c{core}"
+    # C1: 名字不带核号 (见 gmm1.py 的说明); 落哪个核由 resources + 共位约束决定
+    aname = f"W{w.index}.E{sl.expert}.S{si}.act.{label}"
     c = builder.costs
     # ACT 的写出走 GM (StoreQuantOutput + StoreQuantScaleCompact, 各 m 次带 stride
     # 的 UB→GM 突发) —— 申报到写信道上, 28 核同时写的降速由速率服务器算出来。

@@ -75,7 +75,8 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             # 同一个 tile 的各 K 段按时长占比分摊本 tile 的 B 流, 信道字节才不会在
             # 计算绑定时被整段时长放大。段的 K 范围决定它等哪些 ACT。
             phases = gmm2_phase_split(c, t.rows, k_gmm2, t.cols)
-            gname = f"W{w.index}.E{sl.expert}.S{si}.gmm2.{label}.c{core}"
+            # C1: 名字不带核号 (见 gmm1.py 的说明)
+            gname = f"W{w.index}.E{sl.expert}.S{si}.gmm2.{label}"
             n_seg = len(bounds)
             prev: List[str] = []
             for j, (k_lo, k_hi) in enumerate(bounds):
