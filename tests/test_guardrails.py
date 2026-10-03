@@ -12,7 +12,7 @@ import pytest
 
 import moe_cost_model as m
 from moe_cost_model.guardrails import (
-    check_channels, check_routing_conservation)
+    check_routing_conservation)
 from moe_cost_model.config.pipeline import (
     TILING_FIELDS, parse_tiling, resolve_tiling_path)
 from moe_cost_model.scenario import TilingSource
@@ -108,40 +108,6 @@ def test_tiling_absent_is_fine():
 
 # ---------------------------------------------------------------- 信道尺度
 
-def test_channel_guard_catches_contended_per_event_rate():
-    """判据一: 单事件吃掉聚合一半以上 → 两个常数不同尺度, 会双重计费.
-
-    片间信道占位就是这样: 聚合 BW_WINDOW=33000 是整卡值, 逐事件速率
-    BW_REMOTE_GM=31000 是 28 核并发下反解的单核值 (已含平均争用) → 94%。
-    """
-    ch = m.Channel("fab_src:1", bw_total=33000.0, max_rate_per_event=31000.0)
-    msgs = check_channels([ch], 28)
-    assert len(msgs) == 1 and "94%" in msgs[0] and "双重计费" in msgs[0]
-
-
-def test_channel_guard_flags_knife_edge_default():
-    """判据二: 聚合恰好 = 每事件上限 x 核数 → 中性基线, 加消费者前必须先看见."""
-    msgs = check_channels(
-        m.default_channels(28, bw_l1_gm=m.BW_L1_GM, bw_scatter=m.BW_SCATTER), 28)
-    assert {"gm_to_l1", "hbm_write"} == {msg.split()[1].rstrip(":") for msg in msgs}
-    assert all("中性基线" in msg for msg in msgs)
-
-
-def test_channel_guard_silent_on_healthy_config():
-    """聚合是真实整卡值、单事件只占 1/核数 量级 → 无告警."""
-    ch = m.Channel("hbm", bw_total=1_000_000.0, max_rate_per_event=50_000.0)
-    assert check_channels([ch], 28) == []
-
-
-def test_channel_guard_reaches_simulate_as_warning():
-    """信道告警只警告不拦: default_channels 是有意的中性基线, 不是错."""
-    sc = m.Scenario(workload=m.Workload(tokens=64, world=2, local_experts=4, topk=8),
-                    p1_override=2, p2_override=1, default_channels=True)
-    res = m.simulate(sc)
-    assert any("中性基线" in w for w in res["warnings"])
-
-
-# ---------------------------------------------------------------- 路由守恒
 
 def test_routing_conservation():
     ok = [[[18] * 4 for _ in range(3)] for _ in range(4)]

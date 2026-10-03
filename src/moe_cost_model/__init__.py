@@ -35,8 +35,8 @@ from .config.provenance import (
     SourcedInt, SourcedValue, collect_provenance, provenance_report,
 )
 from .scheduler.events import (
-    Channel, Event, RestructureAction, RestructureContext, ScheduledEvent,
-    default_channels, edge_latency,
+    Event, RestructureAction, RestructureContext, ScheduledEvent,
+    edge_latency,
 )
 from .scheduler.engine import MultiResourceScheduler
 from .scheduler.policies import (

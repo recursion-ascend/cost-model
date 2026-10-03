@@ -13,12 +13,7 @@ import json
 import struct
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Optional, Tuple
-
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from ..scheduler.events import Channel
+from typing import Dict, Optional
 
 # ---------------------------------------------------------------------------
 # tiling_rank*.bin 解析 (MegaMoeTilingData)
@@ -175,7 +170,6 @@ class PipelineConstraints:
     buffers: BufferSlots = field(default_factory=BufferSlots)
     queues: QueueDepths = field(default_factory=QueueDepths)
     phases: PhaseRates = field(default_factory=PhaseRates)
-    channels: Tuple[Channel, ...] = ()   # 空 = L2 关闭
 
     def __post_init__(self) -> None:
         q = self.queues
@@ -196,7 +190,6 @@ class PipelineConstraints:
         sync: Optional[SyncLatency] = None,
         queues: Optional[QueueDepths] = None,
         phases: Optional[PhaseRates] = None,
-        channels: Tuple[Channel, ...] = (),
     ) -> "PipelineConstraints":
         """从 tiling 真值构建.
 
@@ -215,5 +208,4 @@ class PipelineConstraints:
             ),
             queues=queues or QueueDepths(),
             phases=phases or PhaseRates(),
-            channels=channels,
         )

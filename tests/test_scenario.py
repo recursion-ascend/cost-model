@@ -42,11 +42,9 @@ def _w3(**kw):
     ("packing_longest_first", _skewed(wave_packing=m.LongestExpertFirst())),
     ("policy_priority_by_stage", _w3(scheduling_policy="priority_by_stage")),
     ("mte_3wave_lag2", _w3(policy=m.InstancePolicy(gmm2_lag_waves=2))),
-    ("pipeline_split_channels", _skewed(
-        default_channels=True,
+    ("pipeline_split", _skewed(
         options=m.ModelOptions(pipeline=m.PipelineConstraints(
             queues=m.QueueDepths(mte_aic=2, cube=2, fix=2))))),
-    ("fabric_channels_on", _skewed(options=m.ModelOptions(fabric_channels=True))),
 ])
 def test_scenario_matches_golden(case, scenario):
     assert fingerprint(m.simulate(scenario)) == STORED[case]

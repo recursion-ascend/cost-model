@@ -20,14 +20,13 @@ from typing import Dict, List, Mapping, Optional, Tuple
 from . import registry
 from .api import simulate_routing_counts
 from . import guardrails
-from .config.hardware import BW_L1_GM, BW_SCATTER, KernelConfig
+from .config.hardware import KernelConfig
 from .config.pipeline import parse_tiling
 from .config.pipeline import (BufferSlots, PhaseRates, PipelineConstraints,
                               QueueDepths, SyncLatency)
 from .config.policy import InstancePolicy, StageWaveOffsets
 from .costs import (DispatchDataLayout, DispatchMechanisticLatency, PrimitiveCosts,
                     UrmaMechanisticLatency, build_analytical_costs)
-from .scheduler.events import Channel, default_channels
 from .shape import EngineQueueDepths, ModelOptions
 
 ROUTING_MODES = ("uniform", "cyclic", "random", "explicit", "file")
@@ -190,8 +189,6 @@ class Scenario:
     tile_grid / orchestration) 接受注册名、{name=..., 参数} 表或现成对象, 见
     registry.py; None = 模型缺省。tile_grid 决定 GMM1/GMM2 的 tile 怎么切,
     orchestration 决定用哪个建图器 (还能写 "包.模块:类" 引用自己的实现)。
-    default_channels: 为相位流水启用默认 L2 信道 (每核应得速率 × 核数), 随
-    aic_num 与标定带宽自动取值; 与 options.pipeline.channels 显式列表互斥.
     costs: 显式给出的公式容器; 给定时 calibration 不生效.
     """
 
@@ -207,7 +204,6 @@ class Scenario:
     options: ModelOptions = field(default_factory=ModelOptions)
     calibration: Calibration = field(default_factory=Calibration)
     tiling: Optional[TilingSource] = None
-    default_channels: bool = False
     wave_packing: object = None
     core_assignment: object = None
     scheduling_policy: object = None
@@ -219,9 +215,6 @@ class Scenario:
     def __post_init__(self) -> None:
         for kind in registry.KINDS:
             registry.resolve(kind, getattr(self, kind), where=kind)   # 名字尽早校验
-        pipe = self.options.pipeline
-        if self.default_channels and pipe is not None and pipe.channels:
-            raise ValueError("default_channels 与 options.pipeline.channels 只能给一个")
 
     # ---- 构造 ----
 
@@ -283,8 +276,6 @@ class Scenario:
           - 路由不守恒: 每源 rank 发出行数 != tokens x topk。对手写 counts 有用,
             但 tokens 与 counts 在本模型里是**两个独立输入** (tokens 只喂 p1 档位
             判定与 UNPERMUTE 字节), 测试夹具就故意让它们不一致, 故只警告。
-          - 信道尺度: default_channels 的"聚合 = 每核速率 x 核数"本身是有意的中性
-            基线, 不是错; 警告的价值在于往这条信道上再加消费者之前先看见它。
         """
         errors: List[str] = []
         warnings: List[str] = []
@@ -294,9 +285,6 @@ class Scenario:
         til = self.tiling_truth()
         if til:
             errors += guardrails.check_against_tiling(self, til)
-        pipe = self.resolved_options().pipeline
-        if pipe is not None and pipe.channels:
-            warnings += guardrails.check_channels(pipe.channels, self.aic_num)
         return errors, warnings
 
     def build_dispatch_layout(self) -> DispatchDataLayout:
@@ -341,17 +329,8 @@ class Scenario:
             bw_combine_remote=cal.bw_combine_remote, **extra)
 
     def resolved_options(self) -> ModelOptions:
-        """default_channels 展开后的 ModelOptions."""
-        if not self.default_channels:
-            return self.options
-        cal = self.calibration
-        channels = default_channels(
-            self.aic_num,
-            bw_l1_gm=cal.bw_l1_gm if cal.bw_l1_gm is not None else BW_L1_GM,
-            bw_scatter=cal.bw_scatter if cal.bw_scatter is not None else BW_SCATTER)
-        pipe = self.options.pipeline or PipelineConstraints()
-        return dataclasses.replace(
-            self.options, pipeline=dataclasses.replace(pipe, channels=channels))
+        """信道模型已停用, 不再有需要展开的字段; 保留以稳定调用方接口."""
+        return self.options
 
 
 def simulate(scenario: Scenario) -> Dict[str, object]:
@@ -475,8 +454,6 @@ def _convert(cls, key: str, value, path: str):
         if value is None or isinstance(value, nested):
             return value
         raise ValueError(f"{where}: 应为表 (对应 {nested.__name__}), 得到 {value!r}")
-    if (cls, key) == (PipelineConstraints, "channels"):
-        return _channels(value, where)
     if (cls, key) == (Workload, "counts"):
         return None if value is None else _freeze_counts(value)
     if value is None:
@@ -508,18 +485,6 @@ def _leaf_kind(f: dataclasses.Field) -> str:
         if token in annotation:
             return kind
     return "数值"
-
-
-def _channels(value, where: str) -> Tuple[Channel, ...]:
-    if value is None:
-        return ()
-    if not isinstance(value, (list, tuple)):
-        raise ValueError(f"{where}: 应为信道表的列表; 默认信道用顶层 default_channels = true")
-    out = []
-    for i, item in enumerate(value):
-        out.append(item if isinstance(item, Channel)
-                   else _build(Channel, item, f"{where}[{i}]"))
-    return tuple(out)
 
 
 def _build(cls, data, path: str):

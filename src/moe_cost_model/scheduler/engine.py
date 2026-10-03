@@ -1,16 +1,18 @@
-"""第 2 层: 通用离散事件调度引擎 — 多资源互斥 + 计数信号量 + 速率服务器.
+"""第 2 层: 通用离散事件调度引擎 — 多资源互斥 + 计数信号量.
 
-输入: 事件列表 + 容量表 + 信道表 + 调度策略.
+输入: 事件列表 + 容量表 + 调度策略.
+
+信道 (速率服务器) 已于 2026-10-03 停用: Event.channel_bytes 仍然申报字节, 但只做
+访存量统计, **不参与准入, 不影响任何时长**。去掉的理由见 README 的信道一节。
 
 性能结构:
   - _TimeCounter: heap+cold 双栈按时间清算, count_le(t) 均摊 O(活跃集)
-  - _ChannelState: 活跃区间按 end 清算, probe 只扫在飞区间 (~并发数) 而非全部历史
   - 前沿惰性探测: 先探 min t_base 事件得上界 A, 只探 t_base ≤ A 的候选
     (被剪枝事件 adjusted ≥ t_base > A, 选择结果精确等价)
   - 就绪集增量维护: t_base 在事件入就绪集时算一次, 此后只在其占用的资源被
     提交时重算; 最小 t_base 由惰性失效堆给出, 不再每轮全量扫描就绪集
-  - 探测结果留存: 联合准入探测只取决于 t_base 与事件引用的容量/信道台账,
-    二者未变则结果沿用; 提交只让引用了被写台账的事件重新探测
+  - 探测结果留存: 联合准入探测只取决于 t_base 与事件引用的容量台账,
+    未变则结果沿用; 提交只让引用了被写台账的事件重新探测
 """
 from __future__ import annotations
 
@@ -19,7 +21,7 @@ from bisect import bisect_right, insort
 from collections import defaultdict
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from .events import (Channel, Event, RestructureContext, ScheduledEvent,
+from .events import (Event, RestructureContext, ScheduledEvent,
                      edge_latency, pool_key)
 
 
@@ -54,128 +56,6 @@ class _TimeCounter:
         return self.total_k - self.heap_k
 
 
-class _ChannelState:
-    """速率服务器: 活跃区间 (start, end, rate), 按 end 清算.
-
-    不变量: active 中所有区间 end > watermark; cold 按 end 升序.
-    probe 只扫 active (≈ 在飞并发数), 而非全部历史区间.
-    """
-
-    def __init__(self, channel: Channel):
-        self.ch = channel
-        self.active: List[Tuple[float, float, float]] = []
-        self.cold: List[Tuple[float, float, float]] = []
-        self.watermark = float("-inf")
-        # probe 记忆化: (t0, nbytes, entitled) -> (start, dur).
-        # commit 时只失效窗口与新区间相交的表项 (probe 结果只依赖相交区间,
-        # 提交只增争用 → 未相交的结果不变).
-        self._memo: Dict[Tuple[float, float, float], Tuple[float, float]] = {}
-
-    def commit(self, s: float, e: float, r: float) -> None:
-        self.active.append((s, e, r))
-        if self._memo:
-            dead = [k for k, (st, d) in self._memo.items() if k[0] < e and st + d > s]
-            for k in dead:
-                del self._memo[k]
-
-    def _prep(self, t0: float) -> None:
-        if t0 < self.watermark:
-            # 查询时间回退: 恢复 end > t0 的清算项 (cold 尾部是最大 end)
-            while self.cold and self.cold[-1][1] > t0:
-                self.active.append(self.cold.pop())
-            self.watermark = t0
-            return
-        if t0 > self.watermark:
-            keep: List[Tuple[float, float, float]] = []
-            moved: List[Tuple[float, float, float]] = []
-            for iv in self.active:
-                (moved if iv[1] <= t0 else keep).append(iv)
-            if moved:
-                moved.sort(key=lambda iv: iv[1])
-                self.cold.extend(moved)
-                self.active = keep
-            self.watermark = t0
-
-    def _window_stats(self, t0: float, t1: float) -> Tuple[float, int]:
-        """[t0,t1] 内最小剩余带宽与最大并发数 """
-        if t1 <= t0:
-            t1 = t0 + 1e-9
-        self._prep(t0)
-        cands = [iv for iv in self.active if iv[0] < t1]
-        if not cands:
-            return self.ch.bw_total, 0
-        pts = {t0, t1}
-        for s, e, _ in cands:
-            if t0 < s < t1:
-                pts.add(s)
-            if t0 < e < t1:
-                pts.add(e)
-        bounds = sorted(pts)
-        f_min = self.ch.bw_total
-        c_max = 0
-        for a, b in zip(bounds[:-1], bounds[1:]):
-            mid = (a + b) / 2.0
-            rate_sum = 0
-            cnt = 0
-            for s, e, r in cands:
-                if s < mid < e:
-                    rate_sum += r
-                    cnt += 1
-            if rate_sum > 0 or cnt > c_max:
-                f_min = min(f_min, self.ch.bw_total - rate_sum)
-                c_max = max(c_max, cnt)
-        return f_min, c_max
-
-    def _min_active_end(self, t: float) -> Optional[float]:
-        self._prep(t)
-        return min((iv[1] for iv in self.active), default=None)
-
-    def probe(self, t0: float, nbytes: float, entitled: float) -> Tuple[float, float]:
-        """求 (start, dur): 不写状态. 名义时长 = nbytes/有效应得速率."""
-        key = (t0, nbytes, entitled)
-        hit = self._memo.get(key)
-        if hit is not None:
-            return hit
-        result = self._probe_uncached(t0, nbytes, entitled)
-        self._memo[key] = result
-        return result
-
-    #: "没有带宽" 的判据必须相对于信道量级 —— 绝对阈值 1e-9 在 bw_total ~1e6 时
-    #: 拦不住浮点残渣: 28 个满速率事件把 bw_total 吃到最后一位, 第 29 个算出
-    #: f_min = 1.16e-9 (刚好大于 1e-9), 于是 dur = nbytes/1.16e-9 = 9e12 us。
-    #: 20260930 bs=36 + gm_to_l1 信道复现过: rank2 总时长 9.07e12。
-    RATE_EPS_FRAC = 1e-9
-
-    def _probe_uncached(self, t0: float, nbytes: float, entitled: float) -> Tuple[float, float]:
-        cap = self.ch.max_rate_per_event or self.ch.bw_total
-        rate_floor = self.ch.bw_total * self.RATE_EPS_FRAC
-        rate_cap = min(entitled, self.ch.bw_total, cap)
-        if nbytes <= 0:
-            return t0, 0.0
-        t = t0
-        dur = nbytes / rate_cap
-        for _ in range(8):
-            f_min, c_max = self._window_stats(t, t + dur)
-            if self.ch.ports and c_max >= self.ch.ports:
-                nxt = self._min_active_end(t)
-                if nxt is None:
-                    break
-                t = nxt
-                continue
-            r = min(rate_cap, f_min)
-            if r <= rate_floor:
-                nxt = self._min_active_end(t)
-                if nxt is None:
-                    break
-                t = nxt
-                continue
-            new_dur = nbytes / r
-            if abs(new_dur - dur) < 1e-9:
-                return t, new_dur
-            dur = new_dur
-        return t, dur
-
-
 class MultiResourceScheduler:
     """Precedence-aware serial schedule generator.
 
@@ -185,14 +65,13 @@ class MultiResourceScheduler:
     events happened to be appended to the Python list.
 
     capacities: {资源名: 计数信号量容量}. 事件 acquires 超容量时推迟到归还时刻.
-    channels:   {信道名: Channel}. 事件 channel_bytes 按速率服务器准入.
+    事件的 channel_bytes 只是访存量申报, 不参与准入 (信道模型已停用)。
     """
 
     def schedule(
         self,
         events: Sequence[Event],
         capacities: Optional[Dict[str, int]] = None,
-        channels: Optional[Dict[str, Channel]] = None,
         restructure=None,
         restructure_limit: Optional[int] = None,
         policy=None,
@@ -208,11 +87,9 @@ class MultiResourceScheduler:
         注入事件数上限 restructure_limit (默认 4×初始事件数, 防策略失控).
         """
         capacities = dict(capacities or {})
-        channels = dict(channels or {})
         if policy is None:
             from .policies import EarliestStart
             policy = EarliestStart()
-        chan_state = {name: _ChannelState(ch) for name, ch in channels.items()}
 
         # ---- L3 晚绑定: 池成员表 + 已绑定核号 ----
         pool_members: Dict[str, Tuple[str, ...]] = {
@@ -321,9 +198,6 @@ class MultiResourceScheduler:
                     raise ValueError(
                         f"event {ev.name} acquires {k} > capacity {capacities[res]} of {res}"
                     )
-            for cname, _, _ in ev.channel_bytes:
-                if cname not in chan_state:
-                    raise ValueError(f"event {ev.name} references unknown channel {cname}")
 
         end_by_name: Dict[str, float] = {}
         resource_free: Dict[str, float] = {}
@@ -342,11 +216,11 @@ class MultiResourceScheduler:
         # ready 用 dict 保持入集顺序: 遍历序与哈希种子无关, 探测次序确定.
         # tbase[name] = max(依赖就绪, 资源空闲), 键集合恒等于 ready.
         # 堆项 (t_base, order, name, 代次); 代次与 ready_gen 不符即失效, 取堆顶时丢弃.
-        # 无容量/信道需求的事件 start = t_base, 进 simple_heap; 其余需联合准入
-        # 探测, 进 probe_heap (待探测, 按 t_base 排序).
+        # 无容量需求的事件 start = t_base, 进 simple_heap; 其余需容量准入探测,
+        # 进 probe_heap (待探测, 按 t_base 排序).
         # EarliestStart 快路径下, 探测过的事件移入 resolved_heap (按 start 排序),
-        # 结果存 resolved; 其 t_base 或所引用的台账 (容量计数/信道) 变化时退回
-        # probe_heap 重新探测. 不可行 (start=inf) 的只存 resolved, 不进堆.
+        # 结果存 resolved; 其 t_base 或所引用的容量台账变化时退回 probe_heap
+        # 重新探测. 不可行 (start=inf) 的只存 resolved, 不进堆.
         ready: Dict[str, None] = {}
         tbase: Dict[str, float] = {}
         dep_ready_at: Dict[str, float] = {}
@@ -355,19 +229,19 @@ class MultiResourceScheduler:
         simple_heap: List[Tuple[float, int, str, int]] = []
         probe_heap: List[Tuple[float, int, str, int]] = []
         resolved_heap: List[Tuple[float, int, str, int]] = []
-        resolved: Dict[str, Tuple[float, float, float, float, Dict[str, float]]] = {}
+        resolved: Dict[str, Tuple[float, float, float]] = {}
         ledger_watch: Dict[str, Dict[str, None]] = {}   # 台账名 -> 引用它的就绪事件
         gen_counter = [0]
 
         def _ledgers(ev: Event) -> List[str]:
-            return [res for res, _ in ev.acquires] + [c[0] for c in ev.channel_bytes]
+            return [res for res, _ in ev.acquires]
 
         def _push_ready(name: str, ev: Event, tb: float) -> None:
             gen_counter[0] += 1
             ready_gen[name] = gen_counter[0]
             tbase[name] = tb
             resolved.pop(name, None)
-            heapq.heappush(probe_heap if (ev.acquires or ev.channel_bytes) else simple_heap,
+            heapq.heappush(probe_heap if ev.acquires else simple_heap,
                            (tb, ev.order, name, gen_counter[0]))
 
         def _ledger_written(ledger: str) -> None:
@@ -450,8 +324,6 @@ class MultiResourceScheduler:
                 time_us=t_now, resource_free=res_free, resource_pending=dict(pend_cnt),
                 pending=pend_view,
                 committed_tail=dict(resource_last_event),
-                channel_inflight={name: sum(r for _, r, _ in st_.active)
-                                  for name, st_ in chan_state.items()},
                 end_by_name=dict(end_by_name))
             act = restructure(ctx)
             for nm in act.cancel:
@@ -515,40 +387,21 @@ class MultiResourceScheduler:
                 t = ok_t
             return True, t
 
-        def probe(ev: Event, t_base: float) -> Tuple[float, float, float, float, Dict[str, float]]:
-            """联合准入探测 (不写状态). 返回 (start, duration, ch_wait, cap_wait, rates)."""
+        def probe(ev: Event, t_base: float) -> Tuple[float, float, float]:
+            """容量准入探测 (不写状态). 返回 (start, duration, cap_wait)."""
             t = t_base
-            ch_wait = 0.0
             cap_wait = 0.0
-            rates: Dict[str, float] = {}
+            dur = max(0.0, ev.duration_us)
             for _ in range(4):
-                if ev.channel_bytes:
-                    ch_t = t
-                    ch_dur = max(0.0, ev.duration_us)
-                    for cname, nbytes, entitled in ev.channel_bytes:
-                        st, d = chan_state[cname].probe(ch_t, nbytes, entitled)
-                        ch_t = max(ch_t, st)
-                        ch_dur = max(ch_dur, d)
-                        rates[cname] = nbytes / d if d > 0 else entitled
-                    if ch_t > t:
-                        ch_wait += ch_t - t
-                        t = ch_t
-                    dur = ch_dur
-                else:
-                    dur = max(0.0, ev.duration_us)
                 ok, t_cap = capacity_feasible(ev, t)
                 if not ok:
-                    return float("inf"), dur, ch_wait, cap_wait, rates
+                    return float("inf"), dur, cap_wait
                 if t_cap > t:
                     cap_wait += t_cap - t
                     t = t_cap
                     continue
-                if ev.channel_bytes and any(
-                    chan_state[c].probe(t, nb, en)[0] > t for c, nb, en in ev.channel_bytes
-                ):
-                    continue
-                return t, dur, ch_wait, cap_wait, rates
-            return t, dur, ch_wait, cap_wait, rates
+                return t, dur, cap_wait
+            return t, dur, cap_wait
 
         from .policies import EarliestStart
         # 快路径只对 EarliestStart 本类启用: 排序键 (start, order, name) 与堆序一致.
@@ -560,23 +413,23 @@ class MultiResourceScheduler:
 
         while ready:
             best_key: Optional[tuple] = None
-            best: Optional[Tuple[str, float, float, float, float, Dict[str, float]]] = None
+            best: Optional[Tuple[str, float, float, float]] = None
 
             def consider(name: str) -> None:
                 nonlocal best_key, best
                 ev = by_name[name]
-                if not ev.acquires and not ev.channel_bytes:
+                if not ev.acquires:
                     start, dur = tbase[name], ev.duration_us
-                    payload = (0.0, 0.0, {})
+                    payload = (0.0,)
                 else:
-                    start, dur, ch_w, cap_w, rates = probe(ev, tbase[name])
+                    start, dur, cap_w = probe(ev, tbase[name])
                     if start == float("inf"):
                         return
-                    payload = (ch_w, cap_w, rates)
+                    payload = (cap_w,)
                 key = policy.event_key(ev, start, tbase, end_by_name)
                 if best_key is None or key < best_key:
                     best_key = key
-                    best = (name, start, dur, payload[0], payload[1], payload[2])
+                    best = (name, start, dur, payload[0])
 
             top_simple = _heap_top(simple_heap)
             top_probe = _heap_top(probe_heap)
@@ -605,7 +458,7 @@ class MultiResourceScheduler:
                 if top_simple is not None and (
                         top_resolved is None or top_simple[:3] < top_resolved[:3]):
                     best = (top_simple[2], top_simple[0],
-                            by_name[top_simple[2]].duration_us, 0.0, 0.0, {})
+                            by_name[top_simple[2]].duration_us, 0.0)
                 elif top_resolved is not None:
                     best = (top_resolved[2],) + resolved[top_resolved[2]]
             else:
@@ -637,7 +490,7 @@ class MultiResourceScheduler:
                 blocked = sorted(ready)
                 raise ValueError(f"capacity deadlock: no feasible event among ready={blocked[:8]}")
 
-            name, start, dur, ch_wait, cap_wait, rates = best
+            name, start, dur, cap_wait = best
             ev = by_name[name]
             _leave_ready(name)
             end = start + max(0.0, dur)
@@ -678,8 +531,6 @@ class MultiResourceScheduler:
                 critical_reason = "root"
             if cap_wait > 0.0:
                 critical_reason = "capacity"
-            elif ch_wait > 0.0:
-                critical_reason = "channel"
 
             end_by_name[name] = end
             for resource in bound_res:
@@ -692,12 +543,8 @@ class MultiResourceScheduler:
             for res, k in rel:
                 rel_ctr.setdefault(res, _TimeCounter()).add(end, k)
                 insort(rel_times.setdefault(res, []), end)
-            for cname, nbytes, _ in ev.channel_bytes:
-                chan_state[cname].commit(start, start + max(dur, 1e-12),
-                                         min(nbytes / max(dur, 1e-12), self._rate_cap(channels[cname])))
             for ledger in dict.fromkeys([res for res, _ in acq]
-                                        + [res for res, _ in rel]
-                                        + [c[0] for c in ev.channel_bytes]):
+                                        + [res for res, _ in rel]):
                 _ledger_written(ledger)
 
             scheduled.append(
@@ -715,8 +562,6 @@ class MultiResourceScheduler:
                     order=ev.order,
                     meta=dict(ev.meta, once_per_core_us=once_us) if once_us else dict(ev.meta),
                     capacity_wait_us=cap_wait,
-                    channel_wait_us=ch_wait,
-                    channel_rate=rates,
                 )
             )
 
@@ -738,7 +583,3 @@ class MultiResourceScheduler:
         scheduled.sort(key=lambda e: (e.start_us, e.end_us, e.order, e.name))
         total = max((e.end_us for e in scheduled), default=0.0)
         return total, scheduled
-
-    @staticmethod
-    def _rate_cap(ch: Channel) -> float:
-        return min(ch.bw_total, ch.max_rate_per_event or ch.bw_total)

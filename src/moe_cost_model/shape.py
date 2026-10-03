@@ -110,10 +110,6 @@ class ModelOptions:
     combine_no_quant: bool = True
     topk_weights_prefetch: bool = False
     serialize_dispatch_comm: bool = False
-    # 片间 fab 信道争用: 占位开关, 默认关。机制 (速率服务器) 已实现,
-    # 但无可引用的标定证据 (bw_remote 常数从真实运行反解, 已含平均争用,
-    # 叠加有双重计费风险) — 开启前需消融 benchmark, 见 README 信道 TODO。
-    fabric_channels: bool = False
     pipeline: Optional[PipelineConstraints] = None
     gmm2_kl1: Optional[int] = None
     # GMM2 沿 K 维分几段独立就绪 (K = GMM1 的输出列 = ACT 的列范围)。

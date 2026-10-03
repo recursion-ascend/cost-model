@@ -30,8 +30,8 @@
 | 跨卡搬运串行化 | `ModelOptions.serialize_dispatch_comm` | `DISPATCH_COMM` 独占资源 |
 
 **只有旋钮、但缺省标定下是空操作的**: `KernelConfig.l1_buf_num` (只在
-`gmm1_tile_restart_us > 0` 时生效, 缺省 0)、`ModelOptions.fabric_channels` (机制已实现,
-无标定证据, 缺省关)、`KernelConfig.weight_nz` (开启需显式给 NZ 带宽, 否则直接报错)、
+`gmm1_tile_restart_us > 0` 时生效, 缺省 0)、`KernelConfig.weight_nz` (开启需显式给 NZ
+带宽, 否则直接报错)、
 `KernelConfig.topk_weights_prefetch` (无读者, 硬门查的是 `ModelOptions` 的同名字段)。
 
 ---
@@ -183,7 +183,7 @@ AIC/AIV0/AIV1 的 `avoidable_idle_us` 全为 0; `busy` 与静态绑定逐位相�
 2. **与相位流水不可同用**: 相位拆分后 `.lg/.ld/fix` 自己不持核资源, 只靠带核号的队列 token
    绑核, 晚绑定下无从回填 —— 代码直接抛 `NotImplementedError` 而不是算出一个错数。
 3. **一次性开销不参与准入探测**: `once_per_core` 的开销加在事件结束时刻上, 调度器选核时
-   看不到它; 这段时间也不占信道带宽。
+   看不到它。
 
 ---
 
@@ -209,7 +209,7 @@ self._event("epilogue.unpermute",     (), unpermute_bytes / BW_UNPERMUTE_AGG, ..
 **主路径没有建模**:
 
 - A8W4 的权重反量化 prologue: AIV0 做 W4->W8 (`ShiftW4ToW8`), 再 `CopyUB2L1Weight8Bit`
-  直通配对 AIC 的 L1 —— 这条 UB->L1 通路在模型里没有对应的信道
+  直通配对 AIC 的 L1 —— 这条 UB->L1 通路在模型里没有对应的访存申报
 - A8W4 下激活核换到 AIV1 (`runsActivation = GetSubBlockIdx() == 1`), 依赖缺口 2
 - A4W4 的激活也是 4bit
 
@@ -242,7 +242,7 @@ rank 走直连通道, **跨 Server 的一级中继 PUT** (`BuildDispatchRelayQue
 `SendDispatchRelayQueues`) 没有对应事件。
 
 后果: 评估不了"超节点内 vs 跨超节点"的编排差异 —— 而 ep 规模一上去, 中继跳数与带宽分层
-是主要变量。片间信道现在只有一个带宽档 (`bw_remote_bytes_per_us`), 没有"同 Server /
+是主要变量。片间搬运现在只有一个带宽档 (`bw_remote_bytes_per_us`), 没有"同 Server /
 跨 Server 两档"的概念。
 
 MTE 路径同理: `DispatchMechanisticLatency` 只分 local / remote 两档, 没有第三档。
@@ -297,5 +297,17 @@ bs36 -> bs128 是干净的单变量对比 (只有 m 从 72 变到 256), 实测�
 反过来 max 口径在 12 个 m-group 的 bs8192 上吻合得好得多。两个口径各自命中一半实测点,
 没有哪一个能同时解释三点 —— 要分开只能补一个扫 m 的 run (固定 m-group 数)。
 
-**连带影响**: 开 `gm_to_l1` 信道时, 该信道上报的字节从 A+B 降为 max(A,B) —— 两股并发就
-不在同一条串行通路上, 按 A+B 计压是双重计费。代价是争用判定偏松。缺省不开此信道。
+**连带影响**: 访存量申报 (`rank_results["traffic_bytes"]` 的 `gm_to_l1` 一项) 从 A+B 降为
+max(A,B) —— 它是按载入相位时长折算的。统计访存量时要记得这一点。
+
+---
+
+## 信道模型已停用 (2026-10-03)
+
+速率服务器那一层整体移除, 只保留 `Event.channel_bytes` 的字节申报 (汇总在
+`rank_results["traffic_bytes"]`, 不参与准入、不影响时长)。理由与影响见 README 的
+"带宽争用"一节。
+
+**对"核不得在有就绪活时空闲"这条规定的影响**: 准入条件从七条减到六条, 其中 ④ (信道带宽)
+这一类虚报随之消失。剩下仍会让 `avoidable_idle_us` 虚报的只有 ③ (计数信号量) 与
+⑦ (非核独占资源, 即 `DISPATCH_COMM`)。

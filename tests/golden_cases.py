@@ -101,10 +101,6 @@ def _pipeline(**kw):
     return m.ModelOptions(pipeline=m.PipelineConstraints(**kw))
 
 
-def _channels(aic_num=AIC):
-    return m.default_channels(aic_num, bw_l1_gm=m.BW_L1_GM, bw_scatter=m.BW_SCATTER)
-
-
 # ---------------------------------------------------------------------------
 # 用例表
 # ---------------------------------------------------------------------------
@@ -180,34 +176,21 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
     c["pipeline_sync_latency"] = lambda: run_api(
         sk(), 64, options=_pipeline(sync=m.SyncLatency(
             gmm1_act_handshake_us=0.5, act_gmm2_ready_us=0.3, gmm2_combine_ack_us=0.2)))
-    c["pipeline_channels_only"] = lambda: run_api(
-        sk(), 64, options=_pipeline(channels=_channels()))
-    c["pipeline_split_channels"] = lambda: run_api(
-        sk(), 64, options=_pipeline(channels=_channels(), **split))
-    c["pipeline_split_no_channels"] = lambda: run_api(sk(), 64, options=_pipeline(**split))
+    c["pipeline_split"] = lambda: run_api(sk(), 64, options=_pipeline(**split))
     c["pipeline_compute_bound"] = lambda: run_api(
         sk(), 64, costs=manual_costs(cube_rate=6.75e6),
         options=_pipeline(queues=m.QueueDepths(mte_aic=2)))
     c["pipeline_fix_phase"] = lambda: run_api(
         sk(), 64, options=_pipeline(queues=m.QueueDepths(mte_aic=2),
                                     phases=m.PhaseRates(fix_bw_bytes_per_us=2.0e5)))
-    c["pipeline_contended_channels"] = lambda: run_api(
-        sk(), 64, options=_pipeline(channels=(
-            m.Channel("gm_to_l1", bw_total=m.BW_L1_GM * 8, max_rate_per_event=m.BW_L1_GM),
-            m.Channel("hbm_write", bw_total=m.BW_SCATTER * 8,
-                      max_rate_per_event=m.BW_SCATTER)), **split))
     c["pipeline_engine_queue2"] = lambda: run_api(
         sk(), 64, options=m.ModelOptions(
-            pipeline=m.PipelineConstraints(channels=_channels(), **split),
+            pipeline=m.PipelineConstraints(**split),
             engine_queue_depths=m.EngineQueueDepths(aic=2, vec0=2, aiv1=2)))
     c["pipeline_large_split"] = lambda: run_api(
-        uniform_routing(4, 64, 8), 1024, p1=0, p2=0,
-        options=_pipeline(channels=_channels(), **split))
+        uniform_routing(4, 64, 8), 1024, p1=0, p2=0, options=_pipeline(**split))
     c["pipeline_layered_split"] = lambda: run_api(
-        sk(), 64, kernel=kc(topo_urma=True),
-        options=_pipeline(channels=_channels(), **split))
-    c["fabric_channels_on"] = lambda: run_api(
-        sk(), 64, options=m.ModelOptions(fabric_channels=True))
+        sk(), 64, kernel=kc(topo_urma=True), options=_pipeline(**split))
     c["serialize_dispatch_comm"] = lambda: run_api(
         sk(), 64, options=m.ModelOptions(serialize_dispatch_comm=True))
 
@@ -227,13 +210,12 @@ CASES = _cases()
 # ---------------------------------------------------------------------------
 
 def _event_line(e) -> str:
-    rates = ",".join(f"{k}={v!r}" for k, v in sorted(e.channel_rate.items()))
     return "|".join((
         e.name, repr(e.start_us), repr(e.end_us),
         repr(e.dependency_ready_us), repr(e.resource_ready_us),
         repr(e.dependency_wait_us), repr(e.resource_queue_us),
         str(e.critical_parent), e.critical_reason,
-        repr(e.capacity_wait_us), repr(e.channel_wait_us), rates,
+        repr(e.capacity_wait_us),
         ",".join(e.resources), str(e.order),
         str(e.meta.get("stolen_from", "")),
     ))

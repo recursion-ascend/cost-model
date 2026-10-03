@@ -8,8 +8,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import registry
 from .builders.mte import MteEventBuilder
-from .config.hardware import KernelConfig, BW_WINDOW, ceil_div
-from .scheduler.events import POOL_WILDCARD, Channel, Event, ScheduledEvent
+from .config.hardware import KernelConfig, ceil_div
+from .scheduler.events import POOL_WILDCARD, Event, ScheduledEvent
 from .scheduler.engine import MultiResourceScheduler
 from .scheduler.policies import (CriticalPathFirst, EarliestStart, PriorityByStage,
                                  WorkConservingCriticalPath)
@@ -190,28 +190,16 @@ class A8W8WaveCostModel:
                        restructure=None) -> Dict[int, Dict[str, object]]:
         """多 rank 调度: 核/队列资源按 rank 前缀隔离.
 
-        片间信道 (fab_src/fab_dst) 默认关闭 (占位, ModelOptions.fabric_channels):
-        常数从真实运行反解、已含平均争用, 无消融证据前不再叠加速率服务器。
-
-        占位为什么还不能当预测用 (开启前必须先重标定这两个常数):
-          聚合 bw_total = BW_WINDOW = 33000 B/us 是**整卡**的片间带宽, 而逐事件
-          申报速率用 BW_REMOTE_GM = 31000 —— 后者是从真实运行逐段反解的**单核**
-          速率, 本身已含 28 核并发的平均争用。于是单个事件就要吃掉整卡片间带宽的
-          94%, 28 核并发时每核只剩 1179 B/us, 等于在已含争用的常数上再叠一层
-          26 倍降速。争用被计了两遍。
-          要用这条路径, 逐事件速率得换成**无争用**的单核带宽 (需要单核独占的
-          片间搬运实验), 聚合再保持整卡值 —— 那时 28 核同写一条链路的降速才是
-          调度器算出来的, 而不是既藏在常数里又叠在信道上。
-          2026-09-30 起 COMBINE 的跨卡行写也申报到这两条信道 (原先完全不占片间
-          资源 —— DAG 里一条跨卡写不碰互连是建模漏洞), 所以这个双重计费在
-          fabric_channels_on 用例上比原先更显眼 (2344 -> 6830 us)。数值是占位缺陷
-          的显形, 不是预测。
+        信道模型 (速率服务器) 已于 2026-10-03 停用: 事件的 channel_bytes 仍然申报
+        字节, 但只在 rank_results["traffic_bytes"] 里汇总成访存量, 不参与准入、
+        不影响任何时长。片间 fab 通路同理 —— 它的两个常数本来就不同尺度
+        (聚合 BW_WINDOW=33000 是整卡值, 逐事件 BW_REMOTE_GM=31000 是从 28 核并发
+        反解的单核值, 已含平均争用), 叠速率服务器会把争用计两遍。
 
         各 rank 之间无共享资源时逐 rank 独立调度 (结果与合并调度逐位一致,
         见 _ranks_independent); 否则全部事件进同一个调度器.
         """
-        per: List[Tuple[MegaMoeShape, List[Event], Dict, Dict, List[CursorTrace]]] = []
-        world = max((len(sh.expert_source_tokens[0]) for sh in shapes), default=0)
+        per: List[Tuple[MegaMoeShape, List[Event], Dict, List[CursorTrace]]] = []
         self._sched_policy = getattr(shapes[0], 'scheduling_policy', None) if shapes else None
         if shapes:
             mism = [d for d, sh in enumerate(shapes)
@@ -225,44 +213,32 @@ class A8W8WaveCostModel:
             events, trace = self.build_events(shape)
             self.cursor_traces[shape.rank_id] = trace
             caps: Dict = {}
-            chans: Dict = {}
             if self.options.pipeline is not None:
-                events, caps, chans = apply_pipeline(
+                events, caps = apply_pipeline(
                     events, self.options.pipeline,
                     aic_num=shape.aic_num, h=shape.h,
                     gmm1_act_depth=shape.policy.gmm1_activation_depth, kernel=shape.kernel)
-            per.append((shape, events, caps, chans, trace))
+            per.append((shape, events, caps, trace))
 
-        fab_on = bool(self.options.fabric_channels)
-        channels: Dict[str, Channel] = {}
-        if fab_on:
-            for s_ in range(world):
-                channels[f"fab_src:{s_}"] = Channel(f"fab_src:{s_}",
-                                                    bw_total=BW_WINDOW, max_rate_per_event=BW_WINDOW)
-                channels[f"fab_dst:{s_}"] = Channel(f"fab_dst:{s_}",
-                                                    bw_total=BW_WINDOW, max_rate_per_event=BW_WINDOW)
-        # 每 rank 一组 (事件, 容量, 信道, 资源池); 片间信道跨 rank 共享, 单列
-        groups: List[Tuple[List[Event], Dict[str, int], Dict[str, Channel],
+        # 每 rank 一组 (事件, 容量, 资源池)
+        groups: List[Tuple[List[Event], Dict[str, int],
                            Dict[str, Tuple[str, ...]]]] = []
         late = tuple(self.options.late_bind_pools or ())
-        for shape, events, caps, chans, trace in per:
+        for shape, events, caps, trace in per:
             pre = f"R{shape.rank_id}."
             pools: Dict[str, Tuple[str, ...]] = {}
             if late:
                 _rewrite_for_late_binding(events, late, shape.aic_num, pre, pools)
             capacities: Dict[str, int] = {}
-            rank_channels: Dict[str, Channel] = {}
             for ev in events:
                 ev.resources = tuple(pre + r for r in ev.resources)
                 ev.acquires = tuple((pre + a, k) for a, k in ev.acquires)
                 ev.releases = tuple((pre + r, k) for r, k in ev.releases)
-                # 未配置的信道直接丢掉: 建图器无条件申报字节 (它不知道调用方开了
-                # 哪些信道), 由此处按实际存在的信道过滤。片间信道跨 rank 共享不加
-                # 前缀; 其余按 rank 前缀隔离。
+                # 访存量申报全部保留 (不再按"开了哪些信道"过滤): 它只做统计。
+                # 片间通路跨 rank 共享, 不加前缀; 其余按 rank 前缀隔离。
                 ev.channel_bytes = tuple(
                     (c, b, rt) if c.startswith("fab_") else (pre + c, b, rt)
-                    for c, b, rt in ev.channel_bytes
-                    if (fab_on if c.startswith("fab_") else c in chans))
+                    for c, b, rt in ev.channel_bytes)
             qd = self.options.engine_queue_depths or EngineQueueDepths()
             for core in range(shape.aic_num):
                 capacities[pre + f"Q:aic:c{core}"] = qd.aic
@@ -270,51 +246,55 @@ class A8W8WaveCostModel:
                 capacities[pre + f"Q:aiv1:c{core}"] = qd.aiv1
             for k, v in caps.items():
                 capacities[pre + k] = v
-            for ch_name, ch in chans.items():
-                rank_channels[pre + ch_name] = Channel(pre + ch_name,
-                                                       bw_total=ch.bw_total,
-                                                       max_rate_per_event=ch.max_rate_per_event)
-            groups.append((events, capacities, rank_channels, pools))
+            groups.append((events, capacities, pools))
 
         sched_pol = getattr(self, '_sched_policy', None)
         if not self._ranks_independent(shapes, restructure, sched_pol):
-            # 合并调度: 全部 rank 的事件/容量/信道进同一个调度器
+            # 合并调度: 全部 rank 的事件/容量进同一个调度器
             merged_caps: Dict[str, int] = {}
             merged_pools: Dict[str, Tuple[str, ...]] = {}
-            for events, capacities, rank_channels, pools in groups:
+            for events, capacities, pools in groups:
                 merged_caps.update(capacities)
-                channels.update(rank_channels)
                 merged_pools.update(pools)
-            groups = [([ev for events, _, _, _ in groups for ev in events],
-                       merged_caps, channels, merged_pools)]
+            groups = [([ev for events, _, _ in groups for ev in events],
+                       merged_caps, merged_pools)]
         scheduled: List[ScheduledEvent] = []
-        for events, capacities, rank_channels, pools in groups:
+        for events, capacities, pools in groups:
             _, part = MultiResourceScheduler().schedule(
-                events, capacities=capacities or None, channels=rank_channels or None,
+                events, capacities=capacities or None,
                 restructure=restructure, policy=sched_pol, pools=pools or None)
             scheduled.extend(part)
+
+        # 访存量汇总: 事件申报的 channel_bytes 不参与准入 (信道模型已停用), 只在
+        # 这里按通路累加成字节数, 供"哪条通路搬了多少"的核算用。
+        traffic: Dict[int, Dict[str, float]] = {sh.rank_id: {} for sh in shapes}
+        for shape, events, _caps, _trace in per:
+            tr = traffic[shape.rank_id]
+            for ev in events:
+                for cname, nbytes, _rate in ev.channel_bytes:
+                    tr[cname] = tr.get(cname, 0.0) + float(nbytes)
 
         results: Dict[int, Dict[str, object]] = {}
         for shape in shapes:
             rank = shape.rank_id
             evs = [e for e in scheduled if e.meta.get("rank") == rank]
             results[rank] = self._postprocess(shape, evs)
+            results[rank]["traffic_bytes"] = dict(sorted(traffic[rank].items()))
         return results
 
     def _ranks_independent(self, shapes: Sequence[MegaMoeShape], restructure,
                            sched_pol) -> bool:
         """各 rank 能否独立调度而不改变结果.
 
-        调度器每步提交就绪集里排序键最小的事件. 资源/容量/信道按 rank 前缀
-        隔离、依赖不跨 rank 时, 一个 rank 的就绪集与资源状态只被本 rank 的提交
-        改变, 合并调度里该 rank 的提交子序列就等于它单独调度的序列.
+        调度器每步提交就绪集里排序键最小的事件. 资源/容量按 rank 前缀隔离、
+        依赖不跨 rank 时, 一个 rank 的就绪集与资源状态只被本 rank 的提交改变,
+        合并调度里该 rank 的提交子序列就等于它单独调度的序列.
         以下情况该前提不成立, 走合并调度:
-          * 片间信道开启 — fab_src/fab_dst 跨 rank 共享;
           * 重构钩子 — 上下文是全局视图, 可跨 rank 转移任务;
           * 自定义调度策略 — event_key 能读到全局 tbase/end_by_name;
           * rank_id 重复 — 交给调度器报重名.
         """
-        if restructure is not None or self.options.fabric_channels:
+        if restructure is not None:
             return False
         if sched_pol is not None and type(sched_pol) not in (
                 EarliestStart, CriticalPathFirst, PriorityByStage,

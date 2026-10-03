@@ -50,7 +50,7 @@ def test_default_pin():
     #   (从 dispatch_transfer_raw.csv 逐段直接反解), BW_remote 33→31
     #   → 段变短 → 调度顺序变化 → 信道争用模式变化 → 总时长增至 2333.85
     # 2026-09 GMM1/GMM2 公式加 max(载入,计算) — cube_rate=0 时无变化
-    # 2026-09 fab 信道占位化 (默认关, ModelOptions.fabric_channels 开启):
+    # 2026-09 fab 信道占位化 (默认关; 整个信道模型已于 2026-10-03 停用):
     #   bw_remote=31 从真实运行逐段反解、已含平均争用, 叠加速率服务器
     #   双重计费 → dispatch busy 1226→253 µs → 2333.85 → 213.906
     # 2026-09 尾段链 bug 修复: _add_epilogue 原在波主循环前调用, 扫描不到
@@ -249,14 +249,6 @@ def test_neutral_pipeline_invariance():
     assert p0["kernel_total_us"] == base["kernel_total_us"]
     for r in range(4):
         assert p0["rank_results"][r]["total_us"] == base["rank_results"][r]["total_us"]
-
-
-def test_channel_no_contention_invariance():
-    """28 核 × 应得速率 = 聚合带宽 → 无争用, 必须与闭式一致."""
-    base = _run()
-    pch = _run(options=m.ModelOptions(pipeline=m.PipelineConstraints(
-        channels=m.default_channels(28, bw_l1_gm=m.BW_L1_GM, bw_scatter=m.BW_SCATTER))))
-    assert pch["kernel_total_us"] == base["kernel_total_us"]
 
 
 def test_kernel_config_tiles_change_structure():

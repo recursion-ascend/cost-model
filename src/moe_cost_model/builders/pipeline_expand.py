@@ -21,17 +21,14 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Tuple
 
 from ..config.hardware import BW_L1_GM, BW_SCATTER, KernelConfig
-from ..scheduler.events import Channel, Event
+from ..scheduler.events import Event
 from ..config.pipeline import PipelineConstraints
 
 CH_GM_TO_L1 = "gm_to_l1"
 CH_HBM_WRITE = "hbm_write"
 # dispatch 的访存: 读源卡窗口 → UB, 写本卡 workspace。
-# 单独两条而不是并到 gm_to_l1: default_channels 的契约是"每核速率 x 核数 = 刚好
-# 不争用", 往 gm_to_l1 上再塞一个消费者就把中性基线破坏了, 多出来的时长是构造
-# 出来的不是物理的 (见 test_channel_no_contention_invariance)。
-# 要研究 dispatch 与 GMM1 抢访存 (即 T_GMM1_OVERLAP 那 0.9us 的机制), 得先有
-# **整卡访存带宽**的实测: 把两者并到一条聚合为整卡值的信道上, 争用才是算出来的。
+# 这些名字现在只是**访存量的分类标签** (信道模型已停用), 按通路汇总在
+# rank_results["traffic_bytes"] 里。要重建争用模型, 得先有**整卡访存带宽**的实测。
 CH_DISPATCH_READ = "dispatch_read"
 CH_DISPATCH_WRITE = "dispatch_write"
 
@@ -49,8 +46,8 @@ def apply_pipeline(
     h: int,
     gmm1_act_depth: int = 1,
     kernel=None,
-) -> Tuple[List[Event], Dict[str, int], Dict[str, Channel]]:
-    """施加约束, 返回 (事件表, 容量表, 信道表).
+) -> Tuple[List[Event], Dict[str, int]]:
+    """施加约束, 返回 (事件表, 容量表).
 
     aic_num/h: 形状参数 (保留以兼容调用方; 相位时长取自事件 meta)
     gmm1_act_depth: ModelOptions.gmm1_activation_depth, BUF 槽位默认值
@@ -61,7 +58,6 @@ def apply_pipeline(
             f"KernelConfig.l1_buf_num=1 (单 L1 缓冲) 与 queues.mte_aic="
             f"{cons.queues.mte_aic} (多个 L1 缓冲槽) 矛盾: 二者描述同一个硬件资源")
     by_name = {ev.name: ev for ev in events}
-    channels = {ch.name: ch for ch in cons.channels}
 
     # ---- L0: 同步延迟挂到握手边 ----
     for ev in events:
@@ -98,17 +94,17 @@ def apply_pipeline(
     for ev in events:
         stage = str(ev.meta.get("stage", ""))
         if stage == _STAGE_GMM1:
-            new_events.extend(_expand_gmm1(ev, cons, split_gmm1, channels, by_name, h, km))
+            new_events.extend(_expand_gmm1(ev, cons, split_gmm1, by_name, h, km))
         elif stage == _STAGE_GMM2:
-            new_events.extend(_annotate(ev, channels,
+            new_events.extend(_annotate(ev,
                                         queues=("QUEUE:mte_aic", "QUEUE:cube")))
         elif stage == _STAGE_ACT:
             new_events.extend(_expand_aiv(
-                ev, cons, channels, by_name, vec=True, km=km,
+                ev, cons, by_name, vec=True, km=km,
                 load_bw=cons.phases.act_load_bw_bytes_per_us))
         elif stage == _STAGE_COMBINE:
             new_events.extend(_expand_aiv(
-                ev, cons, channels, by_name, vec=False, km=km,
+                ev, cons, by_name, vec=False, km=km,
                 load_bw=cons.phases.combine_load_bw_bytes_per_us))
         else:
             new_events.append(ev)
@@ -142,12 +138,11 @@ def apply_pipeline(
             pass  # 已移除信号量机制, 距离依赖替代
         else:
             pass  # 未识别的引擎队列 — 容量由调用方 (simulate) 设置
-    return new_events, capacities, channels
+    return new_events, capacities
 
 
 def _annotate(
     ev: Event,
-    channels: Dict[str, Channel],
     *,
     queues: Tuple[str, ...],
 ) -> List[Event]:
@@ -159,7 +154,7 @@ def _annotate(
     qs = tuple((f"{queue}:c{core}", 1) for queue in queues)
     ch = ()
     load_us = ev.meta.get("load_us")      # 该事件自己的载入份额, 不是整段时长
-    if CH_GM_TO_L1 in channels and load_us:
+    if load_us:
         ch = ((CH_GM_TO_L1, load_us * BW_L1_GM, BW_L1_GM),)
     return [Event(
         name=ev.name, resources=ev.resources, duration_us=ev.duration_us,
@@ -184,7 +179,6 @@ def _expand_gmm1(
     ev: Event,
     cons: PipelineConstraints,
     split: bool,
-    channels: Dict[str, Channel],
     by_name: Dict[str, Event],
     h: int,
     km=None,
@@ -213,25 +207,21 @@ def _expand_gmm1(
     base_dur = ev.duration_us
     load_us = ev.meta.get("load_us")
     compute_us = ev.meta.get("compute_us")
-    if load_us is None and (split or CH_GM_TO_L1 in channels):
+    if load_us is None and split:
         raise ValueError(
             f"{ev.name}: 缺 A 流/计算分解 — gmm1_tile 是自定义 callable. "
-            "相位拆分 (queues.mte_aic > 1) 与 gm_to_l1 信道需要 AnalyticalGmmCosts 的公式")
-    # 字节 = 载入相位时长 x 应得速率 (无争用服务时长 = load_us), 信道因此中性。
+            "相位拆分 (queues.mte_aic > 1) 需要 AnalyticalGmmCosts 的公式")
+    # 访存量 = 载入相位时长 x 无争用速率。
     #
-    # 注意 max 口径下这里**不再等于两条流的总字节**: load_us = max(A流, B流), 折算出
-    # 的字节只有较大那一股。这是"A/B 并发"这个假设的必然推论 —— 若两股并发, 它们就
-    # 不在同一条串行通路上, 一条聚合 gm_to_l1 信道按 A+B 计压就是双重计费。代价是这
-    # 条信道上报的字节低于真实搬运量 (差值 = 较小那一股), 争用判定会偏松。
-    # 缺省不开 gm_to_l1 信道, 故缺省路径不受影响。
+    # 注意 max 口径下这里**不等于两条流的总字节**: load_us = max(A流, B流), 折算出
+    # 的字节只有较大那一股。这是"A/B 并发"这个假设的推论。统计访存量时要记得这一点。
     #
     # 已声明未建模: 本批 run 是 MXFP8 (config.json5 的 dtype=fp8_e5m2 ->
     # PROFILE_QUANT=E5M2_QUANT), 载入还有 MX scale 两条流 (A-scale m*k/32,
     # B-scale 2*k*cols/32, 合计 +3.1%), gmm1_phases 与这里都没算。方向上模型已经
     # 偏高 (1 个 m-group 的两个形状 +3.5%/+1.3%), 补上 scale 会更高 —— 缺的不是
     # 这几个字节, 是 BW_L1_GM 本身 (其出处标签已写"旧口径下标定, 待重标")。
-    ch = ((CH_GM_TO_L1, load_us * BW_L1_GM, BW_L1_GM),) \
-        if CH_GM_TO_L1 in channels and load_us else ()
+    ch = ((CH_GM_TO_L1, load_us * BW_L1_GM, BW_L1_GM),) if load_us else ()
 
     if not split:
         # 整体标注: 事件时长 = 闭式时长; A 流被信道切速到超过它时随之拉长
@@ -292,7 +282,6 @@ def _expand_gmm1(
 def _expand_aiv(
     ev: Event,
     cons: PipelineConstraints,
-    channels: Dict[str, Channel],
     by_name: Dict[str, Event],
     *,
     vec: bool,
@@ -317,7 +306,7 @@ def _expand_aiv(
     # COMBINE 的散射写。原先这里是直接覆盖 —— ACT 的写信道字节与 COMBINE 的
     # fab_* 字节都会在启用相位流水时被悄悄丢掉。
     ch = ev.channel_bytes
-    if stage == _STAGE_COMBINE and CH_HBM_WRITE in channels and base_dur > 0:
+    if stage == _STAGE_COMBINE and base_dur > 0:
         ch = ch + ((CH_HBM_WRITE, base_dur * BW_SCATTER, BW_SCATTER),)
 
     need_split = load_bw is not None and base_dur > 0

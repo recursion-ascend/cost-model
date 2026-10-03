@@ -168,17 +168,17 @@ m.register("tile_grid", "split_every_group", SplitEveryGroup)
 
 相位流水 (`options.pipeline`, 可选) 与闭式同口径:
 
-| stage | MTE 队列 (L1 缓冲槽) | `gm_to_l1` 信道 | Cube 队列 |
-| ----- | -------------------- | ----------------- | --------- |
-| GMM1  | 占                   | A 流字节 m·K      | 占        |
-| GMM2  | 占 (B 权重)          | 不占              | 占        |
+| stage | MTE 队列 (L1 缓冲槽) | Cube 队列 |
+| ----- | -------------------- | --------- |
+| GMM1  | 占                   | 占        |
+| GMM2  | 占 (B 权重)          | 占        |
 
-占用与计时是两回事: A 与 B 都经 L1 进 L0, 所以两个 stage 的 tile 都占 L1 缓冲槽; B 流搬运不计时、不计信道流量, 但权重仍在 L1 里占着位置。
+占用与计时是两回事: A 与 B 都经 L1 进 L0, 所以两个 stage 的 tile 都占 L1 缓冲槽; 权重仍在 L1 里占着位置。
 
 - `queues.mte_aic > 1` 时 GMM1 拆相位: tile 内 load 与 cube 并行, 单 tile 时长 = `max(A流, 计算)`; 后一个 tile 的 A 流可在前一个 tile 计算时预取。
 - load / cube 相位时长取自 GMM 公式的分解, 载入带宽与 Cube 速率只有公式这一个来源。
 - `l1_buf_num = 1` 与 `queues.mte_aic > 1` 互相矛盾, 同时给会报错。
-- `gmm1_tile` 换成自定义函数后没有 A 流/计算分解, 拆相位或开 `gm_to_l1` 信道会报错。
+- `gmm1_tile` 换成自定义函数后没有 A 流/计算分解, 拆相位会报错。
 
 ### 共享专家
 
@@ -227,7 +227,7 @@ m.register("tile_grid", "split_every_group", SplitEveryGroup)
 
 ### 3. 当前改不了的结构
 
-波粒度只有两种：MTE 路径按 256 行组切波，Layered 路径按专家范围切波。ACT 总与 GMM1 同波。同核程序序没有建成依赖边，靠资源互斥保序。片间 fab 信道占位关闭，跨卡争用不建模。
+波粒度只有两种：MTE 路径按 256 行组切波，Layered 路径按专家范围切波。ACT 总与 GMM1 同波。同核程序序没有建成依赖边，靠资源互斥保序。带宽争用不建模（信道模型已停用，见下）。
 
 要突破这些需要改 `builders/` 或 `scheduler/` 的结构，改完重新对实测校准。
 
@@ -333,6 +333,31 @@ ACT tile 只产出 GMM2 在 K 上 1/ceil(k/TILE_N) 的部分, GMM2 要累完整�
 = 18 次轮询 vs 现在 2 次, 模型未计这项开销。所以 3 段的 −4.1% 比逐块的 −5.2% 更可信 —— 前者
 只多 1 次轮询。要算出最优段数需要补一个按段数计费的轮询常数, 实测值可从 trace 的
 `WAIT_GMM2_INPUT` 打点反解。
+
+## 带宽争用: 信道模型已停用 (2026-10-03)
+
+原先有一层速率服务器 (`Channel` + 六条通路: `gm_to_l1` / `hbm_write` /
+`dispatch_read` / `dispatch_write` / `fab_src:*` / `fab_dst:*`), 事件按申报字节与应得速率
+抢带宽, 争用时降速或推迟。**整层机制已移除**, 只保留字节申报:
+
+- `Event.channel_bytes` 仍然由建图器无条件申报, 但**不参与准入、不影响任何时长**。
+- 按通路汇总在 `rank_results["traffic_bytes"]` 里, 做访存量核算用。
+- 去掉的 API: `Channel`、`default_channels`、`schedule(channels=...)`、
+  `ModelOptions.fabric_channels`、`PipelineConstraints.channels`、
+  `Scenario.default_channels`、`guardrails.check_channels`、
+  `ScheduledEvent.channel_wait_us` / `channel_rate`、`RestructureContext.channel_inflight`。
+
+为什么停用: 这层机制的两个常数本来就不同尺度, 调不出可信的争用。片间通路最明显 ——
+聚合 `BW_WINDOW = 33000` B/µs 是**整卡**带宽, 而逐事件速率 `BW_REMOTE_GM = 31000` 是从
+28 核并发的真实运行反解的**单核**值 (已含平均争用)。于是单个事件就吃掉整卡 94%, 并发再
+叠 26 倍降速, 争用被计了两遍。片内四条则相反: `default_channels` 的聚合 = 每核速率 × 核数,
+按构造恰好无争用, 打开和不打开逐位相同 —— 不收紧就没有信息, 收紧又没有整卡带宽的实测可依。
+
+移除的影响: 40 个基准用例里 **38 个时长逐位不变**; 只有两个原本开了信道的变快
+(`pipeline_engine_queue2` −11.3%, `pipeline_large_split` −16.9%)。
+
+要重建争用模型, 需要先有**该层级真实的聚合带宽**实测 (单核独占 + 多核并发两组), 字节申报
+留着就是为了那一天。
 
 ## 搬运口径: max(A流, B流), 数据释放不计
 
@@ -459,7 +484,7 @@ git add data/*/tiling_rank0.json           # 不在 gitignore 里
 
 ## 回归保护
 
-`tests/test_golden.py` 对 44 个配置核对调度指纹: 每个事件的起止时刻、等待归因、关键父事件取 sha256, 任何一位浮点差异都会失败。覆盖 MTE / Layered 两条路径、波偏移、编译期旋钮、三种调度策略、分核与打包策略、相位流水、容量与信道、片间信道、任务转移。
+`tests/test_golden.py` 对 40 个配置核对调度指纹: 每个事件的起止时刻、等待归因、关键父事件取 sha256, 任何一位浮点差异都会失败。覆盖 MTE / Layered 两条路径、波偏移、编译期旋钮、三种调度策略、分核与打包策略、相位流水、计数信号量、任务转移。
 
 ```bash
 python tools/gen_golden.py --check     # 核对, 不写文件
@@ -474,9 +499,9 @@ python tools/gen_golden.py             # 重新生成快照
 | --- | --- | --- |
 | MTE, 4 rank × 64 专家, B=64 (`examples/run_basic.py`) | 2.7 万 | 约 1.5 s |
 | Layered, 同上 | 1.9 万 | 约 1.1 s |
-| 相位流水 + 信道, 4 rank × 64 专家, B=1024 | 3.5 万 | 约 4 s |
+| 相位流水, 4 rank × 64 专家, B=1024 | 3.5 万 | 约 4 s |
 
-片间信道关闭、无重构钩子、使用内置调度策略时, 各 rank 独立调度。`idle_core_stealing` 每次提交都扫描全部未提交事件, 耗时随事件数平方增长: 6800 事件约 30 s。
+无重构钩子、使用内置调度策略时, 各 rank 独立调度。`idle_core_stealing` 每次提交都扫描全部未提交事件, 耗时随事件数平方增长: 6800 事件约 30 s。
 
 ## 项目结构
 

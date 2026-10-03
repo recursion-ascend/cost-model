@@ -5,7 +5,7 @@
 from pathlib import Path
 
 import moe_cost_model as m
-from moe_cost_model.scheduler import Channel, Event, MultiResourceScheduler
+from moe_cost_model.scheduler import Event, MultiResourceScheduler
 
 P = m.PipelineConstraints
 
@@ -121,7 +121,7 @@ def test_from_tiling_wires_real_counts():
 
 
 def test_split_no_deadlock_large_dag():
-    """拆相位 + 信道 + 大 DAG: 距离依赖保序, 无信号量环."""
+    """拆相位 + 大 DAG: 距离依赖保序, 无信号量环."""
     WORLD, LOCAL = 4, 64
     counts = [[[8] * WORLD for _ in range(LOCAL)] for _ in range(WORLD)]
     rc = tuple(tuple(tuple(r) for r in c) for c in counts)
@@ -139,9 +139,7 @@ def test_split_no_deadlock_large_dag():
         routing_counts=rc, token_num_per_rank=1024, h=6144,
         hidden_dim=4096, aic_num=28, costs=costs,
         options=m.ModelOptions(pipeline=m.PipelineConstraints(
-            queues=m.QueueDepths(mte_aic=2, cube=2, fix=2),
-            channels=m.default_channels(28, bw_l1_gm=m.BW_L1_GM,
-                                        bw_scatter=m.BW_SCATTER))),
+            queues=m.QueueDepths(mte_aic=2, cube=2, fix=2))),
     )
     assert res["kernel_total_us"] > 0
 
@@ -165,16 +163,14 @@ def _split(**kw):
 def test_phase_split_self_consistency():
     """拆相位与闭式同口径: tile 内 load 与 cube 并行, stage 忙碌时长不重复计.
 
-    已知缺口: mte_aic > 1 时同一个核可以有多个载入在飞, 而 gm_to_l1 信道的
-    per-event 上限就是单核带宽、聚合是 28 核份 —— 模型不阻止一个核超过自己的
-    GM→L1 带宽。载入绑定时拆相位因此会比闭式快, 这里只断言方向与 stage 忙碌
-    时长一致, 不断言总时长相等。
+    已知缺口: mte_aic > 1 时同一个核可以有多个载入在飞, 而模型不阻止一个核超过
+    自己的 GM→L1 带宽 (信道模型已停用, 访存量只做统计)。载入绑定时拆相位因此会比
+    闭式快, 这里只断言方向与 stage 忙碌时长一致, 不断言总时长相等。
     """
-    channels = m.default_channels(28, bw_l1_gm=m.BW_L1_GM, bw_scatter=m.BW_SCATTER)
     for rate in (1.0e9, CUBE_RATE, 6.75e6):      # 载入绑定 / 接近交点 / 计算绑定
         base = _run(cube_rate=rate)
-        split = _run(cube_rate=rate, options=_split(channels=channels))
-        # 1% 容差: 拆相位后提交时序与信道仲裁略有差异, 方向上不应系统性变慢
+        split = _run(cube_rate=rate, options=_split())
+        # 1% 容差: 拆相位后提交时序略有差异, 方向上不应系统性变慢
         assert split["kernel_total_us"] <= base["kernel_total_us"] * 1.01
         for stage in ("gmm1", "gmm2"):
             assert abs(split["rank_results"][0]["stage_busy_us"][stage]
@@ -190,63 +186,6 @@ def test_phase_split_compute_bound():
     assert over["kernel_total_us"] > sub["kernel_total_us"] + 20.0
 
 
-def test_gm_channel_carries_both_gmm_loads():
-    """gm_to_l1 信道承载两个 GMM 的载入相位字节: GMM1 = max(A流,B流), GMM2 = B流.
-
-    已声明未建模: GMM1 的 A 流字节 (m*k) 是真的要过 GM→L1, 但载入相位时长实测是
-    max(A,B) 而不是相加 (A 流的延迟被跨 tile 的 L1 双缓冲藏住), 而这里的字节是按
-    相位时长折算的 —— 所以信道少算了 A 流那一份。要同时表达"占带宽、不占本 tile
-    时长"得把预取建成跨 tile 的事件, 见 pipeline_expand 里的说明。
-    """
-    channels = m.default_channels(28, bw_l1_gm=m.BW_L1_GM, bw_scatter=m.BW_SCATTER)
-    for options in (m.ModelOptions(pipeline=P(channels=channels)), _split(channels=channels)):
-        events = _run(options=options)["rank_results"][0]["events"]
-        on_channel = {(str(e.meta.get("stage")), str(e.meta.get("phase")))
-                      for e in events if any("gm_to_l1" in c for c in e.channel_rate)}
-        assert {s for s, _ in on_channel} == {"gmm1", "gmm2"}
-        assert {p for _, p in on_channel} <= {"load", "None"}
-    # 信道字节 = A 流字节: 速率 = 字节/时长, A 流绑定的 tile 上等于应得速率
-    import moe_cost_model.builders.pipeline_expand as pe
-    from moe_cost_model.model import A8W8WaveCostModel
-    from moe_cost_model.shape import MegaMoeShape
-    costs = m.build_analytical_costs(
-        h=6144, dispatch_mechanistic=m.DispatchMechanisticLatency(), cube_mac_per_us=CUBE_RATE)
-    shape = MegaMoeShape(expert_tokens=(256,), token_num=32, h=6144, hidden_dim=4096,
-                         aic_num=4, expert_source_tokens=((256,),), p1_override=2,
-                         p2_override=1, kernel=m.KernelConfig())
-    built, _ = A8W8WaveCostModel(costs, m.ModelOptions()).build_events(shape)
-    expanded, _, _ = pe.apply_pipeline(built, P(channels=channels), aic_num=4, h=6144)
-    for ev in expanded:
-        stage = ev.meta.get("stage")
-        if stage == "gmm1":
-            (name, nbytes, _), = ev.channel_bytes
-            # 载入相位 = max(A流 m·K, B流 2·K·n) —— max 口径下信道只上报较大的一股
-            # (两股并发就不在同一条串行通路上, 按 A+B 计压是双重计费)
-            want = max(ev.meta["m_rows"] * 6144, 2 * 6144 * ev.meta["logical_n"])
-            assert abs(nbytes - want) < 1e-3
-            assert any(q.startswith("QUEUE:mte_aic") for q, _ in ev.acquires)
-        elif stage == "gmm2":
-            assert ev.channel_bytes, "GMM2 的 B 流也要占 gm_to_l1"
-            queues = sorted(q.rsplit(":", 1)[0] for q, _ in ev.acquires
-                            if q.startswith("QUEUE:"))
-            assert queues == ["QUEUE:cube", "QUEUE:mte_aic"]
-            assert sorted(ev.acquires) == sorted(ev.releases)
-
-
-def test_gm_channel_contention_hurts_when_load_binds():
-    """聚合带宽不足: 载入绑定时 tile 变慢; 计算绑定且载入有余量时不变."""
-    tight = (m.Channel("gm_to_l1", bw_total=m.BW_L1_GM * 8, max_rate_per_event=m.BW_L1_GM),
-             m.Channel("hbm_write", bw_total=m.BW_SCATTER * 28,
-                       max_rate_per_event=m.BW_SCATTER))
-    load_bound = _run(cube_rate=1.0e9)
-    load_tight = _run(cube_rate=1.0e9, options=m.ModelOptions(pipeline=P(channels=tight)))
-    assert load_tight["kernel_total_us"] > load_bound["kernel_total_us"] + 10.0
-    # Cube 慢到计算绑定时, 载入字节不变但被计算掩盖, 收紧聚合带宽的影响很小
-    c_bound = _run(cube_rate=1.0e5)
-    c_tight = _run(cube_rate=1.0e5, options=m.ModelOptions(pipeline=P(channels=tight)))
-    assert c_tight["kernel_total_us"] <= c_bound["kernel_total_us"] * 1.05
-
-
 def test_single_l1_buffer_conflicts_with_deep_mte_queue():
     import pytest
     with pytest.raises(ValueError, match="l1_buf_num=1"):
@@ -254,7 +193,7 @@ def test_single_l1_buffer_conflicts_with_deep_mte_queue():
 
 
 def test_custom_gmm1_callable_cannot_be_split():
-    """自定义 gmm1_tile 没有 A流/计算 分解: 拆相位或开 gm_to_l1 信道时报错, 不静默."""
+    """自定义 gmm1_tile 没有 A流/计算 分解: 拆相位时报错, 不静默."""
     import pytest
     analytical = m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE)
     costs = m.PrimitiveCosts(
@@ -298,40 +237,6 @@ def test_custom_gmm1_callable_takes_three_args():
 
 # ---- L2: 共享带宽信道 (HBM/L1/片间) ----
 
-def test_l2_channel_sharing():
-    a = Event("A", (), 0.0, channel_bytes=(("link", 1000.0, 50.0),))
-    b = Event("B", (), 0.0, channel_bytes=(("link", 1000.0, 50.0),))
-    c = Event("C", (), 0.0, channel_bytes=(("link", 1000.0, 50.0),))
-    ch = {"link": Channel("link", bw_total=100.0, max_rate_per_event=50.0)}
-    _, s = MultiResourceScheduler().schedule([a], channels=ch)
-    assert abs(s[0].end_us - 20.0) < 1e-9          # 独享 = 闭式
-    _, s = MultiResourceScheduler().schedule([a, b], channels=ch)
-    assert all(abs(e.end_us - 20.0) < 1e-9 for e in s)  # 双路各 50, 聚合 100
-    _, s = MultiResourceScheduler().schedule([a, b, c], channels=ch)
-    assert sorted(e.end_us for e in s) == [20.0, 20.0, 40.0]  # 第三路排队
-
-
-def test_l2_ports_limit():
-    a = Event("A", (), 0.0, channel_bytes=(("link", 1000.0, 50.0),))
-    b = Event("B", (), 0.0, channel_bytes=(("link", 1000.0, 50.0),))
-    ch = {"link": Channel("link", bw_total=100.0, ports=1, max_rate_per_event=50.0)}
-    _, s = MultiResourceScheduler().schedule([a, b], channels=ch)
-    assert sorted(e.end_us for e in s) == [20.0, 40.0]
-
-
-def test_l2_channel_contention_slows_model():
-    """聚合带宽减半 → 必须变慢."""
-    base = _run(options=m.ModelOptions(pipeline=P(
-        channels=m.default_channels(28, bw_l1_gm=m.BW_L1_GM, bw_scatter=m.BW_SCATTER))))
-    contended = _run(options=m.ModelOptions(pipeline=P(
-        channels=(
-            m.Channel("gm_to_l1", bw_total=m.BW_L1_GM * 14, max_rate_per_event=m.BW_L1_GM),
-            m.Channel("hbm_write", bw_total=m.BW_SCATTER * 28, max_rate_per_event=m.BW_SCATTER),
-        ))))
-    assert contended["kernel_total_us"] > base["kernel_total_us"]
-
-
-# ---- tiling 真值接入 ----
 
 def test_parse_tiling_real_bin():
     import struct

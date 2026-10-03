@@ -10,14 +10,7 @@
    —— 注释说了出处, 但没人核对。给 [tiling] path 之后逐字段核对, 不一致直接报错。
    顺带把 kernel 真值 (行级软流水槽数、路由批大小) 直接采用, 不再靠缺省常数碰巧相等。
 
-2. 信道尺度核对 (check_channels)
-   速率服务器的两个常数必须同尺度: 逐事件速率是**无争用单核**带宽, 聚合是**整卡**
-   带宽。片间信道占位就踩了这个坑 —— 聚合 BW_WINDOW=33000 是整卡值, 而逐事件速率
-   BW_REMOTE_GM=31000 是从 28 核并发的真实运行反解的单核值 (已含平均争用), 于是
-   单事件吃掉整卡 94%, 并发再叠 26 倍降速, 争用被计了两遍。
-   本护栏给出两条可机检的判据 (见 check_channels 的实现注释)。
-
-3. 路由守恒 (check_routing_conservation)
+2. 路由守恒 (check_routing_conservation)
    C[dst][expert][src] 每个源 rank 发出的行数必须等于 tokens x topk。
    生成类路由不会错, explicit/file 会。
 
@@ -25,7 +18,7 @@
 """
 from __future__ import annotations
 
-from typing import Dict, List, Mapping, Sequence
+from typing import Dict, List, Mapping
 
 from .planning.waves import calc_m_groups_per_wave
 
@@ -97,46 +90,6 @@ TILING_ADOPT = {
 # ---------------------------------------------------------------------------
 # 2. 信道尺度
 # ---------------------------------------------------------------------------
-
-#: 单事件占聚合的比例超过它就可疑: 说明两个常数大概不是同一尺度
-SINGLE_EVENT_SHARE_WARN = 0.5
-
-
-def check_channels(channels: Sequence, aic_num: int) -> List[str]:
-    """核对速率服务器两个常数的尺度, 返回可疑项 (空 = 没发现问题).
-
-    判据一 —— 单事件吃掉聚合的比例过大:
-      逐事件速率应当是**单核独占**带宽, 聚合是**整卡**带宽, 所以正常情形下
-      单事件顶多占聚合的 1/核数 量级。若一个事件就能占到一半以上, 通常意味着
-      逐事件速率其实是个已含并发争用的整卡级数字 —— 拿它当单核速率, 再让速率
-      服务器按聚合分一次, 争用就被计了两遍 (片间信道占位正是如此: 31000/33000
-      = 94%)。
-
-    判据二 —— 聚合恰好等于 每事件上限 x 核数 (刀刃配置):
-      这种配置下"核数个满速率事件"把聚合吃到最后一位, 是个中性基线 (无争用,
-      与闭式一致), 本身没错; 但只要再多一个消费者上这条信道就立刻超订, 而且
-      浮点残渣会让第 核数+1 个事件分到接近 0 的速率。default_channels 就是这么
-      配的, 所以往上加消费者前必须先有该层级真实的聚合带宽。
-    """
-    out: List[str] = []
-    for ch in channels:
-        total = float(getattr(ch, "bw_total", 0.0) or 0.0)
-        cap = float(getattr(ch, "max_rate_per_event", 0.0) or 0.0)
-        name = getattr(ch, "name", "?")
-        if total <= 0 or cap <= 0:
-            continue
-        share = cap / total
-        if share > SINGLE_EVENT_SHARE_WARN:
-            out.append(
-                f"信道 {name}: 单事件上限 {cap:.0f} 占聚合 {total:.0f} 的 {share:.0%} "
-                f"—— 逐事件速率像是已含争用的整卡级数字, 与聚合不同尺度, 会双重计费")
-        elif aic_num > 0 and abs(total - cap * aic_num) <= 1e-6 * max(1.0, total):
-            out.append(
-                f"信道 {name}: 聚合 {total:.0f} 恰好 = 每事件上限 {cap:.0f} x {aic_num} "
-                f"—— 中性基线 (无争用), 再加一个消费者就会超订且尾事件分到近 0 速率; "
-                f"共享前需要该层级真实的聚合带宽")
-    return out
-
 
 # ---------------------------------------------------------------------------
 # 3. 路由守恒

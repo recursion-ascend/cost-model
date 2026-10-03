@@ -52,13 +52,21 @@ def main() -> int:
               f"{dt:7.2f} s  {status}", flush=True)
         if not args.check:
             cases[name] = fp
+    # 全量跑时清掉已删用例的残留指纹 —— 否则删掉一个用例后它的指纹永远留在
+    # 快照里, --check 也发现不了 (它只核对 CASES 里有的名字)。
+    stale = [] if args.only else sorted(set(cases) - set(CASES))
+    if stale:
+        print(f"已删用例的残留指纹: {stale}")
+        if not args.check:
+            for n in stale:
+                del cases[n]
     print(f"total {time.perf_counter() - t_all:.1f} s, {len(names)} cases, "
           f"{len(diffs)} diff")
     if args.check:
         missing = [n for n in names if n not in stored.get("cases", {})]
         if missing:
             print(f"snapshot 缺用例: {missing}")
-        return 1 if diffs or missing else 0
+        return 1 if diffs or missing or stale else 0
     SNAPSHOT.write_text(json.dumps({
         "comment": "调度指纹快照: 每事件起止/等待/关键父事件的 sha256. "
                    "重构与提速必须逐位一致; 由 tools/gen_golden.py 生成.",
