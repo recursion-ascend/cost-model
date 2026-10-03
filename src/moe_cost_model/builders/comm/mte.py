@@ -42,11 +42,11 @@ class MteDispatch(DispatchTransport):
         per_core_deps: Dict[int, Tuple[tuple, str]] = {}
         call_irs = [builder._dispatch_call_ir(shape, w, core) for core in range(p)]
         layout0 = shape.dispatch_layout or DispatchDataLayout.from_hidden(shape.h)
-        # C5: "rows" 切法下没有按核的调用结构, 所以不发 dispatch_call 事件 —— 每波每核
+        # "pooled" 切法下没有按核的调用结构, 所以不发 dispatch_call 事件 —— 每波每核
         # 的调用开销由 Event.once_per_core 挂在该核本波第一段 dispatch 上。
-        # "kernel" 切法保留这个事件: 实测 trace 有 DISPATCH_SCHEDULE 包络,
+        # "precut" 切法保留这个事件: 实测 trace 有 DISPATCH_SCHEDULE 包络,
         # tools/compare_measured.py 按它对齐。
-        emit_call_events = builder.options.dispatch_partition == "kernel"
+        emit_call_events = builder.options.dispatch_partition == "precut"
         call_us = c.dispatch_mechanistic.call_base_us()
         for core in range(p):
             deps = [shared_gates] if shared_gates else []
@@ -71,15 +71,15 @@ class MteDispatch(DispatchTransport):
 
             per_core_deps[core] = (tuple(deps), call_name)
 
-        # ---- C6: 一份 dispatch 工作 = (专家切片, 源卡段) 切出来的一批行 ----
+        # ---- 一份 dispatch 工作 = (专家切片, 源卡段) 切出来的一批行 ----
         # "谁去取哪些行"是**调度决策**, 不该写在建图里。两种切法:
-        #   "kernel" (缺省): 先按 kernel 的均衡+轮转把波的行分给 28 核, 每核再切批
-        #                    —— 复现 kernel, compare_measured 要用它和实测 trace 对齐
-        #   "rows":          不做按核预切, 只按 rows_per_item 切整个切片; 核号只是
+        #   "pooled" (缺省): 不做按核预切, 只按 rows_per_item 切整个切片; 核号只是
         #                    轮转占位, AIV1 入池后由调度器在派发时刻决定
+        #   "precut":        先按均衡+轮转把波的行分给 p 个核, 每核再切批 —— 某实现
+        #                    的分工方式, compare_measured 要用它和实测 trace 对齐
         mode = builder.options.dispatch_partition
-        if mode not in ("kernel", "rows"):
-            raise ValueError(f"dispatch_partition 只能是 kernel/rows, 收到 {mode!r}")
+        if mode not in ("pooled", "precut"):
+            raise ValueError(f"dispatch_partition 只能是 pooled/precut, 收到 {mode!r}")
         b_row = layout0.bytes_read_per_row()
         b_write = layout0.bytes_written_per_row()
         batch_rows = builder.options.dispatch_rows_per_item or layout0.route_items_per_batch
@@ -129,7 +129,7 @@ class MteDispatch(DispatchTransport):
                     wave_contrib.setdefault((sl.expert, grp), []).append(
                         (ev, rows_g, core, call_name_c))
 
-        if mode == "kernel":
+        if mode == "precut":
             for core in range(p):
                 rel_begin, count = builder._rotated_balanced_range(w.rows, core, p,
                                                                    w.begin.global_row)

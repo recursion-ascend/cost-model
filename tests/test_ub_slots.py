@@ -21,7 +21,25 @@ def _run(depth, pipe=None, local=3, hidden_dim=9216):
             h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency()),
         p1_override=1, p2_override=1, topk=6,
         policy=m.InstancePolicy(gmm1_activation_depth=depth),
-        options=m.ModelOptions(pipeline=pipe))["rank_results"][0]
+        # 相位拆分目前只在静态绑定下可表达 (相位事件不持核资源, 靠按核的队列
+        # token 绑核, 晚绑定下无从回填 —— 见 model.py 的显式拒绝)。所以拆相位的
+        # 组合显式钉核; 不拆相位的组合走缺省晚绑定。
+        options=m.ModelOptions(pipeline=pipe,
+                               late_bind_pools=() if pipe is not None else
+                               m.ModelOptions().late_bind_pools),
+        )["rank_results"][0]
+
+
+def _core_of(e):
+    """事件实际落的核号: 取调度结果的资源, 不取 meta["core"].
+
+    meta["core"] 是建图时的静态核号; 晚绑定下真正的核由调度器在派发时刻定,
+    只有 resources 里才是对的。
+    """
+    for r in e.resources:
+        if ":" in r:
+            return r.rsplit(":", 1)[-1]
+    return e.meta.get("core")
 
 
 def _max_inflight(evs):
@@ -36,7 +54,8 @@ def _max_inflight(evs):
             continue
         # 拆相位时持有从 grant 相位开始 (lg 取槽), 否则从事件本身开始
         head = by.get(e.name + ".lg") or e
-        per_core[e.meta["core"]].append((head.start_us, act.end_us))
+        per_core[_core_of(head if head is not e else e)].append(
+            (head.start_us, act.end_us))
     worst = 0
     for ivs in per_core.values():
         for t in {x for p in ivs for x in p}:

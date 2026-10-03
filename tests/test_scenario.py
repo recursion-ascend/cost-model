@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 import moe_cost_model as m
-from golden_cases import CUBE_RATE, fingerprint, skewed_routing
+from golden_cases import CUBE_RATE, P, fingerprint, skewed_routing
 
 STORED = json.loads((Path(__file__).parent / "golden" / "schedule_fingerprints.json")
                     .read_text(encoding="utf-8"))["cases"]
@@ -16,16 +16,20 @@ CAL = m.Calibration(cube_mac_per_us=CUBE_RATE)
 
 
 def _skewed(**kw):
+    # golden 固定的是"复现那份实现"的那组取值, 所以场景也从 profile 起步
+    # (缺省是最少假设, 跟那份实现不是一个点)。
     return m.Scenario(
         workload=m.Workload(tokens=64, routing="explicit", counts=skewed_routing()),
-        p1_override=2, p2_override=1, calibration=CAL, **kw)
+        p1_override=2, p2_override=1, calibration=CAL,
+        **{**{'profile': P.name_key}, **P.scenario_fields(), **kw})
 
 
 def _w3(**kw):
     counts = [[[256] * 2 for _ in range(6)] for _ in range(2)]     # 与 golden 3 波用例同
     return m.Scenario(
         workload=m.Workload(tokens=512, routing="explicit", counts=counts),
-        p1_override=2, p2_override=1, calibration=CAL, **kw)
+        p1_override=2, p2_override=1, calibration=CAL,
+        **{**{'profile': P.name_key}, **P.scenario_fields(), **kw})
 
 
 # ---------------------------------------------------------------------------
@@ -34,16 +38,16 @@ def _w3(**kw):
 
 @pytest.mark.parametrize("case, scenario", [
     ("mte_skewed_default", _skewed()),
-    ("mte_skewed_lag1", _skewed(policy=m.InstancePolicy(gmm2_lag_waves=1))),
-    ("mte_tile_n128", _skewed(kernel=m.KernelConfig(tile_n=128))),
-    ("layered_skewed", _skewed(kernel=m.KernelConfig(topo_urma=True))),
+    ("mte_skewed_lag1", _skewed(policy=P.with_policy(gmm2_lag_waves=1))),
+    ("mte_tile_n128", _skewed(kernel=P.with_kernel(tile_n=128))),
+    ("layered_skewed", _skewed(kernel=P.with_kernel(topo_urma=True))),
     ("core_contiguous_block", _skewed(core_assignment="contiguous_block")),
     ("packing_balanced", _skewed(wave_packing="balanced_waves")),
     ("packing_longest_first", _skewed(wave_packing=m.LongestExpertFirst())),
     ("policy_priority_by_stage", _w3(scheduling_policy="priority_by_stage")),
-    ("mte_3wave_lag2", _w3(policy=m.InstancePolicy(gmm2_lag_waves=2))),
+    ("mte_3wave_lag2", _w3(policy=P.with_policy(gmm2_lag_waves=2))),
     ("pipeline_split", _skewed(
-        options=m.ModelOptions(pipeline=m.PipelineConstraints(
+        options=P.with_options(pipeline=m.PipelineConstraints(
             queues=m.QueueDepths(mte_aic=2, cube=2, fix=2))))),
 ])
 def test_scenario_matches_golden(case, scenario):
@@ -70,6 +74,9 @@ def test_stealing_by_name():
                                 routing="explicit",
                                 counts=[[[256] * 2 for _ in range(4)] for _ in range(2)]),
             p1_override=2, p2_override=1, calibration=CAL,
+            # 转移钩子是给**静态绑定**打补丁的: 晚绑定 (现为缺省) 本来就不会让
+            # 就绪的 tile 困在忙核上, 所以那边它无事可做 (见下一个测试)。
+            options=m.ModelOptions(late_bind_pools=()),
             restructure=restructure)
 
     by_name = make({"name": "idle_core_stealing", "min_pending": 2})
@@ -79,6 +86,26 @@ def test_stealing_by_name():
     # 参数确实透传: min_pending 换个值, 结果必须跟着变 (否则等于没解析关键字)
     other = make({"name": "idle_core_stealing", "min_pending": 1})
     assert fingerprint(m.simulate(by_name)) != fingerprint(m.simulate(other))
+
+
+def test_stealing_is_a_no_op_under_late_binding():
+    """晚绑定下 idle_core_stealing 没有可转移的东西 —— 它修的问题不存在.
+
+    这不是钩子坏了: 它的存在意义就是补静态发牌的空闲, 而缺省调度已经不产生
+    那种空闲 (analysis/idle.py 的 avoidable_idle_us == 0)。
+    """
+    def make(restructure, late):
+        return m.Scenario(
+            workload=m.Workload(tokens=256, world=2, local_experts=4, topk=8,
+                                routing="explicit",
+                                counts=[[[256] * 2 for _ in range(4)] for _ in range(2)]),
+            p1_override=2, p2_override=1, calibration=CAL,
+            options=m.ModelOptions(late_bind_pools=late), restructure=restructure)
+
+    late = ("AIC", "AIV1")
+    off = fingerprint(m.simulate(make(None, late)))
+    on = fingerprint(m.simulate(make(m.idle_core_stealing(min_pending=1), late)))
+    assert on == off
 
 
 # ---------------------------------------------------------------------------
@@ -123,6 +150,8 @@ def test_cyclic_matches_formula():
 # ---------------------------------------------------------------------------
 
 TOML = """
+# 与 _skewed() 同一个设计点: 都从 profile 起步
+profile = "megamoe-a8w8"
 name = "t"
 p1_override = 2
 p2_override = 1
@@ -159,8 +188,8 @@ def test_load_toml(tmp_path):
     assert sc.policy.wave_offsets == m.StageWaveOffsets(dispatch=1, gmm2=0)
     assert sc.workload.routing_counts() == tuple(
         tuple(tuple(r) for r in d) for d in skewed_routing())
-    same = _skewed(kernel=m.KernelConfig(tile_n=128), core_assignment="contiguous_block",
-                   policy=m.InstancePolicy(wave_offsets=m.StageWaveOffsets(1, 0)),
+    same = _skewed(kernel=P.with_kernel(tile_n=128), core_assignment="contiguous_block",
+                   policy=P.with_policy(wave_offsets=m.StageWaveOffsets(1, 0)),
                    scheduling_policy=m.PriorityByStage())
     assert fingerprint(m.simulate(sc)) == fingerprint(m.simulate(same))
 
@@ -200,7 +229,11 @@ def test_bad_scenario_file_is_rejected(tmp_path, text, fragment):
 # ---------------------------------------------------------------------------
 
 def test_with_overrides():
-    base = _skewed()
+    # 这个测试断言 to_dict(defaults=False) 只剩"改过的字段", 所以基线必须是**缺省**
+    # 场景, 不能从 profile 起步 (那样 profile 与缺省的差异也会出现在里面)。
+    base = m.Scenario(
+        workload=m.Workload(tokens=64, routing="explicit", counts=skewed_routing()),
+        p1_override=2, p2_override=1, calibration=CAL)
     sc = base.with_overrides({
         "policy.gmm2_lag_waves": 1,
         "kernel.tile_n": 128,

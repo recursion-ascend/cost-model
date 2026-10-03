@@ -178,9 +178,15 @@ def test_layered_put_batch_lambda_exact_multiple():
 # ---------------------------------------------------------------------------
 
 def test_mte_default_unchanged_with_urma_code_present():
+    """MTE 路径不受 URMA 代码存在影响: 没有 Layered 独有的 dispatch_recv.
+
+    dispatch_call 只在 precut 切法下才有 (缺省 pooled 把调用开销挂成
+    once_per_core), 所以这里显式用 precut 来核对那一侧。
+    """
     res = m.simulate_routing_counts(
         routing_counts=_uniform(), token_num_per_rank=64, h=6144, hidden_dim=4096,
-        aic_num=28, costs=_costs(), topk=8)   # 默认 KernelConfig → MTE
+        aic_num=28, costs=_costs(), topk=8,
+        options=m.ModelOptions(dispatch_partition="precut"))  # 默认 KernelConfig → MTE
     stages = {e.meta.get("stage") for e in res["rank_results"][0]["events"]}
     assert "dispatch_call" in stages
     assert "dispatch_recv" not in stages

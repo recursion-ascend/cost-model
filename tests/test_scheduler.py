@@ -90,11 +90,23 @@ def test_l1_capacity_deadlock_detected():
 
 
 def test_l1_buffer_depth_sweep():
-    """生产者/消费者距离: ModelOptions.gmm1_activation_depth 参数化, 距离越大越快."""
-    base = _run(options=m.ModelOptions(pipeline=P()))
-    deeper = _run(options=m.ModelOptions(pipeline=P()),
+    """UB 握手深度放宽后, 静态绑定下更快; 工作守恒调度下可能更慢 (调度异常).
+
+    实测本形状: 静态 175.28 -> 171.87 (更快), 晚绑定 183.20 -> 191.35 (慢 4.4%)。
+    后者是 Graham 异常那一类 —— 放宽一个容量会改变派发次序, 工作守恒并不保证
+    墙钟单调。所以这里只在静态绑定下断言单调, 晚绑定下只记录事实。
+    """
+    stat = dict(pipeline=P(), late_bind_pools=STATIC)
+    base = _run(options=m.ModelOptions(**stat))
+    deeper = _run(options=m.ModelOptions(**stat),
                   policy=m.InstancePolicy(gmm1_activation_depth=2))
     assert deeper["kernel_total_us"] <= base["kernel_total_us"]
+
+    lb = dict(pipeline=P())                      # 缺省晚绑定
+    b2 = _run(options=m.ModelOptions(**lb))["kernel_total_us"]
+    d2 = _run(options=m.ModelOptions(**lb),
+              policy=m.InstancePolicy(gmm1_activation_depth=2))["kernel_total_us"]
+    assert b2 > 0 and d2 > 0                     # 不断言方向: 异常已被观察到
 
 
 def test_from_tiling_wires_real_counts():
@@ -139,25 +151,32 @@ def test_split_no_deadlock_large_dag():
         routing_counts=rc, token_num_per_rank=1024, h=6144,
         hidden_dim=4096, aic_num=28, costs=costs,
         options=m.ModelOptions(pipeline=m.PipelineConstraints(
-            queues=m.QueueDepths(mte_aic=2, cube=2, fix=2))),
+            queues=m.QueueDepths(mte_aic=2, cube=2, fix=2)),
+            late_bind_pools=STATIC),
     )
     assert res["kernel_total_us"] > 0
 
 
 def test_l1_queue_depth_monotone():
-    """L1 缓冲槽越多越不慢: 深度 2 允许预取下一个 tile 的 A 流."""
-    base = _run(options=m.ModelOptions(pipeline=P()))
+    """L1 缓冲槽越多越不慢: 深度 2 允许预取下一个 tile 的 A 流 (静态绑定下)."""
+    base = _run(options=m.ModelOptions(pipeline=P(), late_bind_pools=STATIC))
     deep = _run(options=m.ModelOptions(pipeline=P(
-        queues=m.QueueDepths(mte_aic=2))))
+        queues=m.QueueDepths(mte_aic=2)), late_bind_pools=STATIC))
     deeper = _run(options=m.ModelOptions(pipeline=P(
-        queues=m.QueueDepths(mte_aic=3))))
+        queues=m.QueueDepths(mte_aic=3)), late_bind_pools=STATIC))
     assert deeper["kernel_total_us"] <= deep["kernel_total_us"] <= base["kernel_total_us"]
 
 
 # ---- L1: 相位拆分 (生产者/消费者距离, 跨 tile 流水) ----
 
+#: 相位事件 (.lg/.ld/.cb/fix) 不持核资源, 靠按核的队列 token 绑核; 晚绑定 (现为
+#: 缺省) 下这些 token 无从回填, model.py 显式拒绝。所以拆相位的用例显式钉核。
+STATIC = ()
+
+
 def _split(**kw):
-    return m.ModelOptions(pipeline=P(queues=m.QueueDepths(mte_aic=2), **kw))
+    return m.ModelOptions(pipeline=P(queues=m.QueueDepths(mte_aic=2), **kw),
+                          late_bind_pools=STATIC)
 
 
 def test_phase_split_self_consistency():
@@ -168,7 +187,9 @@ def test_phase_split_self_consistency():
     闭式快, 这里只断言方向与 stage 忙碌时长一致, 不断言总时长相等。
     """
     for rate in (1.0e9, CUBE_RATE, 6.75e6):      # 载入绑定 / 接近交点 / 计算绑定
-        base = _run(cube_rate=rate)
+        # 拆相位只在静态绑定下可表达, 所以闭式那边也钉核, 两边同口径
+        base = _run(cube_rate=rate,
+                    options=m.ModelOptions(late_bind_pools=STATIC))
         split = _run(cube_rate=rate, options=_split())
         # 1% 容差: 拆相位后提交时序略有差异, 方向上不应系统性变慢
         assert split["kernel_total_us"] <= base["kernel_total_us"] * 1.01
@@ -182,7 +203,7 @@ def test_phase_split_self_consistency():
 def test_phase_split_compute_bound():
     """计算主导 (cube > load) 时必须变慢."""
     sub = _run(options=_split())
-    over = _run(cube_rate=6.75e6, options=_split())
+    over = _run(cube_rate=6.75e6, options=_split())   # 两边都钉核 (见 STATIC)
     assert over["kernel_total_us"] > sub["kernel_total_us"] + 20.0
 
 

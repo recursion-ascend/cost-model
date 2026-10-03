@@ -105,11 +105,16 @@ def test_vec_queue_split_act_combine():
 
 
 def test_dispatch_lookahead_changes_structure():
-    """dispatch_lookahead 实现文档语义: 建立序与 pacing 边随 la 变化."""
+    """dispatch_lookahead 实现文档语义: 建立序与 pacing 边随 la 变化.
+
+    按核的 dispatch_call 事件与 per_core 配速边都属于 profiles.MEGAMOE_A8W8 那组
+    取值 (缺省是 pooled + 不配速), 所以这里显式用它。
+    """
 
     def build(la):
         shape = _shape(policy=m.InstancePolicy(dispatch_lookahead=la))
-        return A8W8WaveCostModel(_costs(), m.ModelOptions()).build_events(shape)
+        return A8W8WaveCostModel(
+            _costs(), m.MEGAMOE_A8W8.options).build_events(shape)
 
     e1, _ = build(1)
     e2, _ = build(2)
@@ -165,8 +170,11 @@ def test_idle_core_stealing_active_and_effective():
     """idle_core_stealing 经 model 生效 (rank 前缀剥离) 且确定."""
     world, local, per = 2, 4, 1024
     C = [[[per] * world for _ in range(local)] for _ in range(world)]
+    # 转移钩子修的是静态发牌的空闲; 缺省晚绑定下没有可转移的东西 (见 test_scenario)。
+    # 用 MEGAMOE_A8W8 那组编排 (含静态发牌): 钩子的判据与注入量是按这种结构调的。
     kw = dict(token_num_per_rank=1024, h=6144, hidden_dim=4096, aic_num=28,
-              costs=_costs(), topk=8, p1_override=2, p2_override=1)
+              costs=_costs(), topk=8, p1_override=2, p2_override=1,
+              options=m.MEGAMOE_A8W8.options)
 
     r_plain = m.simulate_routing_counts(routing_counts=C, **kw)
     r_steal = m.simulate_routing_counts(routing_counts=C, restructure=idle_core_stealing(), **kw)
@@ -204,11 +212,15 @@ def test_dispatch_segment_splits_by_route_batch():
 
 
 def test_dispatch_single_batch_keeps_segment_granularity():
-    """段不超过一批时事件与未分批时逐字节一致 (bs=36 全部段 1~6 行, 远小于 256)."""
+    """段不超过一批时事件与未分批时逐字节一致 (bs=36 全部段 1~6 行, 远小于 256).
+
+    直方图对的是实测 trace, 所以用 precut 切法 (缺省 pooled 不按核预切, 段的构成不同)。
+    """
     res = m.simulate_routing_counts(
         routing_counts=[[[18] * 4 for _ in range(3)] for _ in range(4)],
         token_num_per_rank=36, h=5120, hidden_dim=9216, aic_num=28,
-        costs=_costs(), topk=6, p1_override=2, p2_override=1)
+        costs=_costs(), topk=6, p1_override=2, p2_override=1,
+        options=m.ModelOptions(dispatch_partition="precut"))
     d = [e for e in res["rank_results"][0]["events"] if e.meta.get("stage") == "dispatch"]
     # 实测 rank0: 47 个 DISPATCH_XFER + 14 个 DISPATCH_LOCAL = 61, 行数直方图逐桶相同
     assert len(d) == 61
@@ -331,9 +343,11 @@ def test_wave_offsets_parameterized():
     from moe_cost_model.model import A8W8WaveCostModel
 
     def build(policy):
+        # 按核的 dispatch_call 与 per_core 配速边来自 MEGAMOE_A8W8 那组取值
+        opts = m.MEGAMOE_A8W8.options
         shape = _shape(policy=policy)
-        waves = A8W8WaveCostModel(_costs(), m.ModelOptions()).waves(shape)
-        return MteEventBuilder(_costs(), m.ModelOptions()).build(shape, waves)
+        waves = A8W8WaveCostModel(_costs(), opts).waves(shape)
+        return MteEventBuilder(_costs(), opts).build(shape, waves)
 
     def wave_pairs(result):
         return [(t.gmm1_wave, t.gmm2_wave) for t in result[1]]
@@ -344,10 +358,11 @@ def test_wave_offsets_parameterized():
     assert wave_pairs((e_def, t_def)) == wave_pairs((e_lag, t_lag))
 
     # 显式偏移 (2, -2): 3 波用例
+    opts2 = m.MEGAMOE_A8W8.options          # 同上: 要按核的 dispatch_call 与配速边
     shape = _shape(policy=m.InstancePolicy(
         wave_offsets=StageWaveOffsets(dispatch=2, gmm2=-2)))
-    waves = A8W8WaveCostModel(_costs(), m.ModelOptions()).waves(shape)
-    evs, trace = MteEventBuilder(_costs(), m.ModelOptions()).build(shape, waves)
+    waves = A8W8WaveCostModel(_costs(), opts2).waves(shape)
+    evs, trace = MteEventBuilder(_costs(), opts2).build(shape, waves)
     in_loop = [(t.gmm1_wave, t.gmm2_wave) for t in trace if t.gmm1_wave is not None]
     catchup = [(t.gmm1_wave, t.gmm2_wave) for t in trace if t.gmm1_wave is None]
     n = len(in_loop)

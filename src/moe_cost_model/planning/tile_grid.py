@@ -1,8 +1,9 @@
 """第 3 层: tile 网格策略 — 一个专家切片的输出怎么切成 tile.
 
-GMM1 与 GMM2 的 tile 网格都由这里给出。默认 SwizzledTileGrid 复现 kernel 现行为
-(行按 tile_m 分组、列按 tile_n 切、Blaze swizzle 序)；换一个实现就能改切分方式,
-事件图随之重建, 不用动建图源码。
+GMM1 与 GMM2 的 tile 网格都由这里给出。缺省 RowMajorTileGrid = 行按 tile_m 分组、
+列按 tile_n 切、按坐标行主序遍历 —— 不声称任何遍历技巧, 这是"最少假设"。
+SwizzledTileGrid 是一种具体实现的遍历序 (Blaze swizzle), 属于编排选择, 要用就
+显式给 (profiles.MEGAMOE_A8W8 就给了它)。换网格只重建事件图, 不动建图源码。
 
 坐标都是切片内的相对值, 左闭右开:
   行 row_begin..row_end   该专家切片的第几行 (切片起点为 0)
@@ -61,10 +62,29 @@ class TileGrid:
         raise NotImplementedError
 
 
-class SwizzledTileGrid(TileGrid):
-    """默认: 行按 tile_m 分组, 列按 tile_n 切, 按 Blaze swizzle 序遍历.
+class RowMajorTileGrid(TileGrid):
+    """缺省: 行按 tile_m 分组, 列按 tile_n 切, 行主序遍历 (m 外 n 内).
 
-    与 kernel 现行为逐 tile 一致。
+    遍历序只影响"分核策略看到的顺序"与建图序, 不影响 tile 本身。行主序是最少
+    假设: 不声称实现用了任何 swizzle 技巧。
+    """
+
+    def plan(self, *, stage, rows, cols, kernel):
+        tile_m, tile_n = kernel.tile_m, kernel.tile_n
+        m_groups, n_tiles = ceil_div(rows, tile_m), ceil_div(cols, tile_n)
+        out: List[Tile] = []
+        for mg in range(m_groups):
+            for nt in range(n_tiles):
+                rb, cb = mg * tile_m, nt * tile_n
+                out.append(Tile(rb, min(rb + tile_m, rows), cb, min(cb + tile_n, cols)))
+        return out
+
+
+class SwizzledTileGrid(TileGrid):
+    """按 Blaze swizzle 序遍历 (BlockSchedulerSwizzle<offset, direction>).
+
+    一种具体实现的遍历序, 不是缺省: 连续 tile 共享同一 A 行块, 为的是 L2 复用。
+    swizzle 参数取自 KernelConfig.swizzle_offset / swizzle_direction。
     """
 
     def plan(self, *, stage, rows, cols, kernel):
@@ -86,14 +106,17 @@ class SplitRowsTileGrid(TileGrid):
     同一组的行摊到更多核上。列仍按 tile_n 切; tile 仍在 m-group 内, 不跨界。
     """
 
-    def __init__(self, parts: int = 2, stages: Sequence[str] = (STAGE_GMM1, STAGE_GMM2)):
+    def __init__(self, parts: int = 2, stages: Sequence[str] = (STAGE_GMM1, STAGE_GMM2),
+                 base: "TileGrid" = None):
         if parts < 1:
             raise ValueError("parts 必须 >= 1")
         self.parts = int(parts)
         self.stages = tuple(stages)
+        # 先按 base 切, 再把每个 tile 的行拆开; base 不给就用缺省网格
+        self.base = base if base is not None else RowMajorTileGrid()
 
     def plan(self, *, stage, rows, cols, kernel):
-        base = SwizzledTileGrid().plan(stage=stage, rows=rows, cols=cols, kernel=kernel)
+        base = self.base.plan(stage=stage, rows=rows, cols=cols, kernel=kernel)
         if stage not in self.stages or self.parts == 1:
             return base
         out: List[Tile] = []

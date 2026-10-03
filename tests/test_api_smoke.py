@@ -21,6 +21,9 @@ def _deterministic_case():
 
 
 def _run(options=None, kernel=None, policy=None):
+    """确定性用例. 锚点对的是"复现那份实现"的那组取值, 所以以 profile 为底
+    (模型缺省是最少假设, 与这些实测沿革无关)。"""
+    P = m.MEGAMOE_A8W8
     costs = m.PrimitiveCosts(
         dispatch_mechanistic=m.DispatchMechanisticLatency(),
         gmm1_tile=m.AnalyticalGmmCosts(cube_mac_per_us=CUBE_RATE).gmm1_tile,
@@ -33,8 +36,11 @@ def _run(options=None, kernel=None, policy=None):
     )
     return m.simulate_routing_counts(
         routing_counts=_deterministic_case(), token_num_per_rank=64, h=6144,
-        hidden_dim=4096, aic_num=28, costs=costs, options=options or m.ModelOptions(),
-        kernel=kernel, policy=policy, p1_override=2, p2_override=1,   # kernel 默认策略 @bs64 (tiling 真值)
+        hidden_dim=4096, aic_num=28, costs=costs,
+        p1_override=2, p2_override=1,   # kernel 默认策略 @bs64 (tiling 真值)
+        **P.shape_kw(options=options or P.options,
+                     kernel=kernel if kernel is not None else P.kernel,
+                     policy=policy if policy is not None else P.policy),
     )
 
 
@@ -188,7 +194,8 @@ def test_gmm2_act_edges_by_ntile():
         expert_source_tokens=tuple(tuple(per_src for _ in range(world))
                                    for _ in range(local)),
         kernel=m.KernelConfig())
-    model = A8W8WaveCostModel(_run_costs(), m.ModelOptions())
+    # 本测试讲的是 head/tail 两段各等哪些 ACT, 所以显式要 2 段 (缺省是 1 段不分)
+    model = A8W8WaveCostModel(_run_costs(), m.ModelOptions(gmm2_k_segments=2))
     events, _ = model.build_events(shape)
     by_name = {e.name: e for e in events}
 
@@ -231,7 +238,7 @@ def _run_costs():
 
 def test_kl1_override_restores_legacy():
     """kL1=256 显式覆盖应恢复与 auto 相同值 (结构等价性自检)."""
-    res = _run(options=m.ModelOptions(gmm2_kl1=256))
+    res = _run(options=m.MEGAMOE_A8W8.with_options(gmm2_kl1=256))
     assert abs(res["kernel_total_us"] - 183.478) < 0.5
 
 
@@ -246,7 +253,7 @@ def test_primitive_costs_requires_all():
 def test_neutral_pipeline_invariance():
     """中性约束 (队列1/无信道/无速率/同步0) 必须与默认逐字节一致."""
     base = _run()
-    p0 = _run(options=m.ModelOptions(pipeline=m.PipelineConstraints()))
+    p0 = _run(options=m.MEGAMOE_A8W8.with_options(pipeline=m.PipelineConstraints()))
     assert p0["kernel_total_us"] == base["kernel_total_us"]
     for r in range(4):
         assert p0["rank_results"][r]["total_us"] == base["rank_results"][r]["total_us"]

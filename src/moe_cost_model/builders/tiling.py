@@ -4,13 +4,13 @@
 """
 from __future__ import annotations
 
-from ..planning.tile_grid import SwizzledTileGrid, Tile, TileGrid
+from ..planning.tile_grid import RowMajorTileGrid, Tile, TileGrid
 
-_DEFAULT = SwizzledTileGrid()
+_DEFAULT = RowMajorTileGrid()
 
 
 def resolve_grid(shape) -> TileGrid:
-    """shape.tile_grid; 未给时用默认网格 (kernel 现行为)."""
+    """shape.tile_grid; 未给时用缺省网格 (行主序, 最少假设)."""
     grid = getattr(shape, "tile_grid", None)
     if grid is None:
         return _DEFAULT

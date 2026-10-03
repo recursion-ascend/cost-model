@@ -38,6 +38,8 @@ class ReferenceProfile:
     """
 
     name: str
+    #: PROFILES 里的键 (场景文件 profile= 写的就是它); 空则用 name
+    name_key: str
     source: str
     options: ModelOptions
     kernel: KernelConfig
@@ -83,6 +85,7 @@ class ReferenceProfile:
 # 每一项都是"那份实现这么做", 不是"物理只能这么做" —— 所以它在这里而不在缺省值里。
 MEGAMOE_A8W8 = ReferenceProfile(
     name="megamoe-a8w8-wave-arch35",
+    name_key="megamoe-a8w8",
     source=(
         "mega_moe/op_kernel/arch35 + megamoe_profile/CMakeLists.txt:28-32; "
         "固定开销来自 20260930 的实测 trace"
@@ -94,7 +97,7 @@ MEGAMOE_A8W8 = ReferenceProfile(
         # GMM2 沿 K 两段就绪: 首个 kL1 块一段 (只等 1 个 ACT), 其余合成一段
         gmm2_k_segments=2,
         # dispatch 按核预切: 均衡分配 + startBlockIdx 轮转
-        dispatch_partition="kernel",
+        dispatch_partition="precut",
         # AIV1 循环体先 combine 再下一波 dispatch
         dispatch_pacing="per_core",
         # 尾段五项固定开销 = 实测残留

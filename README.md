@@ -2,6 +2,36 @@
 
 Ascend NPU MegaMoE 流水编排性能评估工具。算子工程师改参数、改编排，模型算出执行时间，对比判断性能收益，不必逐个上板实测。
 
+## 建模原则: 缺省值不引用任何实现
+
+**没有任何参数的取值用"等于某一版 kernel"来定义自己的含义。** 三层分开:
+
+| 层 | 内容 | 谁定 |
+| --- | --- | --- |
+| 物理 | 带宽、Cube 速率、L1/UB 容量、tile 几何 | 硬件 |
+| 编排 | 切分 / stage 边 (就绪粒度、落点、缓冲深度) / 分核 / 栅栏 / 波宽 | 算子工程师要扫的决策变量 |
+| 实例 | 以上的一组具体取值 + 某一版实现的实测固定开销 | `profiles.MEGAMOE_A8W8` |
+
+所以**缺省值是"最少假设"**: 不声称实现做了任何特殊的事 —— 消费者等齐生产者、中间结果
+落 GM、不预设谁取哪些行、依赖之外不加序边、固定开销 0、tile→核 在派发时刻才定。
+要复现 MegaMoe A8W8 那份实现 (与实测 trace 对齐就得这样) 就显式引用 profile:
+
+```toml
+profile = "megamoe-a8w8"     # 场景文件: 以那份实现的取值为底, 下面写的字段再覆盖它
+```
+
+```python
+from moe_cost_model import MEGAMOE_A8W8 as P
+simulate_routing_counts(..., **P.shape_kw(), options=P.options)
+simulate_routing_counts(..., **P.shape_kw(), options=P.with_options(gmm2_k_segments=0))
+```
+
+缺省跑出来的数与那份实现的数不同, 这是信息 (差多少 = 那些编排选择值多少), 不是 bug。
+
+一个缺省带来的直接后果: 缺省晚绑定满足模型的不变量 ——
+**决不出现"某 tile 前置依赖已完成、又有核空闲, 它却还在等"** (`avoidable_idle_us == 0`)。
+静态发牌做不到, 它是一种实现的分核方式, 要评估就显式给 `late_bind_pools=()`。
+
 ## 当前能做什么
 
 ### 1. 改参数直接评估
@@ -263,9 +293,11 @@ m.register("tile_grid", "split_every_group", SplitEveryGroup)
 
 **GMM 公式于 2026-09-29 换口径 (见上), 本节数字是旧公式下的结论, 新公式尚未对实测校准。** 校准需要两样东西: 实测的 Cube 速率; 按新口径重新标定的 `BW_L1_GM` (现值 51.9 GB/s 是在 A 流与 B 流一起计费的旧口径下反解的)。
 
-旧公式下: 默认配置对应当前 kernel 行为，在 B≤128 标定域内各 stage busy 误差 ±5%，墙钟偏差 -6~-8%。
+旧公式下: `profiles.MEGAMOE_A8W8` 这组取值 (即那份实现) 在 B≤128 标定域内各 stage busy
+误差 ±5%，墙钟偏差 -6~-8%。**注意缺省值不是这组取值** —— 缺省是"最少假设"，与实测对齐要
+显式引用 profile (场景文件里写 `profile = "megamoe-a8w8"`)。
 
-偏离默认的取值为未验证取值：模型照常给出预测，但结论需实测抽检。标定域外的已知失效：B=1024 时 COMBINE 偏差 +114~246%（BW_SCATTER 单点标定域外），GMM1 系统性高估 +4~10%（B 矩阵逐 tile 计费）。
+偏离该 profile 的取值为未验证取值：模型照常给出预测，但结论需实测抽检。标定域外的已知失效：B=1024 时 COMBINE 偏差 +114~246%（BW_SCATTER 单点标定域外），GMM1 系统性高估 +4~10%（B 矩阵逐 tile 计费）。
 
 ### 数据搬运带宽
 
@@ -318,13 +350,14 @@ ACT tile 只产出 GMM2 在 K 上 1/ceil(k/TILE_N) 的部分, GMM2 要累完整�
 
 | 值 | 含义 |
 | --- | --- |
-| `2` (缺省) | 现有 kernel: 首个 kL1 块一段 (只等 1 个 ACT), 其余合成一段 (等其余全部) |
+| `1` (缺省) | 不分段: 等齐覆盖整个 K 的全部 ACT 再开工 —— 最少假设 |
+| `2` | 首个 kL1 块一段 (只等 1 个 ACT), 其余合成一段 (`MEGAMOE_A8W8` 用这个) |
 | `0` | 每个 kL1 块各一段, 第 j 段只等第 j 块的 ACT —— 最细 |
 | `N>2` | 按 kL1 块数均分成 N 段 |
 
 实测 (ep=5, 每专家 256 行全远端, aic=28, `kl1=256` 即 18 个 kL1 块):
 
-| 形状 | 2 段 (现) | 3 段 | 6 段 | 逐块 |
+| 形状 | 2 段 | 3 段 | 6 段 | 逐块 |
 | --- | ---: | ---: | ---: | ---: |
 | hidden=9216 专家=3 | 311.7 us | −4.1% | −4.6% | −5.2% |
 | hidden=9216 专家=6 | 462.6 us | −4.6% | −5.0% | −5.0% |
@@ -438,9 +471,9 @@ res = m.simulate_routing_counts(
 
 | 旋钮 | 作用 |
 | --- | --- |
-| `ModelOptions.late_bind_pools` | 角色入池: 事件只声明"要一个 AIC", 调度器在**派发时刻**绑最早空闲的成员。`()` = 静态绑定 (缺省)。`"AIC"` 入池隐含 `"AIV0"` 入池 —— `GMM1 -> ACT` 同核是物理约束, 整对一起漂移 |
+| `ModelOptions.late_bind_pools` | 角色入池: 事件只声明"要一个 AIC", 调度器在**派发时刻**绑最早空闲的成员。缺省 `("AIC", "AIV1")`; `()` = 静态绑定 (某实现的分核方式)。`"AIC"` 入池隐含 `"AIV0"` 入池 —— `GMM1 -> ACT` 同核是物理约束, 整对一起漂移 |
 | `WorkConservingCriticalPath` | 排序键 `(start, -remaining_path_us, order, name)`: start 仍排第一位, 核不会为等未就绪的事件空闲; 关键路径只在**同样能立刻开始**的候选之间定先后 |
-| `ModelOptions.dispatch_pacing` | 下一波 dispatch 等什么: `"per_core"` (缺省, 等本核上一波最后一个 combine) / `"wave"` (等该波全部 combine) / `"none"` (不等, 跨波连续 dispatch) |
+| `ModelOptions.dispatch_pacing` | 下一波 dispatch 等什么: `"none"` (缺省, 不等, 跨波连续 dispatch) / `"per_core"` (等本核上一波最后一个 combine, `MEGAMOE_A8W8` 用这个) / `"wave"` (等该波全部 combine) |
 
 实测 (hidden=9216 专家=3, rank0), 单位核·us:
 

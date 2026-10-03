@@ -21,29 +21,35 @@ def _run(local=3, hd=9216, call=0.0, **kw):
         options=m.ModelOptions(**kw))["rank_results"][0]
 
 
-def test_epilogue_overheads_default_to_the_measured_constants():
-    assert _run()["dag_end_us"] == _run(epilogue_overheads=m.EpilogueOverheads())["dag_end_us"]
+def test_epilogue_overheads_default_to_zero():
+    """缺省 = 纯物理基线: 模型不替任何实现预设这五项."""
+    assert m.ModelOptions().epilogue_overheads == m.EpilogueOverheads(literal=True)
+    pure = _run()["dag_end_us"]
+    same = _run(epilogue_overheads=m.EpilogueOverheads(literal=True))["dag_end_us"]
+    assert pure == same
 
 
-def test_epilogue_overheads_can_be_zeroed_for_a_physics_only_baseline():
-    """literal=True 时五项按字面取 (含 0): 实测恰好少 7.2us = 1+2+2.2+1+1."""
-    base = _run()["dag_end_us"]
-    pure = _run(epilogue_overheads=m.EpilogueOverheads(literal=True))["dag_end_us"]
-    assert abs((base - pure) - 7.2) < 1e-6
+def test_measured_constants_are_opt_in():
+    """给 EpilogueOverheads() (零值回落到模块常数 = 实测) 时多出 7.2us
+    = 1 + 2 + 2.2 + 1 + 1。profiles.MEGAMOE_A8W8 给的就是它。"""
+    pure = _run()["dag_end_us"]
+    measured = _run(epilogue_overheads=m.EpilogueOverheads())["dag_end_us"]
+    assert abs((measured - pure) - 7.2) < 1e-6
+    assert m.MEGAMOE_A8W8.options.epilogue_overheads == m.EpilogueOverheads()
 
 
 def test_epilogue_overheads_are_settable():
-    base = _run()["dag_end_us"]
+    base = _run(epilogue_overheads=m.EpilogueOverheads())["dag_end_us"]
     slow = _run(epilogue_overheads=m.EpilogueOverheads(core_sync_us=10.0))["dag_end_us"]
     assert abs((slow - base) - 8.0) < 1e-6      # 2.0 -> 10.0
 
 
-def test_call_overhead_is_once_per_wave_and_core_in_rows_mode():
-    """"rows" 切法没有按核的调用结构 -> 不发 dispatch_call 事件, 开销走 once_per_core.
+def test_call_overhead_is_once_per_wave_and_core_in_pooled_mode():
+    """"pooled" 切法没有按核的调用结构 -> 不发 dispatch_call 事件, 开销走 once_per_core.
 
     并且这时**一个带核号的事件名都不剩** —— C1 的目标在这条路径上完全达成。
     """
-    rr = _run(call=1.006, dispatch_partition="rows", dispatch_rows_per_item=16)
+    rr = _run(call=1.006, dispatch_partition="pooled", dispatch_rows_per_item=16)
     evs = rr["events"]
     assert not [e for e in evs if e.meta.get("stage") == "dispatch_call"]
     assert not [e for e in evs if re.search(r"\.c\d+$", e.name)]
@@ -55,16 +61,16 @@ def test_call_overhead_is_once_per_wave_and_core_in_rows_mode():
     assert set(charged) == worked                            # 搬过数据的都付过
 
 
-def test_kernel_mode_keeps_the_call_event_for_trace_alignment():
-    """"kernel" 切法保留 dispatch_call: 实测 trace 有 DISPATCH_SCHEDULE 包络,
+def test_precut_mode_keeps_the_call_event_for_trace_alignment():
+    """"precut" 切法保留 dispatch_call: 实测 trace 有 DISPATCH_SCHEDULE 包络,
     tools/compare_measured.py 按它对齐。"""
-    evs = _run(call=1.006)["events"]
+    evs = _run(call=1.006, dispatch_partition="precut")["events"]
     assert len([e for e in evs if e.meta.get("stage") == "dispatch_call"]) == 56
 
 
 def test_call_overhead_costs_the_same_either_way():
     """两种切法下调用开销对墙钟的影响一致 (本形状 +1.0us)."""
-    for mode, rpi in (("kernel", 0), ("rows", 16)):
+    for mode, rpi in (("precut", 0), ("pooled", 16)):
         a = _run(call=0.0, dispatch_partition=mode, dispatch_rows_per_item=rpi)
         b = _run(call=1.006, dispatch_partition=mode, dispatch_rows_per_item=rpi)
         assert 0.9 < b["dag_end_us"] - a["dag_end_us"] < 1.1, mode

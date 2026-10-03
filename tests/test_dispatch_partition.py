@@ -1,10 +1,16 @@
-"""C6: dispatch 的"谁取哪些行"是调度决策, 不是建图时写死的 kernel 记账."""
+"""dispatch 的"谁取哪些行"是调度决策, 不是建图时写死的记账.
+
+  "pooled" (缺省): 只按 dispatch_rows_per_item 把切片切成若干份, 哪个核去取由调度器定
+  "precut":        建图时按核分好 (均衡 + 轮转) —— 某实现的分工方式
+"""
 import pytest
 
 import moe_cost_model as m
 
+DEFAULT_LATE = m.ModelOptions().late_bind_pools
 
-def _run(mode="kernel", rows_per_item=0, local=3, hd=9216, late=()):
+
+def _run(mode="pooled", rows_per_item=0, local=3, hd=9216, late=DEFAULT_LATE):
     W, PER = 5, 64
     rc = [[[0 if s == d else PER for s in range(W)] for _ in range(local)] for d in range(W)]
     tok = sum(rc[d][e][1] for d in range(W) for e in range(local)) // 6
@@ -28,21 +34,18 @@ def _rows_per_group(rr):
     return got
 
 
-def test_rows_mode_conserves_every_row():
+def test_every_partition_conserves_every_row():
     """换切法不能漏行也不能重复取 —— 建图器本来就有这条守恒校验, 这里显式钉住."""
-    for mode, rpi in (("kernel", 0), ("rows", 0), ("rows", 64), ("rows", 16)):
+    for mode, rpi in (("precut", 0), ("pooled", 0), ("pooled", 64), ("pooled", 16)):
         for expert_group, (got, need) in _rows_per_group(_run(mode, rpi)).items():
             assert got == need, (mode, rpi, expert_group, got, need)
 
 
 def test_granularity_changes_parallelism():
-    """切得细 -> 工作项多 -> 用得上更多核. 实测 (9216/3):
-        kernel        66 项 / 28 核 / 251.81
-        rows  缺省     12 项 /  8 核 / 257.89   <- 每段一项, 只有 12 段
-        rows  16 行    48 项 / 28 核 / 249.72   <- 比 kernel 还快
-    """
-    coarse = _run("rows", 0)
-    fine = _run("rows", 16)
+    """切得细 -> 工作项多 -> 用得上更多核."""
+    coarse = _run("pooled", 0)
+    fine = _run("pooled", 16)
+
     def n(rr):
         return len([e for e in rr["events"] if e.meta.get("stage") == "dispatch"])
 
@@ -54,14 +57,16 @@ def test_granularity_changes_parallelism():
     assert fine["dag_end_us"] < coarse["dag_end_us"]
 
 
-def test_kernel_mode_is_the_default():
-    assert m.ModelOptions().dispatch_partition == "kernel"
-    assert _run()["dag_end_us"] == _run("kernel")["dag_end_us"]
+def test_pooled_is_the_default():
+    """缺省不预设分工 (最少假设); precut 是 profiles.MEGAMOE_A8W8 的选择."""
+    assert m.ModelOptions().dispatch_partition == "pooled"
+    assert m.MEGAMOE_A8W8.options.dispatch_partition == "precut"
+    assert _run()["dag_end_us"] == _run("pooled")["dag_end_us"]
 
 
-def test_rows_mode_works_with_late_binding():
-    """rows 模式下核号只是轮转占位, AIV1 入池后由调度器决定."""
-    rr = _run("rows", 16, late=("AIC", "AIV1"))
+def test_pooled_mode_works_with_late_binding():
+    """pooled 下核号只是轮转占位, AIV1 入池后由调度器决定."""
+    rr = _run("pooled", 16, late=("AIC", "AIV1"))
     for role in ("AIC", "AIV0", "AIV1"):
         (rep,) = [v for k, v in rr["idle_decomposition"].items() if k.endswith(role)]
         assert rep.avoidable_idle_us < 1e-6, role

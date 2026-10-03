@@ -6,22 +6,28 @@
 
 本文件记录当前表达不了的编排维度, 按补齐价值排序。已覆盖的维度见 README。
 
+**取值的含义不引用实现** (2026-10 分层): 缺省值一律是"最少假设", 某一版实现的取值集中在
+`profiles.MEGAMOE_A8W8`。所以下表的"备注"里写 `MEGAMOE_A8W8` 的地方, 意思是"那份实现选了
+这个", 不是"缺省是这个"。
+
 ## 速查: 哪些编排已经能表达
 
 | 维度 | 旋钮 | 备注 |
 | --- | --- | --- |
 | wave 打包 | `wave_packing` | SequentialGreedy / LongestExpertFirst / BalancedWaves, 可自定义 |
 | wave 容量 | `p1_override` / `p2_override` | 经 `calc_m_groups_per_wave` |
-| tile 网格 | `tile_grid` | SwizzledTileGrid / SplitRowsTileGrid, 可自定义 |
+| tile 网格 | `tile_grid` | RowMajorTileGrid (缺省) / SwizzledTileGrid (`MEGAMOE_A8W8`) / SplitRowsTileGrid, 可自定义 |
 | tile 几何 | `KernelConfig.tile_m` / `tile_n` | 实测 tile_n 128 -> dag_end -6.6%, tile_m 128 -> +39% |
 | GMM1 交织 | `KernelConfig.gmm1_interleaved` | kernel 的 `IsGmm1Interleaved`: n-tile 18->36, 每 tile B 流减半, UB 深度 1->2。**A 流翻倍是模型口径的推论, 未经交织路径实测** |
 | swizzle | `KernelConfig.swizzle_offset` / `swizzle_direction` | **仅在每专家多于 1 个 m-group 时有效** (1 组时退化为无效) |
 | tile->核 分配 | `core_assignment` | StaticRoundRobin / GreedyLeastBusy / ContiguousBlock |
-| tile->核 绑定时机 | `ModelOptions.late_bind_pools` | 建图时 / 派发时 (缺口 3 已补齐) |
+| tile->核 绑定时机 | `ModelOptions.late_bind_pools` | 派发时 (缺省) / 建图时静态 (`MEGAMOE_A8W8`) —— 缺口 3 已补齐 |
 | ready 集选序 | `scheduling_policy` | EarliestStart / WorkConservingCriticalPath / PriorityByStage |
 | stage 波偏移 | `InstancePolicy.wave_offsets` | dispatch 超前波数、GMM2 滞后波数 |
-| dispatch 配速 | `ModelOptions.dispatch_pacing` | per_core / wave / none |
-| GMM2 K 分段 | `ModelOptions.gmm2_k_segments` | 2 (kernel) / 0 (逐块) / N |
+| dispatch 配速 | `ModelOptions.dispatch_pacing` | none (缺省) / per_core (`MEGAMOE_A8W8`) / wave |
+| dispatch 分工 | `ModelOptions.dispatch_partition` | pooled (缺省) / precut (`MEGAMOE_A8W8`) |
+| ACT->GMM2 落点 | `ModelOptions.act_to_gmm2` | gm (缺省) / onchip (不物化, 代价是 m-group 共位) |
+| GMM2 K 分段 | `ModelOptions.gmm2_k_segments` | 1 (缺省, 等齐) / 2 (`MEGAMOE_A8W8`) / 0 (逐块) / N |
 | GMM2 kL1 | `ModelOptions.gmm2_kl1` | 自适应或显式 |
 | B 复用 | `KernelConfig.gmm1_b_reuse` | 实测 -16.3% (多 m-group 时); "付几次"的规律未定 |
 | 通信路径 | `KernelConfig.topo_urma` | MTE / URMA Layered 两套建图器 |
@@ -442,3 +448,25 @@ dispatch_partition="rows", t_call_oh_us=1.006:
   带核号的事件名 0 个          <- C1 的目标在这条路径上完全达成
   once_per_core 计次 44       = 实际搬过数据的 (波, 核) 组合数
 ```
+
+---
+
+## 缺口 9: 相位流水与晚绑定不能同用
+
+相位拆分 (`ModelOptions.pipeline` 的 `queues.mte_aic > 1`) 把一个 GMM tile 拆成
+`.lg/.ld/.cb/fix` 几个相位事件。这些事件**不持核资源** —— 它们代表同一个核里不同引擎
+(MTE / Cube / Fixpipe) 的工作, 靠按核的队列 token (`QUEUE:mte_aic:c7`) 绑核。
+
+晚绑定 (现为缺省) 下核号在派发那一刻才定, 这些 token 无从回填, 所以 `model.py` 显式
+报错而不是算出一个错数:
+
+```
+事件 ....lg 不持核资源却带按核的队列信号量 (相位流水), 暂不支持与 late_bind_pools 同用
+```
+
+后果: 要拆相位就得显式 `late_bind_pools=()` 钉核, 而静态钉核**违反**"有就绪的活就不空闲"
+那条不变量。两个能力目前互斥。
+
+补齐方向: 让相位事件通过 `colocate_with` 锚到持核的那个相位, 引擎按锚点的绑定核号回填
+`c*` token (`_tok` / `_remap_tokens` / `_candidates` 三处要同口径, 和 `UB:gmm1act:c*`
+现在的做法一样)。风险是相位事件之间的 token 持有跨事件, 回填错了会假死锁。

@@ -19,6 +19,13 @@ def _scenario(**kw):
         p1_override=2, p2_override=1, calibration=CAL, **kw)
 
 
+def _shape_for_grid():
+    """给 resolve_grid 用的最小 shape (只读 tile_grid 字段)."""
+    from moe_cost_model.shape import MegaMoeShape
+    return MegaMoeShape(expert_tokens=(64,), token_num=64, h=6144, hidden_dim=4096,
+                        aic_num=28)
+
+
 def _stage_cores(res, stage, rank=0):
     return collections.Counter(
         int(e.resources[0].split(":")[1]) for e in res["rank_results"][rank]["events"]
@@ -26,11 +33,23 @@ def _stage_cores(res, stage, rank=0):
 
 
 # ---------------------------------------------------------------------------
-# 默认网格 = kernel 现行为
+# 网格: 缺省行主序 (最少假设) 与 swizzle (某实现的遍历序)
 # ---------------------------------------------------------------------------
 
+def test_default_grid_is_row_major():
+    """缺省网格不声称任何遍历技巧: 行按 tile_m 分组、列按 tile_n 切, m 外 n 内."""
+    km = m.KernelConfig()
+    tiles = m.RowMajorTileGrid().plan(stage="gmm1", rows=600, cols=2048, kernel=km)
+    assert [(t.row_begin, t.col_begin) for t in tiles] == [
+        (mg * 256, nt * 256) for mg in range(3) for nt in range(8)]
+    m.validate_tiles(tiles, rows=600, cols=2048, tile_m=km.tile_m)
+    from moe_cost_model.builders.tiling import resolve_grid
+    assert type(resolve_grid(dataclasses.replace(
+        _shape_for_grid(), tile_grid=None))).__name__ == "RowMajorTileGrid"
+
+
 def test_swizzled_grid_matches_kernel_geometry():
-    """默认网格: 行按 tile_m 分组、列按 tile_n 切, 顺序与 swizzle_coord 一致."""
+    """swizzle 网格 (profiles.MEGAMOE_A8W8 用它): 顺序与 swizzle_coord 一致."""
     from moe_cost_model.planning.waves import swizzle_coord
     km = m.KernelConfig()
     rows, cols = 600, 2048                      # 3 个 m-group x 8 个列块
@@ -43,10 +62,10 @@ def test_swizzled_grid_matches_kernel_geometry():
     m.validate_tiles(tiles, rows=rows, cols=cols, tile_m=km.tile_m)
 
 
-def test_default_grid_is_the_no_op():
-    """显式给默认网格与不给完全一致 (事件级)."""
+def test_explicit_default_grid_is_the_no_op():
+    """显式给缺省网格与不给完全一致 (事件级)."""
     base = _scenario()
-    explicit = _scenario(tile_grid="swizzled")
+    explicit = _scenario(tile_grid="row_major")
     from golden_cases import fingerprint
     assert fingerprint(m.simulate(explicit)) == fingerprint(m.simulate(base))
 
@@ -107,7 +126,8 @@ def test_gmm2_follows_act_coverage_after_row_split():
         expert_tokens=tuple(sum(r) for r in rows), token_num=72, h=H, hidden_dim=HIDDEN,
         aic_num=28, expert_source_tokens=rows, p1_override=2, p2_override=1, topk=6,
         kernel=m.KernelConfig(), tile_grid=m.SplitRowsTileGrid(parts=2))
-    events, _ = A8W8WaveCostModel(manual_costs(), m.ModelOptions()).build_events(shape)
+    events, _ = A8W8WaveCostModel(
+        manual_costs(), m.ModelOptions(gmm2_k_segments=2)).build_events(shape)
     by_name = {e.name: e for e in events}
     k_gmm2 = HIDDEN // 2
     for e in events:
@@ -229,15 +249,23 @@ def _seg_run(segments):
                    options=m.ModelOptions(gmm2_k_segments=segments))
 
 
-def test_gmm2_k_segments_default_is_two_and_names_are_stable():
-    """缺省 2 段必须沿用 ".h"/part=head 与不带后缀的 tail —— combine 与
+def test_gmm2_k_segments_default_is_one_segment():
+    """缺省不分段: 一个 GMM2 tile 等齐整个 K 的 ACT 再开工 (最少假设)."""
+    assert m.ModelOptions().gmm2_k_segments == 1
+    g2 = [e for e in _seg_run(1)["rank_results"][0]["events"]
+          if e.meta.get("stage") == "gmm2"]
+    assert {str(e.meta.get("part")) for e in g2} == {"tail"}
+    assert not any(e.name.endswith(".h") for e in g2)
+
+
+def test_two_segments_keep_the_head_tail_names():
+    """2 段时必须沿用 ".h"/part=head 与不带后缀的 tail —— combine 与
     gmm2_tail_by_group 按这两个名字挂钩, audit_edges 与 test_api_smoke 也认它们."""
     res = _seg_run(2)
     g2 = [e for e in res["rank_results"][0]["events"] if e.meta.get("stage") == "gmm2"]
     parts = {str(e.meta.get("part")) for e in g2}
     assert parts == {"head", "tail"}
     assert any(e.name.endswith(".h") for e in g2)
-    assert m.ModelOptions().gmm2_k_segments == 2
 
 
 def test_gmm2_k_segments_bounds_cover_k_without_gap():

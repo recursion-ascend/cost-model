@@ -57,8 +57,12 @@ def test_onchip_declares_no_act_gm_write():
 
 
 def test_onchip_needs_late_binding_to_express_colocation():
+    """静态钉核下共位无从表达 (核号本来各不相同), 直接报错而不是算出一个错数.
+
+    缺省已经是晚绑定, 所以这里显式钉核才触发。
+    """
     with pytest.raises(ValueError, match="late_bind_pools"):
-        _run(act_to_gmm2="onchip")
+        _run(act_to_gmm2="onchip", late_bind_pools=())
 
 
 def _cores_per_mgroup(res):

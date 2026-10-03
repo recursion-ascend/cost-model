@@ -19,7 +19,8 @@ from typing import Callable, Dict, List
 
 from .analysis.stealing import idle_core_stealing
 from .planning.core_assignment import ContiguousBlock, GreedyLeastBusy, StaticRoundRobin
-from .planning.tile_grid import SplitRowsTileGrid, SwizzledTileGrid
+from .planning.tile_grid import (RowMajorTileGrid, SplitRowsTileGrid,
+                                 SwizzledTileGrid)
 from .planning.wave_packing import BalancedWaves, LongestExpertFirst, SequentialGreedy
 from .scheduler.policies import CriticalPathFirst, EarliestStart, PriorityByStage
 
@@ -43,6 +44,7 @@ _REGISTRY: Dict[str, Dict[str, Callable[..., object]]] = {
         "idle_core_stealing": idle_core_stealing,
     },
     "tile_grid": {
+        "row_major": RowMajorTileGrid,
         "swizzled": SwizzledTileGrid,
         "split_rows": SplitRowsTileGrid,
     },

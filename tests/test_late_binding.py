@@ -4,7 +4,7 @@ import pytest
 import moe_cost_model as m
 
 
-def _rank(hidden_dim, local, late, pacing="per_core"):
+def _rank(hidden_dim, local, late, pacing="per_core", k_segments=None):
     W, PER = 5, 64
     rc = [[[0 if s == d else PER for s in range(W)] for _ in range(local)] for d in range(W)]
     tok = sum(rc[d][e][1] for d in range(W) for e in range(local)) // 6
@@ -12,7 +12,9 @@ def _rank(hidden_dim, local, late, pacing="per_core"):
         routing_counts=rc, token_num_per_rank=tok, h=5120, hidden_dim=hidden_dim, aic_num=28,
         costs=m.build_analytical_costs(h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency()),
         p1_override=1, p2_override=1, topk=6,
-        options=m.ModelOptions(late_bind_pools=late, dispatch_pacing=pacing))
+        options=m.ModelOptions(
+            late_bind_pools=late, dispatch_pacing=pacing,
+            **({} if k_segments is None else {"gmm2_k_segments": k_segments})))
     return res["rank_results"][0]
 
 
@@ -36,7 +38,14 @@ def _aic(rank_result):
 
 
 def test_aic_late_binding_is_work_conserving():
-    static, late = _rank(9216, 3, ()), _rank(9216, 3, ("AIC",))
+    """静态发牌会把已就绪的 tile 困在忙核上; 晚绑定把这类空闲清零.
+
+    基线取 GMM2 两段就绪 (MEGAMOE_A8W8 的取值): 本形状上缺省的"等齐一段"结构下,
+    静态轮转恰好也是工作守恒的 (违规 0), 没有可观测的违规就证明不了什么。
+    两段时静态发牌的违规是 10.10 核·us。
+    """
+    static = _rank(9216, 3, (), k_segments=2)
+    late = _rank(9216, 3, ("AIC",), k_segments=2)
     assert _aic(static).avoidable_idle_us > 1.0          # 基线确有违规
     assert _aic(late).avoidable_idle_us < 1e-6           # 晚绑定后为 0
     # 只换"哪个核做", 不增删工作量

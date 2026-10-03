@@ -67,11 +67,14 @@ def test_without_capacities_it_degrades_to_an_upper_bound():
     simulate 的 rank_results["idle_decomposition"] 是带容量表算的; 直接调
     idle_decomposition(evs, role) 不带容量, 会把等槽也算成违规。
     """
-    rr = _run(6, 9216, options=m.ModelOptions(late_bind_pools=LB),
+    # 要让"等槽"真的发生才能看出两种度量的差: 用 MEGAMOE_A8W8 那组编排 (per_core
+    # 配速 + 按核预切 + 两段就绪), 缺省那组在本形状上压根没有等槽的时刻。
+    rr = _run(6, 9216,
+              options=m.MEGAMOE_A8W8.with_options(late_bind_pools=LB),
               scheduling_policy=m.WorkConservingCriticalPath())
     exact = _avoid(rr, "AIC")
     (loose,) = idle_decomposition(rr["events"], "AIC:").values()
-    # 实测 9216/6: 不带容量 133.0, 带容量 0.0 (14336/6 是 439.7 vs 0, 18432/6 是 747.0 vs 0)
+    # 实测 9216/6: 不带容量 132.95, 带容量 0.0
     assert exact < 1e-6 < loose.avoidable_idle_us
 
 
@@ -87,6 +90,9 @@ def test_rule_holds_across_shapes_and_pacings():
 
 
 def test_static_binding_still_reports_real_violations():
-    """静态发牌的违规是真的 —— 修度量不能把它一起抹掉."""
-    rr = _run(6, 9216)
+    """静态发牌的违规是真的 —— 修度量不能把它一起抹掉.
+
+    静态发牌是某实现的分核方式 (缺省已是晚绑定), 所以这里显式给 ()。
+    """
+    rr = _run(6, 9216, options=m.ModelOptions(late_bind_pools=(), gmm2_k_segments=2))
     assert _avoid(rr, "AIC") > 1.0
