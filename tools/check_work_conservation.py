@@ -33,8 +33,15 @@ ROLES = ("AIC:", "AIV0:", "AIV1:")
 def report(tag, rank_result, roles, n_seg):
     rows = []
     worst = 0.0
+    # 用 simulate 算好的那份: 它带了容量表, 能判"这个空闲核的槽还有没有余量"。
+    # 自己调 idle_decomposition(events, role) 不带容量会退化成上界 (把等 UB 槽、
+    # 等跨卡通道也算成违规)。
+    ready = rank_result.get("idle_decomposition") or {}
     for role in roles:
-        for rank_tag, rep in sorted(idle_decomposition(rank_result["events"], role).items()):
+        got = {k.rsplit(".", 1)[0] if "." in k else "": v for k, v in ready.items()
+               if k.rstrip(":").endswith(role.rstrip(":"))}
+        for rank_tag, rep in sorted(got.items()) or sorted(
+                idle_decomposition(rank_result["events"], role).items()):
             rows.append((f"{rank_tag}.{role.rstrip(':')}", rep))
             worst = max(worst, rep.avoidable_idle_us)
     print(f"\n=== {tag} ===")

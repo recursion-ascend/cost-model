@@ -41,7 +41,7 @@ res_ready = max((resource_free.get(r, 0.0) for r in ev.resources), default=0.0)
 本文早期版本把 ② 列为空闲原因并与 ⑤ 并称, 那是错的: 让核空着的是 ⑤ (活在别的核上, 这个
 核没分到), ② 只是那个活为什么还没做完。释放是**即时**的 (`resource_free[r] = end`, 无延迟)。
 
-### ③ 计数信号量不足
+### ③ 计数信号量不足 (会造成真空闲, 但**不是**违规)
 
 ```python
 ok, t_cap = capacity_feasible(ev, t)
@@ -102,6 +102,31 @@ end_by_name[d] + edge_latency(ev, d) > t
 **真正的违规**是第三种: 有就绪的活、这个核空着, 但那个活被绑在**别的忙核**上 —— 即条件 ⑤。
 `analysis/idle.py` 把它单独量出来叫 `avoidable_idle_us`。
 
+### 这个量怎么才算准 (2026-10-03 修)
+
+"就绪"必须是"真能动", 不只是"依赖齐了"。窗口起点取四者中最晚:
+
+| | 来源 | 精度 |
+| --- | --- | --- |
+| ① 依赖齐备 | `dependency_ready_us` | 精确 |
+| ③ 计数信号量可准入 | `ScheduledEvent.actionable_us` (引擎从依赖齐备起算的容量可行点) | 精确 |
+| ⑦ 非核独占资源空出 | 从排好的时间线反推 `DISPATCH_COMM` 的占用区间 | 精确 |
+| 并且 | **这个空闲核**自己的按核槽要有余量 (核空着不等于槽空着) | 精确, 需 `capacities` |
+
+最后一条最容易漏: GMM1 跑完、配对 ACT 还在读 UB 时, AIC 空着但 UB 槽没还, 新的 GMM1
+落不进来。所以要逐个空闲核问"它容得下这个活吗", 一个都放不下就是 forced。
+
+不这么算的虚报量 (实测, 核·us):
+
+| 配置 | 修前 | 修后 |
+| --- | ---: | ---: |
+| `serialize_dispatch_comm` + 晚绑定 (AIV1) | 5814.8 | **0** |
+| 晚绑定 + 关键路径, 9216/3 (AIC) | 262.8 | **0** |
+| 晚绑定 + 关键路径, 18432/6 (AIC) | 747.0 | **0** |
+
+⚠️ `rank_results["idle_decomposition"]` 是带容量表算的。直接调
+`idle_decomposition(events, role)` **不传 capacities** 会退化成上界。
+
 ---
 
 ## 一条常见的误解
@@ -145,6 +170,7 @@ GMM2 的 K 轴就是 GMM1 切分的那个 N 轴 (`k_gmm2 = hidden_dim / activati
 | 条件 | 消除手段 | 状态 |
 | :---: | --- | --- |
 | ⑤ | `ModelOptions.late_bind_pools=("AIC","AIV1")` — 事件只声明要一个 AIC/AIV1, 调度器在**派发时刻**绑最早空闲的成员 | 已实现, `avoidable` 归 0 |
+| ⑤ 的选核 | 池化事件按核算出各自的"最早能开始" (核空闲 ∧ 该核槽可用), 取最小的那个核 —— 两个约束分别取最小会指向不同的核, 算出的 start 没有单个核真能满足 | 已实现 |
 | ⑤ 的顺序代价 | `scheduling_policy=WorkConservingCriticalPath()` — 零空闲之上按剩余关键链打破平手, 消掉纯贪心把关键 tile 挤后的回退 | 已实现 |
 | ① 波间 | `dispatch_pacing="wave"` / `"none"` — 放开"下一波 dispatch 等本核上一波 combine"这条配速边 | 已实现 |
 | ① 中段 | `gmm2_k_segments` 调细 | 已实现 |

@@ -287,11 +287,16 @@ class A8W8WaveCostModel:
                 for cname, nbytes, _rate in ev.channel_bytes:
                     tr[cname] = tr.get(cname, 0.0) + float(nbytes)
 
+        # 全部 rank 的容量表 (空闲分解要用它判"这个空闲核的槽还有余量吗")
+        all_caps: Dict[str, int] = {}
+        for _evs, caps_, _pools in groups:
+            all_caps.update(caps_)
+
         results: Dict[int, Dict[str, object]] = {}
         for shape in shapes:
             rank = shape.rank_id
             evs = [e for e in scheduled if e.meta.get("rank") == rank]
-            results[rank] = self._postprocess(shape, evs)
+            results[rank] = self._postprocess(shape, evs, all_caps)
             results[rank]["traffic_bytes"] = dict(sorted(traffic[rank].items()))
         return results
 
@@ -317,7 +322,8 @@ class A8W8WaveCostModel:
         return len(set(ranks)) == len(ranks)
 
     def _postprocess(self, shape: MegaMoeShape,
-                     scheduled: List[ScheduledEvent]) -> Dict[str, object]:
+                     scheduled: List[ScheduledEvent],
+                     capacities: Optional[Dict[str, int]] = None) -> Dict[str, object]:
         waves = self.waves(shape)
         resource_busy: Dict[str, float] = {}
         resource_first: Dict[str, float] = {}
@@ -356,7 +362,8 @@ class A8W8WaveCostModel:
         from .analysis.idle import idle_decomposition
         idle_reports = {}
         for role in ("AIC:", "AIV0:", "AIV1:"):
-            for rank_tag, rep in idle_decomposition(scheduled, role).items():
+            for rank_tag, rep in idle_decomposition(
+                    scheduled, role, capacities=capacities).items():
                 idle_reports[f"{rank_tag}.{role.rstrip(':')}" if rank_tag
                              else role.rstrip(":")] = rep
 

@@ -110,8 +110,17 @@ class ScheduledEvent:
     critical_reason: str
     order: int
     meta: Dict[str, object]
-    # L1 归因: 计数信号量等待
+    # L1 归因: 计数信号量等待 (从探测起点算, 已含等核那一段之后的推迟)
     capacity_wait_us: float = 0.0
+    # "真能动"的最早时刻: >= dependency_ready_us 且计数信号量已可准入。
+    # **不含"自己的资源空出来"** —— 那一关由 analysis/idle.py 判, 它正是
+    # work-conservation 要抓的那种等待。非核独占资源 (DISPATCH_COMM) 也由 idle.py
+    # 从排程反推 (它只需要排好的时间线)。
+    actionable_us: float = 0.0
+    # 绑定后的计数信号量 token (占/还), 供 analysis 判"某个空闲核能不能接这个活":
+    # 按核的 token 要换成那个核的名字再查余量。
+    acquires: Tuple[Tuple[str, int], ...] = ()
+    releases: Tuple[Tuple[str, int], ...] = ()
 
 
 def edge_latency(ev: "Event", dep: str) -> float:

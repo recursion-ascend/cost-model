@@ -17,12 +17,16 @@
 from __future__ import annotations
 
 import heapq
+import re
 from bisect import bisect_right, insort
 from collections import defaultdict
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from .events import (Event, RestructureContext, ScheduledEvent,
                      edge_latency, pool_key)
+
+#: 按核 token 的核号后缀 ("R0.UB:gmm1act:c7" 里的 "c7")
+_TOK_CORE_SUFFIX = re.compile(r"c\d+$")
 
 
 class _TimeCounter:
@@ -125,22 +129,68 @@ class MultiResourceScheduler:
         def _res_ready(ev: Event) -> float:
             """事件的资源就绪时刻. 具体资源取 max (全部都要空闲);
             占位符取候选里的 min (任一成员空闲即可) —— 这就是晚绑定的全部语义差别。"""
+            pick = pool_pick.get(ev.name)
             t = 0.0
             for r in ev.resources:
                 cand = _candidates(ev, r)
                 if len(cand) == 1 and pool_key(r) is None:
                     t = max(t, resource_free.get(cand[0], 0.0))
+                elif pick is not None and pool_key(r) is not None:
+                    # 已选定核: 用它的空闲时刻, 与容量准入/绑定保持同一个核
+                    same = [c for c in cand if _core_of(c) == pick]
+                    t = max(t, min(resource_free.get(c, 0.0) for c in (same or cand)))
                 else:
                     t = max(t, min(resource_free.get(c, 0.0) for c in cand))
             return t
 
-        def _bind(ev: Event) -> Tuple[str, ...]:
-            """派发时刻把占位符绑定到最早空闲的候选成员 (并列时取名字序, 保证确定性)."""
+        def _pick_core(ev: Event, t_dep: float) -> Optional[str]:
+            """在候选核里选**能最早开始**的那一个.
+
+            为什么要一次选定: 核空闲时刻与按核槽余量是两个约束, 分别取"最早空的核"和
+            "最早有槽的核"可能指向不同的核, 于是算出的 start 没有任何单个核真能满足。
+            这里按核算出各自的 max(依赖, 该核空闲, 该核槽可用), 再取最小的那个核。
+            """
+            pooled = None
+            for r in ev.resources:
+                if pool_key(r) is not None:
+                    pooled = r
+                    break
+            if pooled is None:
+                return None
+            cand = _candidates(ev, pooled)
+            best_t, best_c = float("inf"), None
+            for member in cand:
+                c = _core_of(member)
+                t = max(t_dep, resource_free.get(member, 0.0))
+                for res0, k in ev.acquires:
+                    if res0.endswith("c*"):
+                        t = max(t, _earliest_ok(res0[:-1] + c, k, t))
+                if t < best_t or (t == best_t and (best_c is None or member < best_c)):
+                    best_t, best_c = t, member
+            return _core_of(best_c) if best_c is not None else None
+
+        def _bind(ev: Event, t: Optional[float] = None) -> Tuple[str, ...]:
+            """派发时刻把占位符绑定到最早空闲的候选成员 (并列时取名字序, 保证确定性).
+
+            给了 t 就先筛掉"该核的按核信号量在 t 时刻没余量"的候选 —— 否则会绑到一个
+            放不下这个活的核上, 与 capacity_feasible 的判断不一致。
+            """
             out = []
             for r in ev.resources:
                 cand = _candidates(ev, r)
-                out.append(cand[0] if len(cand) == 1 else
-                           min(cand, key=lambda c: (resource_free.get(c, 0.0), c)))
+                if len(cand) == 1:
+                    out.append(cand[0])
+                    continue
+                pick = pool_pick.get(ev.name)
+                if pick is not None:
+                    same = [c for c in cand if _core_of(c) == pick]
+                    if same:
+                        cand = same
+                elif t is not None:
+                    ok = [c for c in cand if _slots_ok(ev, _core_of(c), t)]
+                    if ok:
+                        cand = ok
+                out.append(min(cand, key=lambda c: (resource_free.get(c, 0.0), c)))
             return tuple(out)
 
         def _remap_tokens(toks, core: Optional[str]):
@@ -149,29 +199,29 @@ class MultiResourceScheduler:
                 return tuple(toks)
             return tuple((t[:-1] + core if t.endswith("c*") else t, k) for t, k in toks)
 
-        def _tok_core(ev: Event) -> Optional[str]:
-            """本事件的 "c*" token 该落到哪个核号上.
+        #: 池化事件已选定的核号 (事件名 -> 核号). 与 tbase 同生命周期: _push_ready 时
+        #: 重算。选定后 res_ready / 容量准入 / _bind 全用它, 三者因此必然一致。
+        pool_pick: Dict[str, str] = {}
 
-            容量准入发生在绑核**之前**, 所以这里要先算出 _bind 会选哪个核 —— 两者
-            读同一份 resource_free, 同一轮选择里没有提交, 因此结论一致。
-            共位事件 (ACT 跟随 GMM1) 直接取锚点已绑定的核号。
+        def _tok_cores(ev: Event) -> Tuple[str, ...]:
+            """本事件的 "c*" token 可以落到哪些核号上 —— 与它的核资源候选一致.
 
-            代价是保守: 最早空闲的那个核若恰好没有空槽, 本事件会等它, 而不是换到
-            另一个有空槽的核去。不会违反容量, 只会偶尔晚开始。
+            共位事件 (ACT 跟随 GMM1) 只有锚点那一个核号可选。
+            容量准入发生在绑核之前, 所以这里给出**全部**候选, 由 capacity_feasible
+            判"任一个有余量即可", 再由 _bind(ev, start) 绑到确实有余量的那个。
             """
             if not has_pools:
-                return None
+                return ()
             anchor = ev.colocate_with
             if anchor is not None and anchor in bound_core:
-                return bound_core[anchor]
-            br = _bind(ev)
-            return _core_of(br[0]) if br else None
-
-        def _tok(ev: Event, res: str) -> str:
-            if not has_pools or not res.endswith("c*"):
-                return res
-            core = _tok_core(ev)
-            return res[:-1] + core if core is not None else res
+                return (bound_core[anchor],)
+            pick = pool_pick.get(ev.name)
+            if pick is not None:
+                return (pick,)
+            for r in ev.resources:
+                if pool_key(r) is not None:
+                    return tuple(_core_of(c) for c in _candidates(ev, r))
+            return ()
 
         has_pools = bool(pool_members)
 
@@ -272,9 +322,28 @@ class MultiResourceScheduler:
                            (tb, ev.order, name, gen_counter[0]))
 
         def _ledger_written(ledger: str) -> None:
-            """台账有新写入: 引用它的已探测事件结果失效, 退回待探测."""
-            for n in ledger_watch.get(ledger, ()):
-                if n in resolved:
+            """台账有新写入: 引用它的已探测事件结果失效, 退回待探测.
+
+            按核槽的余量变了, 最优核也可能换人 —— 所以同时重选并重算 t_base。
+
+            注意键的两种形态: 就绪登记用的是**占位名** (UB:gmm1act:c*, 来自 Event),
+            而写入通知用的是**绑定名** (UB:gmm1act:c7, 来自提交路径)。只查绑定名会让
+            watch 永不触发 —— 等槽的事件再也不被重新探测, 表现为假的 capacity deadlock。
+            """
+            watchers = dict(ledger_watch.get(ledger, ()))
+            core = _TOK_CORE_SUFFIX.search(ledger)
+            if core is not None:
+                watchers.update(ledger_watch.get(ledger[: core.start()] + "c*", ()))
+            for n in list(watchers):
+                if n not in ready:
+                    continue
+                if has_pools:
+                    pick = _pick_core(by_name[n], dep_ready_at[n])
+                    if pick is not None:
+                        pool_pick[n] = pick
+                    tb = max(dep_ready_at[n], _res_ready(by_name[n]))
+                    _push_ready(n, by_name[n], tb)
+                elif n in resolved:
                     _push_ready(n, by_name[n], tbase[n])
 
         def _enter_ready(name: str) -> None:
@@ -282,8 +351,14 @@ class MultiResourceScheduler:
             dep_ready = max(
                 (end_by_name[d] + edge_latency(ev, d) for d in ev.deps), default=0.0
             )
-            res_ready = _res_ready(ev) if has_pools else max(
-                (resource_free.get(r, 0.0) for r in ev.resources), default=0.0)
+            if has_pools:
+                pick = _pick_core(ev, dep_ready)
+                if pick is not None:
+                    pool_pick[name] = pick
+                res_ready = _res_ready(ev)
+            else:
+                res_ready = max((resource_free.get(r, 0.0) for r in ev.resources),
+                                default=0.0)
             ready[name] = None
             dep_ready_at[name] = dep_ready
             # 占位资源要登记到**全部**候选成员上: 任一成员空出来都应触发重算 t_base。
@@ -313,8 +388,15 @@ class MultiResourceScheduler:
             """resource 的空闲时刻已变: 重算占用它的就绪事件的 t_base."""
             for n in list(ready_by_res.get(resource, ())):
                 ev_n = by_name[n]
-                res_ready = _res_ready(ev_n) if has_pools else max(
-                    (resource_free.get(r, 0.0) for r in ev_n.resources), default=0.0)
+                if has_pools:
+                    # 核的空闲时刻变了 -> 最优核可能换人, 重选 (三处用同一个选择)
+                    pick = _pick_core(ev_n, dep_ready_at[n])
+                    if pick is not None:
+                        pool_pick[n] = pick
+                    res_ready = _res_ready(ev_n)
+                else:
+                    res_ready = max((resource_free.get(r, 0.0) for r in ev_n.resources),
+                                    default=0.0)
                 tb = max(dep_ready_at[n], res_ready)
                 if tb != tbase[n]:
                     _push_ready(n, ev_n, tb)
@@ -397,22 +479,46 @@ class MultiResourceScheduler:
             r = rel_ctr.get(res)
             return (a.count_le(t) if a else 0) - (r.count_le(t) if r else 0)
 
-        def capacity_feasible(ev: Event, t: float) -> Tuple[bool, float]:
-            """t 时刻容量是否够; 不够时沿未来归还时刻找最早可行点."""
+        def _earliest_ok(res: str, k: int, t: float) -> float:
+            """>= t 的最早时刻, res 的在途量容得下 k; 没有则 +inf."""
+            cap = capacities.get(res)
+            if cap is None:
+                return t
+            if outstanding(res, t) + k <= cap:
+                return t
+            times = rel_times.get(res, ())
+            for i in range(bisect_right(times, t), len(times)):
+                te = times[i]
+                if outstanding(res, te) + k <= cap:
+                    return te
+            return float("inf")
+
+        def _slots_ok(ev: Event, core: str, t: float) -> bool:
+            """把 ev 放到 core 上, t 时刻它的按核 token 还有余量吗."""
             for res0, k in ev.acquires:
-                res = _tok(ev, res0)
-                if outstanding(res, t) + k <= capacities[res]:
+                if not res0.endswith("c*"):
                     continue
-                times = rel_times.get(res, ())
-                ok_t = float("inf")
-                for i in range(bisect_right(times, t), len(times)):
-                    te = times[i]
-                    if outstanding(res, te) + k <= capacities[res]:
-                        ok_t = te
-                        break
+                if _earliest_ok(res0[:-1] + core, k, t) > t + 1e-12:
+                    return False
+            return True
+
+        def capacity_feasible(ev: Event, t: float) -> Tuple[bool, float]:
+            """t 时刻容量是否够; 不够时沿未来归还时刻找最早可行点.
+
+            占位 token ("...c*") 的语义是"**任一**候选核有余量即可" —— 取各核里最早
+            可行的那个时刻。若按单个核解析, 所有就绪事件会一起撞在同一个核上,
+            而那个核的归还时刻可能还没登记, 于是全体不可行 -> 假死锁。
+            """
+            cores = _tok_cores(ev)
+            for res0, k in ev.acquires:
+                if res0.endswith("c*") and cores:
+                    ok_t = min((_earliest_ok(res0[:-1] + c, k, t) for c in cores),
+                               default=float("inf"))
+                else:
+                    ok_t = _earliest_ok(res0, k, t)
                 if ok_t == float("inf"):
                     return False, float("inf")
-                t = ok_t
+                t = max(t, ok_t)
             return True, t
 
         def probe(ev: Event, t_base: float) -> Tuple[float, float, float]:
@@ -527,10 +633,16 @@ class MultiResourceScheduler:
             dep_ready = (
                 max(end_by_name[d] + edge_latency(ev, d) for d in ev.deps) if ev.deps else 0.0
             )
+            # "真能动"的最早时刻: 从依赖齐备起算的容量可行点 (不是从 t_base 起算的
+            # capacity_wait —— 后者已经把"等自己的核"那一段算在前面了, 加到 dep_ready
+            # 上会严重低估)。台账此刻还没写入本事件, 所以这里看到的正是它当初面对的
+            # 状态。供 analysis/idle.py 判"这个活到底能不能动"。
+            _, t_act = capacity_feasible(ev, dep_ready) if ev.acquires else (True, dep_ready)
+            actionable = min(max(dep_ready, t_act), start)
             # L3 晚绑定: 派发时刻才把占位资源绑到具体成员。之后一律用 bound_res,
             # 不再碰 ev.resources —— ScheduledEvent 里记的也是绑定后的名字, 这样
             # 下游 (利用率、空闲分解、stealing) 看到的都是真实落核。
-            bound_res = _bind(ev) if has_pools else ev.resources
+            bound_res = _bind(ev, start) if has_pools else ev.resources
             if has_pools and bound_res:
                 bound_core[name] = _core_of(bound_res[0])
             once_us = 0.0
@@ -590,6 +702,9 @@ class MultiResourceScheduler:
                     order=ev.order,
                     meta=dict(ev.meta, once_per_core_us=once_us) if once_us else dict(ev.meta),
                     capacity_wait_us=cap_wait,
+                    actionable_us=actionable,
+                    acquires=acq,
+                    releases=rel,
                 )
             )
 

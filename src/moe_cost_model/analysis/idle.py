@@ -14,18 +14,37 @@ GMM1 还在等 dispatch_ready (AIV1 产出), 所以开头那段**所有 AIC 必�
   avoidable 此刻**有**已就绪未开始的事件, 却还有核空着 → work-conservation 违规,
             换 tile→核 的绑定方式 (如派发时刻晚绑定) 就能回收
 
-avoidable 是**上界**
---------------------
-它只检查"有就绪的活 + 有空核", 没有检查那个活是否真能落到那个空核上:
-  - AIC/AIV 共位: GMM1 落核 X 时 ACT 必须落 AIV0:X, 而 AIV0:X 可能正忙
-  - 队列计数信号量 (Q:aic:c*) 可能另有约束
-所以真实可回收量 <= avoidable_idle_us。把它当"值不值得动绑定方式"的量级判断, 不要
-当承诺。
+"已就绪"必须是"真能动", 不只是"依赖齐了"
+--------------------------------------
+一个事件的前置虽然跑完了, 它仍可能被别的物理约束挡住 —— 那种等待和"依赖未完成"同类,
+不该算成 work-conservation 违规。调度器的准入有四关, 这里逐一对应:
+
+  ① 依赖齐备          dependency_ready_us
+  ②  自己的核空闲      ← **这一关就是本模块要抓的**: 核空着却因为绑定挪不过去
+  ③ 计数信号量够      ScheduledEvent.actionable_us (如 UB:gmm1act 的槽、QUEUE:mte_aic 的 L1 槽)
+  ⑦ 非核独占资源空闲   如 DISPATCH_COMM (跨卡通道一次只许一个核用)
+
+所以"就绪未开始"的窗口起点取 **actionable_us** = ①③⑦ 三者中最晚的那个, 而不是 ①。
+不这么算的话, 等 UB 槽、等跨卡通道都会被报成"有活不干" —— 实测 serialize_dispatch_comm
+下虚报 5814.8 核·us, UB 深度改成容量后又虚报 262.8 核·us。
+
+(信道那一关 ④ 已随信道模型于 2026-10-03 一起去掉。)
+
+avoidable 仍是**上界**
+----------------------
+①③ 由引擎精确给出 (actionable_us), ⑦ 从排好的时间线精确反推。但共位约束没有建模
+进来: GMM1 落核 X 时 ACT 必须落 AIV0:X, 而 AIV0:X 可能正忙。所以真实可回收量
+<= avoidable_idle_us。
 """
 from __future__ import annotations
 
+import re
+from bisect import bisect_right
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+
+#: 按核的信号量 token 后缀 ("R0.UB:gmm1act:c7" 的 "c7")
+_TOK_CORE = re.compile(r"c\d+$")
 
 #: 时间比较的容差. 调度器的时刻是浮点, 相邻事件的 end 与下一个 start 常常只差 ulp。
 _EPS = 1e-9
@@ -76,22 +95,125 @@ def _split_rank(resource: str) -> Tuple[str, str]:
     return "", resource
 
 
+def _free_at_or_after(ivs: Sequence[Tuple[float, float]], t0: float,
+                      own: Tuple[float, float]) -> float:
+    """>= t0 的最早时刻, 该资源不被**别人**占用 (排除本事件自己的那一段)."""
+    t = t0
+    for s, e in ivs:                      # ivs 按 s 升序
+        if (s, e) == own:
+            continue
+        if s - _EPS <= t < e - _EPS:
+            t = e
+    return t
+
+
+def _actionable_us(e, pool_res: str, res_busy: Dict[str, List[Tuple[float, float]]],
+                   resource_prefix: str) -> float:
+    """事件"真能动"的最早时刻: 依赖齐 + 信号量可准入 + 非核独占资源空出.
+
+    不含"自己的核空出来"—— 那一关正是本模块要抓的违规。
+    """
+    # ①③ 由引擎给出: actionable_us = 从依赖齐备起算的容量可行点。
+    #     不能用 capacity_wait_us 加在 dependency_ready_us 上 —— 它是从探测起点
+    #     (已含"等自己的核") 算的, 那样会严重低估 (实测 20.7 vs 真值 71.1)。
+    t = max(e.dependency_ready_us, getattr(e, "actionable_us", 0.0) or 0.0)
+    # ⑦ 非核独占资源 (DISPATCH_COMM 等): 精确算
+    own = (e.start_us, e.end_us)
+    for r in e.resources:
+        if r == pool_res or _split_rank(r)[1].startswith(resource_prefix):
+            continue
+        t = max(t, _free_at_or_after(res_busy.get(r, ()), t, own))
+    # 不可能晚于它实际开始的时刻
+    return min(t, e.start_us)
+
+
+class _SemLedger:
+    """从排好的时间线反推每个计数信号量 token 的在途量.
+
+    一个 token 可以**跨事件**持有 (UB:gmm1act 由 GMM1 取、配对 ACT 还), 所以必须按
+    "谁在何时取、谁在何时还"重建, 不能按单个事件的区间算。
+    """
+
+    def __init__(self, scheduled: Sequence):
+        delta: Dict[str, Dict[float, int]] = {}
+        for e in scheduled:
+            for tok, k in getattr(e, "acquires", ()):
+                delta.setdefault(tok, {})[e.start_us] = \
+                    delta.setdefault(tok, {}).get(e.start_us, 0) + k
+            for tok, k in getattr(e, "releases", ()):
+                delta.setdefault(tok, {})[e.end_us] = \
+                    delta.setdefault(tok, {}).get(e.end_us, 0) - k
+        self._t: Dict[str, List[float]] = {}
+        self._c: Dict[str, List[int]] = {}
+        for tok, d in delta.items():
+            ts = sorted(d)
+            run, acc = 0, []
+            for t in ts:
+                run += d[t]
+                acc.append(run)
+            self._t[tok], self._c[tok] = ts, acc
+
+    def outstanding(self, tok: str, t: float) -> int:
+        ts = self._t.get(tok)
+        if not ts:
+            return 0
+        i = bisect_right(ts, t + _EPS) - 1
+        return self._c[tok][i] if i >= 0 else 0
+
+
+def _fits_on(e, core_res: str, t: float, sem: "_SemLedger",
+             capacities: Mapping[str, int]) -> bool:
+    """把 e 放到 core_res 这个核上, t 时刻它的按核信号量还有余量吗.
+
+    这是"空闲核能不能接这个活"的判据。按核的 token 要先换成**那个核**的名字:
+    一个核空着不等于它的 UB 槽空着 —— GMM1 跑完、配对 ACT 还在读 UB 时, 核空着
+    但槽没还, 新的 GMM1 落不进来。
+    """
+    # 资源名是 "R0.AIC:27" (冒号分核号), 按核 token 是 "R0.UB:gmm1act:c27" (c 前缀)
+    num = core_res.rsplit(":", 1)[-1]
+    if not num.isdigit():
+        return True
+    suffix = "c" + num
+    for tok, k in getattr(e, "acquires", ()):
+        tc = _TOK_CORE.search(tok)
+        probe = (tok[: tc.start()] + suffix) if tc else tok
+        cap = capacities.get(probe)
+        if cap is None:
+            continue                      # 没声明容量 = 不构成约束
+        if sem.outstanding(probe, t) + k > cap:
+            return False
+    return True
+
+
 def idle_decomposition(scheduled: Sequence, resource_prefix: str = "AIC:",
                        horizon_us: Optional[float] = None,
                        max_segments: int = 64,
-                       max_waiting_sample: int = 4) -> Dict[str, IdleReport]:
+                       max_waiting_sample: int = 4,
+                       capacities: Optional[Mapping[str, int]] = None) -> Dict[str, IdleReport]:
     """按 rank 分组给出资源池的空闲分解.
 
     scheduled:        ScheduledEvent 序列 (rank_results[r]["events"])
     resource_prefix:  池的资源前缀, "AIC:" / "AIV0:" / "AIV1:"
     horizon_us:       统计区间上界; 缺省取**传入全部事件**的最大 end_us (≈ dag_end)
     max_segments:     最多收集几段 avoidable (只影响 segments, 不影响统计量)
+    capacities:       计数信号量容量表 (simulate 传入)。给了才能判"**这个**空闲核
+                      的槽还有没有余量" —— 不给则退化成"存在某处可准入"的上界。
     """
     # horizon 缺省取**传入的全部事件**的最大 end_us (≈ dag_end), 不是池内事件的 ——
     # 尾段 (epilogue/unpermute 在 AIV 上) 期间 AIC 确实没活干, 那段空闲属于 forced,
     # 工程上要算进核利用率里。只按池内事件取 horizon 会把尾段整段藏掉。
     all_end = max((e.end_us for e in scheduled if getattr(e, "end_us", None) is not None),
                   default=0.0)
+    # 每个资源的占用区间 (含非核资源如 DISPATCH_COMM), 供 actionable 计算 ⑦
+    res_busy: Dict[str, List[Tuple[float, float]]] = {}
+    for e in scheduled:
+        if e.end_us - e.start_us <= _EPS:
+            continue
+        for r in e.resources:
+            res_busy.setdefault(r, []).append((e.start_us, e.end_us))
+    for ivs in res_busy.values():
+        ivs.sort()
+    sem = _SemLedger(scheduled) if capacities else None
     pools: Dict[str, List[str]] = {}
     members: Dict[str, List] = {}       # rank -> 该池的事件
     for e in scheduled:
@@ -117,10 +239,15 @@ def idle_decomposition(scheduled: Sequence, resource_prefix: str = "AIC:",
             out[rank] = IdleReport(pool_sorted, 0.0, 0.0, 0.0, 0.0, 0.0, ())
             continue
 
-        # 时间断点: 事件起止 + 就绪时刻 (就绪时刻会改变"有无就绪活"的真值)
+        # actionable: 依赖齐 + 信号量可准入 + 非核独占资源空出, 三者取最晚
+        actionable: Dict[str, float] = {
+            e.name: _actionable_us(e, hit_res, res_busy, resource_prefix)
+            for e, hit_res in evs}
+
+        # 时间断点: 事件起止 + actionable 时刻 (它会改变"有无能动的活"的真值)
         pts = {0.0, horizon}
         for e, _ in evs:
-            pts.update((e.start_us, e.end_us, e.dependency_ready_us))
+            pts.update((e.start_us, e.end_us, actionable[e.name]))
         marks = sorted(t for t in pts if 0.0 <= t <= horizon)
 
         # 事件在 [start, end) 占资源; 在 [dependency_ready, start) 处于"就绪未开始"
@@ -136,8 +263,9 @@ def idle_decomposition(scheduled: Sequence, resource_prefix: str = "AIC:",
                 continue
             starts.setdefault(e.start_us, []).append((e, res))
             ends.setdefault(e.end_us, []).append((e, res))
-            if e.start_us - e.dependency_ready_us > _EPS:
-                ready_delta[e.dependency_ready_us] = ready_delta.get(e.dependency_ready_us, 0) + 1
+            a = actionable[e.name]
+            if e.start_us - a > _EPS:
+                ready_delta[a] = ready_delta.get(a, 0) + 1
                 ready_delta[e.start_us] = ready_delta.get(e.start_us, 0) - 1
 
         busy_res: set = set()
@@ -161,14 +289,22 @@ def idle_decomposition(scheduled: Sequence, resource_prefix: str = "AIC:",
             if not idle:
                 continue
             core_us = len(idle) * dt
+            placeable = ()
             if ready_cnt > 0:
+                pend = [e for e, _ in evs
+                        if actionable[e.name] <= t + _EPS < e.start_us]
+                if sem is None:
+                    placeable = tuple(e.name for e in pend)
+                else:
+                    # 逐个空闲核问: 它的按核槽还容得下这个活吗? 一个都放不下 -> forced
+                    placeable = tuple(
+                        e.name for e in pend
+                        if any(_fits_on(e, r, t, sem, capacities) for r in idle))
+            if placeable:
                 avoidable += core_us
                 if len(segs) < max_segments:
-                    waiting = tuple(
-                        e.name for e, _ in evs
-                        if e.dependency_ready_us <= t + _EPS < e.start_us
-                    )[:max_waiting_sample]
-                    segs.append(IdleSegment(t, t_next, tuple(idle), waiting))
+                    segs.append(IdleSegment(t, t_next, tuple(idle),
+                                            placeable[:max_waiting_sample]))
             else:
                 forced += core_us
 
