@@ -233,11 +233,28 @@ self._event("epilogue.unpermute",     (), unpermute_bytes / BW_UNPERMUTE_AGG, ..
 | 9216 / 6 | 362.57 | 458.86 (+26.6%) | 402.59 (+11.0%) |
 | 18432 / 6 | 632.79 | 678.57 (+7.2%) | 716.01 (+13.2%) |
 
-另外顺带算出一条**物理不可能**的组合: `("stage",)` 与 `gmm1_activation_depth >= 1`
-不能同用。stage 栅栏要求全部 GMM1 先于任何 ACT 完成, 而 UB 深度 1 时核 X 的第二个
-GMM1 要等它第一个 ACT 还槽, 那个 ACT 又要等全部 GMM1 —— 真死锁。分段式执行里 GMM1
-本来就该走 L0C->GM (kernel 有 `Gmm1AicMmadTileToGmGeneric` 这条路), 那时 UB 不是
-交接缓冲。模型现在直接报这个原因, 而不是报 "capacity deadlock"。
+### stage 栅栏与 UB 槽的冲突: 范围是**一个波内**, 而且**有条件**
+
+`("stage",)` 的栅栏是按波建的 (`barrier.w{w}.{stage}`), 所以冲突只在一个波内成立:
+
+    该波第 depth+1 个 GMM1 等 ACT 还 UB 槽
+      -> 那个 ACT 等 barrier.w{w}.activation
+      -> 那道栅栏等该波**全部** GMM1, 包括第 depth+1 个        => 成环
+
+判据是"**某个核在同一波里的 GMM1 tile 数 > UB 深度**", 不是"只要用了 UB 就不行":
+
+| 配置 (9216/3, 28 核, 每专家每 m-group 18 个 n-tile) | 单核单波最多 tile | 结果 |
+| --- | ---: | --- |
+| 波宽 1, 深度 1 | 1 | 可行, dag_end 230.58 |
+| 波宽 2, 深度 1 | 2 | **死锁** |
+| 波宽 2, 深度 2 | 2 | 可行, dag_end 235.81 |
+| 波宽 2, 深度 0 | 2 | 可行, dag_end 226.38 |
+
+晚绑定下调度器能在池内摊平, 所以下界取 `ceil(该波 tile 数 / 核数)`。
+
+模型按这个条件判并给出三条出路 (深度 0 / 调小波宽 / 加大深度), 而不是报
+"capacity deadlock"。深度 0 的物理依据: 分段式执行里 GMM1 本来就该走 L0C->GM
+(kernel 有 `Gmm1AicMmadTileToGmGeneric` vs `...ToUbGeneric` 两条路), UB 不是交接缓冲。
 
 同时把**逐核排空节点**从 84 个 (28 核 x 3 引擎, 复刻 `WAIT_GMM_DRAIN`) 换成**一个**
 全核排空栅栏。对尾段完全等价 (尾段本来依赖全部 84 个, 每个又依赖本核该引擎的全部事件,

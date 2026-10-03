@@ -30,13 +30,17 @@ STAGE_ORDER: Tuple[str, ...] = ("dispatch", "gmm1", "activation", "gmm2", "combi
 KINDS: Tuple[str, ...] = ("wave", "stage")
 
 
-def apply_barriers(events: List[Event], kinds: Sequence[str]) -> List[Event]:
+def apply_barriers(events: List[Event], kinds: Sequence[str], *,
+                   ub_depth: int = 0, aic_num: int = 0,
+                   pooled: bool = False) -> List[Event]:
     """就地给 events 加栅栏, 返回新的事件表 (含栅栏节点).
 
     kinds:
       "wave"  每两个相邻波之间一道全核栅栏 —— 下一波的任何事件都等上一波全做完
-      "stage" 波内每个 stage 之后一道 (dispatch -> gmm1 -> activation -> gmm2 -> combine)
+      "stage" **波内**每个 stage 之后一道 (dispatch -> gmm1 -> activation -> gmm2 -> combine)
     两者可同时给。空序列 = 不加 (缺省, 即现有的逐核推进)。
+
+    ub_depth / aic_num / pooled 只用于 "stage" 的可行性判定, 见 _check_stage_feasible。
     """
     kinds = tuple(kinds)
     bad = sorted(set(kinds) - set(KINDS))
@@ -74,20 +78,7 @@ def apply_barriers(events: List[Event], kinds: Sequence[str]) -> List[Event]:
                 e.deps = tuple(e.deps) + (name,)
 
     if "stage" in kinds:
-        # stage 栅栏要求"所有 GMM1 跑完才开始任何 ACT"。而 GMM1 的结果走 L0C->UB 的
-        # Fixpipe 直给配对 AIV0, UB 每核只有 gmm1_activation_depth 块: 深度 1 时
-        # 核 X 的第二个 GMM1 要等它第一个 ACT 还槽, 而那个 ACT 又要等全部 GMM1 ——
-        # 真死锁, 不是建模 bug。
-        # 物理上分段式执行里 GMM1 本来就该写 GM 而不是 UB (kernel 有这条路:
-        # Gmm1AicMmadTileToGmGeneric vs ...ToUbGeneric), 那时 UB 不构成约束。
-        held = next((tok for e in events if str(e.meta.get("stage")) == "gmm1"
-                     for tok, _k in e.acquires if "UB:gmm1act" in tok), None)
-        if held is not None:
-            raise ValueError(
-                'barriers 含 "stage" 时必须同时设 InstancePolicy(gmm1_activation_depth=0): '
-                f"当前 GMM1 还占着 UB 槽 ({held}), 而 stage 栅栏要求全部 GMM1 先于任何 "
-                "ACT 完成 —— 两者物理上不可能同时成立 (深度 1 时第二个 GMM1 等 ACT 还槽, "
-                "ACT 又等全部 GMM1)。分段式执行里 GMM1 走 L0C->GM, UB 不是交接缓冲。")
+        _check_stage_feasible(events, by_wave, waves, ub_depth, aic_num, pooled)
         for w in waves:
             present = [st for st in STAGE_ORDER
                        if any(str(e.meta.get("stage")) == st for e in by_wave[w])]
@@ -106,3 +97,55 @@ def apply_barriers(events: List[Event], kinds: Sequence[str]) -> List[Event]:
                         e.deps = tuple(e.deps) + (name,)
 
     return events + new
+
+
+def _check_stage_feasible(events, by_wave, waves, ub_depth: int, aic_num: int,
+                          pooled: bool) -> None:
+    """stage 栅栏与 UB 槽是否相容 —— 不相容时说清原因, 而不是报 capacity deadlock.
+
+    范围是**一个波内**: stage 栅栏要求该波全部 GMM1 先于该波任何 ACT 完成。GMM1 的
+    结果走 L0C->UB 的 Fixpipe 直给配对 AIV0, UB 每核只有 ub_depth 块, 而槽由配对的
+    ACT 归还。于是一个核在同一波里拿到第 ub_depth+1 个 GMM1 tile 时:
+
+        第 ub_depth+1 个 GMM1 等某个 ACT 还槽
+        -> 那个 ACT 等 barrier.w{w}.activation
+        -> 那道栅栏等该波**全部** GMM1, 包括第 ub_depth+1 个
+
+    成环。所以判据是"某个核在同一波里的 GMM1 tile 数 > ub_depth":
+
+      * 静态绑定: 按建图时的核号数 (max over (波, 核))
+      * 晚绑定:   调度器可以在池内摊平, 所以下界是 ceil(该波 tile 数 / 核数)
+
+    ub_depth = 0 (不要 UB 约束) 时永远相容 —— 分段式执行里 GMM1 本来就该走 L0C->GM
+    (kernel 有这条路: Gmm1AicMmadTileToGmGeneric vs ...ToUbGeneric), UB 不是交接缓冲。
+    """
+    if ub_depth <= 0:
+        return
+    held = next((tok for e in events if str(e.meta.get("stage")) == "gmm1"
+                 for tok, _k in e.acquires if "UB:gmm1act" in tok), None)
+    if held is None:
+        return
+    worst, where = 0, None
+    for w in waves:
+        g = [e for e in by_wave[w] if str(e.meta.get("stage")) == "gmm1"]
+        if not g:
+            continue
+        if pooled and aic_num > 0:
+            need = -(-len(g) // aic_num)          # ceil: 摊平后每核至少这么多
+        else:
+            per: Dict[int, int] = {}
+            for e in g:
+                c = e.meta.get("core")
+                per[c] = per.get(c, 0) + 1
+            need = max(per.values())
+        if need > worst:
+            worst, where = need, w
+    if worst > ub_depth:
+        raise ValueError(
+            f'barriers 含 "stage" 与 gmm1_activation_depth={ub_depth} 不相容: '
+            f"波 {where} 里有核要做 {worst} 个 GMM1 tile (> {ub_depth}), 而 stage 栅栏要求"
+            f"该波全部 GMM1 先于任何 ACT 完成 —— 第 {ub_depth + 1} 个 GMM1 等 ACT 还 UB 槽 "
+            f"({held}), 那个 ACT 又等该波全部 GMM1, 成环。\n"
+            "三条出路: (1) gmm1_activation_depth=0 —— 分段式执行里 GMM1 走 L0C->GM, "
+            f"UB 不是交接缓冲; (2) 把波宽调小到每核最多 {ub_depth} 个 tile "
+            "(ModelOptions.m_groups_per_wave); (3) 把 UB 深度加到 >= 该值。")

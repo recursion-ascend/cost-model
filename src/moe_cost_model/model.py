@@ -224,7 +224,11 @@ class A8W8WaveCostModel:
             events, trace = self.build_events(shape)
             self.cursor_traces[shape.rank_id] = trace
             if self.options.barriers:
-                events = apply_barriers(events, self.options.barriers)
+                events = apply_barriers(
+                    events, self.options.barriers,
+                    ub_depth=shape.policy.gmm1_activation_depth,
+                    aic_num=shape.aic_num,
+                    pooled=bool(self.options.late_bind_pools))
             caps: Dict = {}
             if self.options.pipeline is not None:
                 events, caps = apply_pipeline(

@@ -50,15 +50,54 @@ def test_wave_barrier_orders_waves_strictly():
         assert cur_start >= prev_end - 1e-9
 
 
-def test_stage_barriers_need_ub_depth_zero():
-    """物理不可能的组合要给出说得清的报错, 而不是 "capacity deadlock".
+def _run_mgw_depth(mgw, depth, barriers=("stage",), local=3, hd=9216, late=()):
+    W, PER = 5, 64
+    rc = [[[0 if s == d else PER for s in range(W)] for _ in range(local)] for d in range(W)]
+    tok = sum(rc[d][e][1] for d in range(W) for e in range(local)) // 6
+    return m.simulate_routing_counts(
+        routing_counts=rc, token_num_per_rank=tok, h=5120, hidden_dim=hd, aic_num=28,
+        costs=m.build_analytical_costs(
+            h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency()),
+        p1_override=1, p2_override=1, topk=6,
+        options=m.ModelOptions(barriers=barriers, m_groups_per_wave=mgw, late_bind_pools=late),
+        policy=m.InstancePolicy(gmm1_activation_depth=depth))["rank_results"][0]
 
-    stage 栅栏要求全部 GMM1 先于任何 ACT 完成, 而 UB 深度 1 时核 X 的第二个 GMM1
-    等它第一个 ACT 还槽, 那个 ACT 又等全部 GMM1。分段式执行里 GMM1 走 L0C->GM。
+
+def test_stage_barrier_vs_ub_depth_is_conditional_and_per_wave():
+    """stage 栅栏与 UB 槽的冲突**范围是一个波内**, 且**有条件**.
+
+    判据: 某个核在同一波里的 GMM1 tile 数 > UB 深度。那时
+      第 depth+1 个 GMM1 等 ACT 还槽 -> 那个 ACT 等 barrier.w{w}.activation
+      -> 那道栅栏等该波全部 GMM1, 包括第 depth+1 个   => 成环
+
+    实测 (9216/3, 28 核, 每专家每 m-group 18 个 n-tile):
+      波宽 1 -> 单核单波最多 1 个 tile -> 深度 1 可行 (230.58)
+      波宽 2 -> 最多 2 个             -> 深度 1 死锁, 深度 2 可行 (235.81)
     """
-    with pytest.raises(ValueError, match="gmm1_activation_depth=0"):
-        _run(barriers=("stage",), depth=1)
-    assert _run(barriers=("stage",), depth=0)["dag_end_us"] > 0
+    # 波宽 1: 每核每波最多 1 个 tile, 深度 1 就够
+    assert _run_mgw_depth(1, 1)["dag_end_us"] > 0
+    # 波宽 2: 最多 2 个, 深度 1 不相容
+    with pytest.raises(ValueError, match="不相容"):
+        _run_mgw_depth(2, 1)
+    # 把深度加到 2 就相容了 —— 不是"stage 栅栏必须深度 0"
+    assert _run_mgw_depth(2, 2)["dag_end_us"] > 0
+    # 深度 0 (分段式: GMM1 走 L0C->GM) 永远相容
+    assert _run_mgw_depth(2, 0)["dag_end_us"] > 0
+
+
+def test_stage_barrier_check_accounts_for_late_binding():
+    """晚绑定下调度器能在池内摊平, 所以下界是 ceil(该波 tile 数 / 核数)."""
+    with pytest.raises(ValueError, match="不相容"):
+        _run_mgw_depth(2, 1, late=("AIC", "AIV1"))
+
+
+def test_stage_barrier_error_names_the_three_ways_out():
+    with pytest.raises(ValueError) as ei:
+        _run_mgw_depth(2, 1)
+    msg = str(ei.value)
+    assert "gmm1_activation_depth=0" in msg
+    assert "m_groups_per_wave" in msg
+    assert "UB 深度加到" in msg
 
 
 def test_barriers_cost_wall_clock():
