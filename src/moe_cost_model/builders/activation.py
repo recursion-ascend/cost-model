@@ -10,7 +10,8 @@ from .pipeline_expand import CH_HBM_WRITE
 
 
 def add_activation_tile(builder, ctx: BuildContext, w, si, sl, t, label, ntile,
-                        core, global_group, gname, out_div: int = 1) -> None:
+                        core, global_group, gname, out_div: int = 1,
+                        ub_slot=None) -> None:
     """out_div: GMM1 tile 的列数 -> ACT 输出列数的缩减比。
 
     交织路径 (KernelConfig.gmm1_interleaved) 下 gate/up 在 tile 内按列交织, 一个宽
@@ -31,7 +32,8 @@ def add_activation_tile(builder, ctx: BuildContext, w, si, sl, t, label, ntile,
     ch_bytes = ((CH_HBM_WRITE, store_bytes, float(BW_LOCAL_GM)),) if store_bytes else ()
     builder._event(aname, (f"AIV0:{core}",),
                    c.activation_tile(t.rows, out_cols) + c.activation_ready_publish_us,
-                   deps=[gname], acquires=(q_vec,), releases=(q_vec,),
+                   deps=[gname], acquires=(q_vec,),
+                   releases=(q_vec, ub_slot) if ub_slot else (q_vec,),
                    channel_bytes=ch_bytes,
                    meta={"stage": "activation", "wave": w.index,
                          "expert": sl.expert, "slice": si,
@@ -40,6 +42,5 @@ def add_activation_tile(builder, ctx: BuildContext, w, si, sl, t, label, ntile,
                          "row_begin": t.row_begin, "row_end": t.row_end,
                          "logical_n": out_cols, "core": core, "m_rows": t.rows,
                          "store_bytes": store_bytes})
-    ctx.gmm1_act_history[core].append(aname)
     ctx.activation_ready.setdefault((sl.expert, global_group), []).append(
         ActRecord(t.row_begin, t.row_end, out_begin, out_end, aname))

@@ -62,14 +62,22 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                 raise ValueError(
                     f"missing t_dispatchReady for expert={sl.expert}, group={global_group}")
             deps.append(ready_name)
-            history = ctx.gmm1_act_history[core]
+            # UB 槽位 (C2): GMM1 的结果经 L0C->UB 的 Fixpipe 直给配对 AIV0 (不落 GM),
+            # UB 里能同时存 depth 块。物理上这是**容量**, 不是程序序 —— 所以用计数
+            # 信号量表达: GMM1 开始时占一个槽, 它配对的 ACT 读完后归还。
+            #
+            # 原先写成"距离依赖" (gmm1[i] deps act[i-depth]), 那等于把 kernel 在这个核
+            # 上的发射顺序钉进了图里: 换一种顺序就得换一条边。改成容量之后调度器可以
+            # 自由换序, 约束照样成立。
+            #
+            # 不会死锁: 归还者 (ACT) 自己不占 UB 槽, 且只依赖它的 GMM1 —— 而 GMM1 持槽
+            # 时已经跑完了, 所以持槽者的归还者永远最终可运行, 不可能成环。
+            # (当初改成距离依赖的理由是"信号量会与 act 的程序序依赖成环", 那个前提
+            #  已不存在: 现在 ACT 之间没有任何程序序边, 同核 ACT 的先后由资源互斥定。)
+            # depth=0 = 不建这个约束 (假设 UB 不构成瓶颈)。
+            ub_slot = (f"UB:gmm1act:c{core}", 1)
             depth = policy.gmm1_activation_depth
-            # depth = UB 里能同时存几块 GMM1 结果。GMM1 的结果经 L0C->UB 的 Fixpipe
-            # 直给配对 AIV0 (不落 GM), 所以 AIV0 没把第 i-depth 块读走, AIC 就没地方
-            # 写第 i 块。depth=0 = 不建这条边 (假设 UB 不构成约束)。
-            # 注意 history[-0] 是 history[0] 而不是"无依赖", 所以 0 必须单独判。
-            if depth > 0 and len(history) >= depth:
-                deps.append(history[-depth])
+            acq = (q_aic, ub_slot) if depth > 0 else (q_aic,)
 
             if first_owned[core]:
                 duration += c.gmm1_problem_startup_us
@@ -90,7 +98,8 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             label = tile_label(t, sl.rows, gmm1_sched_n, TILE_M, TILE_N)
             gname = f"W{w.index}.E{sl.expert}.S{si}.gmm1.{label}.c{core}"
             builder._event(gname, (f"AIC:{core}",), duration, deps=deps,
-                           acquires=(q_aic,), releases=(q_aic,), meta=meta)
+                           acquires=acq, releases=(q_aic,), meta=meta)
 
             add_activation_tile(builder, ctx, w, si, sl, t, label, ntile, core,
-                                global_group, gname, out_div)
+                                global_group, gname, out_div,
+                                ub_slot if depth > 0 else None)

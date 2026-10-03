@@ -246,16 +246,21 @@ def _expand_gmm1(
 
     # 缓冲占用语义: mte 计数信号量 = L1 缓冲槽.
     # grant 开始时取, fix 结束时还 (载入与计算都完成, 缓冲才空出来) —
-    # QueueDepths(mte_aic=d) 因此精确等于 d 个 L1 缓冲. 相位事件不继承引擎
+    # QueueDepths(mte_aic=d) 因此精确等于 d 个 L1 缓冲. 相位事件不继承**引擎**
     # 信号量 (Q:aic), 否则容量 1 的引擎信号量会卡死 mte 深度 (审计已确认的旧 bug).
+    #
+    # 但引擎队列之外的 acquire 必须跟到 lg 上 (C2 的 UB:gmm1act 槽就是这种): 它由
+    # 另一个事件 (配对 ACT) 归还, 丢掉 acquire 只剩 release 会让计数器变负 —— 等于
+    # 这条约束悄悄失效。拆相位前后持有区间不变: 原事件 start == lg.start。
     mte = (f"QUEUE:mte_aic:c{core}", 1)
+    carried = tuple(a for a in ev.acquires if not a[0].startswith("Q:"))
     lg = Event(
         name=ev.name + ".lg", resources=(), duration_us=overhead,
         deps=_drop_program_order(ev, stage, by_name), order=ev.order,
         meta=dict(ev.meta, phase="grant"),
         dep_latency_us=ev.dep_latency_us,
         dep_latency_overrides=ev.dep_latency_overrides,
-        acquires=(mte,),
+        acquires=(mte,) + carried,
     )
     ld = Event(
         name=ev.name + ".ld", resources=(), duration_us=load_us,

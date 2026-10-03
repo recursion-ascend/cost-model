@@ -72,18 +72,26 @@ def _rewrite_for_late_binding(events: List[Event], roles: Sequence[str], aic_num
         ev.resources = tuple(new_res)
         core = ev.meta.get("core")
         if isinstance(core, int):
-            # 本事件自取自还的每核队列 token (Q:aic:c7 之类): 事件同时独占该核资源,
-            # 同核在途数恒 <= 1, 只要深度 >= 1 这个 token 就不起约束 (见
-            # EngineQueueDepths 文档)。晚绑定下它的核号要等派发才知道, 而容量探测
-            # 发生在绑定之前 —— 直接去掉, 语义不变。跨事件持有的按核 token 则无法这样
-            # 处理, 明确拒绝。
+            # 按核的计数信号量分两类:
+            #
+            # 1) 自取自还 (Q:aic:c7 之类的引擎队列): 事件同时独占该核资源, 同核在途数
+            #    恒 <= 1, 只要深度 >= 1 就不起约束 (见 EngineQueueDepths 文档)。
+            #    **去掉**, 语义不变, 也省掉一次核号解析。
+            # 2) 跨事件持有 (UB:gmm1act:c7 —— GMM1 取、配对 ACT 还): 真约束, 核号换成
+            #    占位 c*, 由引擎在派发时回填 (_tok / _remap_tokens)。取与还必须落同一个
+            #    核号, 这由共位保证 (ACT 的 colocate_with 指向它的 GMM1)。
             self_paired = set(ev.acquires) & set(ev.releases)
-            for t, k in ev.acquires + ev.releases:
-                if _CORE_SUFFIX.search(t) and (t, k) not in self_paired:
-                    raise NotImplementedError(
-                        f"事件 {ev.name} 跨事件持有按核信号量 {t}, 暂不支持晚绑定")
-            ev.acquires = tuple(a for a in ev.acquires if not _CORE_SUFFIX.search(a[0]))
-            ev.releases = tuple(r for r in ev.releases if not _CORE_SUFFIX.search(r[0]))
+
+            def _norm(tok):
+                t, k = tok
+                if not _CORE_SUFFIX.search(t):
+                    return tok
+                return (_CORE_SUFFIX.sub("c*", t), k)
+
+            ev.acquires = tuple(_norm(a) for a in ev.acquires if a not in self_paired
+                                or not _CORE_SUFFIX.search(a[0]))
+            ev.releases = tuple(_norm(r) for r in ev.releases if r not in self_paired
+                                or not _CORE_SUFFIX.search(r[0]))
         if str(ev.meta.get("stage", "")) == "activation":
             anchor = next((d for d in ev.deps if stage_of.get(d) == "gmm1"), None)
             if anchor is not None:
@@ -240,10 +248,15 @@ class A8W8WaveCostModel:
                     (c, b, rt) if c.startswith("fab_") else (pre + c, b, rt)
                     for c, b, rt in ev.channel_bytes)
             qd = self.options.engine_queue_depths or EngineQueueDepths()
+            ub_depth = shape.policy.gmm1_activation_depth
             for core in range(shape.aic_num):
                 capacities[pre + f"Q:aic:c{core}"] = qd.aic
                 capacities[pre + f"Q:vec0:c{core}"] = qd.vec0
                 capacities[pre + f"Q:aiv1:c{core}"] = qd.aiv1
+                # GMM1->ACT 的 UB 槽位数 (C2: 容量, 不是程序序边)。深度 0 时
+                # builders 不申报这个 token, 容量也就不必声明。
+                if ub_depth > 0:
+                    capacities[pre + f"UB:gmm1act:c{core}"] = ub_depth
             for k, v in caps.items():
                 capacities[pre + k] = v
             groups.append((events, capacities, pools))

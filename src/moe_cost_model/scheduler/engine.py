@@ -149,6 +149,30 @@ class MultiResourceScheduler:
                 return tuple(toks)
             return tuple((t[:-1] + core if t.endswith("c*") else t, k) for t, k in toks)
 
+        def _tok_core(ev: Event) -> Optional[str]:
+            """本事件的 "c*" token 该落到哪个核号上.
+
+            容量准入发生在绑核**之前**, 所以这里要先算出 _bind 会选哪个核 —— 两者
+            读同一份 resource_free, 同一轮选择里没有提交, 因此结论一致。
+            共位事件 (ACT 跟随 GMM1) 直接取锚点已绑定的核号。
+
+            代价是保守: 最早空闲的那个核若恰好没有空槽, 本事件会等它, 而不是换到
+            另一个有空槽的核去。不会违反容量, 只会偶尔晚开始。
+            """
+            if not has_pools:
+                return None
+            anchor = ev.colocate_with
+            if anchor is not None and anchor in bound_core:
+                return bound_core[anchor]
+            br = _bind(ev)
+            return _core_of(br[0]) if br else None
+
+        def _tok(ev: Event, res: str) -> str:
+            if not has_pools or not res.endswith("c*"):
+                return res
+            core = _tok_core(ev)
+            return res[:-1] + core if core is not None else res
+
         has_pools = bool(pool_members)
 
         by_name: Dict[str, Event] = {}
@@ -192,6 +216,9 @@ class MultiResourceScheduler:
         # 静态校验: acquire 不得超过容量, 引用必须已声明
         for ev in events:
             for res, k in ev.acquires:
+                if res.endswith("c*"):
+                    # 晚绑定占位: 真核号派发时才定, 各核同容量 -> 用 c0 做静态校验
+                    res = res[:-1] + "0"
                 if res not in capacities:
                     raise ValueError(f"event {ev.name} acquires unknown capacity resource {res}")
                 if k > capacities[res]:
@@ -372,7 +399,8 @@ class MultiResourceScheduler:
 
         def capacity_feasible(ev: Event, t: float) -> Tuple[bool, float]:
             """t 时刻容量是否够; 不够时沿未来归还时刻找最早可行点."""
-            for res, k in ev.acquires:
+            for res0, k in ev.acquires:
+                res = _tok(ev, res0)
                 if outstanding(res, t) + k <= capacities[res]:
                     continue
                 times = rel_times.get(res, ())
