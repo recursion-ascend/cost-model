@@ -125,6 +125,24 @@ class ModelOptions:
     # C6 dispatch 的"谁取哪些行": "kernel" = 复现 kernel 的均衡+轮转按核预切
     # (compare_measured 要用它和实测 trace 对齐); "rows" = 不预切, 只按
     # dispatch_rows_per_item 切整个切片, 核由调度决定。见 builders/comm/mte.py。
+    # ACT -> GMM2 的交接编排 (C7). ACT 产出的是 GMM2 的 A (量化激活)。
+    #
+    #   "gm"     物化: ACT 写回 GM, GMM2 的 A 从 GM 读回来。参考 kernel 走这条
+    #            (epilogue 写 workspaceInfo.activationQuantDataPtr,
+    #             GMM2 从 Location::GM 取同一个指针), compare_measured 也对齐它。
+    #            代价: GMM2 每 tile 多付 A 流 m·K2 字节 (与 B 流取 max)。
+    #            收益: tile->核 自由 —— 一个 m-group 的 18 个 ACT 可以散在 18 个核上,
+    #            它的 40 个 GMM2 tile 也可以散开。
+    #   "onchip" 不物化: A 留在片上 (硬件有 UB->L1 通路,
+    #            Blaze::Gemm::Tile::CopyUB2L1Weight8Bit)。A 流不付 GM 字节,
+    #            ACT 也不申报 GM 写。代价是**共位**: 一个 GMM2 tile 要吃该 m-group
+    #            整个 K (= 全部 18 个 ACT), 所以这个 m-group 的 GMM1/ACT/GMM2 必须
+    #            全落在同一个核上 -> 并行度上限 = m-group 数, 不是核数。
+    #            需要 late_bind_pools 含 "AIC" (静态绑定下这个共位无从表达)。
+    #
+    # 不设第三种"跨核 K-split": 那要把 18 份 fp32 部分和落 GM 再归约
+    # (每份 m·TILE_N·4B), 当前事件图没有归约事件 (见 docs 的 gap 1)。
+    act_to_gmm2: str = "gm"
     dispatch_partition: str = "kernel"
     # 一份 dispatch 工作覆盖多少行; 0 = 用 tiling 的 routeItemsPerBatch
     dispatch_rows_per_item: int = 0

@@ -387,6 +387,12 @@ class MultiResourceScheduler:
         def _resource_committed(resource: str) -> None:
             """resource 的空闲时刻已变: 重算占用它的就绪事件的 t_base."""
             for n in list(ready_by_res.get(resource, ())):
+                if n not in ready:
+                    # 登记与注销用的候选集可能不同: 共位锚点在这期间被绑定后,
+                    # _candidates 收窄到一个核, _leave_ready 只摘得到那一个,
+                    # 别的核的集合里留下陈迹。在这里顺手清掉。
+                    ready_by_res[resource].discard(n)
+                    continue
                 ev_n = by_name[n]
                 if has_pools:
                     # 核的空闲时刻变了 -> 最优核可能换人, 重选 (三处用同一个选择)

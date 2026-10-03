@@ -1482,33 +1482,33 @@
    ]
   },
   "mte_tile_n128": {
-   "kernel_total_us": 174.94901244391764,
+   "kernel_total_us": 193.8900529063454,
    "slowest_rank": 1,
    "ranks": [
     {
      "rank": 0,
-     "total_us": 173.7560640157278,
-     "dag_end_us": 188.4064724367804,
+     "total_us": 192.69710447815555,
+     "dag_end_us": 207.34751289920817,
      "events": 1069,
      "wave_count": 3,
      "stage_busy_us": {
-      "activation": 275.65625806451567,
-      "combine": 208.47744236696136,
+      "activation": 275.656258064516,
+      "combine": 208.47744236696138,
       "dispatch": 273.3766706389974,
       "dispatch_call": 0.0,
       "dispatch_ready": 0.0,
       "epilogue": 14.650408421052617,
       "gmm1": 2424.4531791907507,
-      "gmm2": 1212.2265895953701,
+      "gmm2": 1697.1172254335293,
       "moe_stage_done": 0.0
      },
      "critical_path_len": 22,
-     "schedule_sha256": "6d926b49fb96e13f8668051555e88b19765fb24aaf6874c02d00b1d33f044fd8"
+     "schedule_sha256": "6994c143dd1fedc72d2e703dd85cb494ff87aa0c1a1312a6cee7c515a7fd9048"
     },
     {
      "rank": 1,
-     "total_us": 174.94901244391764,
-     "dag_end_us": 189.59942086497026,
+     "total_us": 193.8900529063454,
+     "dag_end_us": 208.54046132739802,
      "events": 1069,
      "wave_count": 3,
      "stage_busy_us": {
@@ -1519,16 +1519,16 @@
       "dispatch_ready": 0.0,
       "epilogue": 14.650408421052617,
       "gmm1": 2424.4531791907507,
-      "gmm2": 1212.2265895953701,
+      "gmm2": 1697.1172254335293,
       "moe_stage_done": 0.0
      },
      "critical_path_len": 22,
-     "schedule_sha256": "bc5fd862bbbedae801071cd4dad120aa214f816b6b5c7eced07338d7052b4ecb"
+     "schedule_sha256": "d63ba85760f103db2eb07beaff5e9622174a209af0d56075c42846133694d51b"
     },
     {
      "rank": 2,
-     "total_us": 174.94901244391764,
-     "dag_end_us": 189.59942086497026,
+     "total_us": 193.8900529063454,
+     "dag_end_us": 208.54046132739802,
      "events": 1069,
      "wave_count": 3,
      "stage_busy_us": {
@@ -1539,31 +1539,31 @@
       "dispatch_ready": 0.0,
       "epilogue": 14.650408421052617,
       "gmm1": 2424.4531791907507,
-      "gmm2": 1212.2265895953701,
+      "gmm2": 1697.1172254335293,
       "moe_stage_done": 0.0
      },
      "critical_path_len": 22,
-     "schedule_sha256": "64af44f750a09727051dfd89ca195d5e924b8e1c62c1118f0858c29b1e56ab81"
+     "schedule_sha256": "121c43b8bf34fea087e73c8e6ec2cd945bd74472f04c205753aefabaf6ffb94e"
     },
     {
      "rank": 3,
-     "total_us": 172.7694007734841,
-     "dag_end_us": 187.41980919453673,
+     "total_us": 191.71044123591187,
+     "dag_end_us": 206.3608496569645,
      "events": 1069,
      "wave_count": 3,
      "stage_busy_us": {
-      "activation": 275.65625806451567,
+      "activation": 275.656258064516,
       "combine": 267.0114452434765,
       "dispatch": 314.1447688514485,
       "dispatch_call": 0.0,
       "dispatch_ready": 0.0,
       "epilogue": 14.650408421052617,
       "gmm1": 2424.4531791907507,
-      "gmm2": 1212.2265895953701,
+      "gmm2": 1697.117225433529,
       "moe_stage_done": 0.0
      },
      "critical_path_len": 22,
-     "schedule_sha256": "22bc19401590a1c0030f2f75838dde9b2902d204c8c4846daa0249bc7c804f4f"
+     "schedule_sha256": "c43e831dfc146b4c76bb98f751d770d2b29a9a082f966eea1f139e4f7d514207"
     }
    ]
   },

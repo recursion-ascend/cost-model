@@ -10,11 +10,12 @@
 GMM 口径 (与 costs.AnalyticalGmmCosts 一致). 占用与计时是两回事:
   L1 缓冲 (MTE 队列) 是容量约束. A 与 B 都经 L1 进 L0, 所以 GMM1 与 GMM2 的
         tile 都占一个 L1 缓冲槽 — B 流不计时, 但权重仍在 L1 里占着位置.
-  gm_to_l1 信道字节按各 stage 的载入相位时长折算 (GMM1 = A流+B流, GMM2 = B流).
+  gm_to_l1 访存量按各 stage 的载入相位时长折算 —— 注意 max(A流,B流) 口径下这只
+        折得出较大那一股的字节 (非相位路径在 builders/gmm1.py、gmm2.py 里按字节直接申报).
   GMM1  载入走 GM→L1: 占 L1 缓冲槽 + gm_to_l1 信道; 计算占 Cube 队列.
         load / cube 相位时长取事件 meta 的 load_us / compute_us (公式分解).
-  GMM2  B 权重流走 GM→L1: 占 L1 缓冲槽 + gm_to_l1 信道 + Cube 队列
-        (A 已在片上, 不计 GM 流量).
+  GMM2  载入走 GM→L1: 占 L1 缓冲槽 + gm_to_l1 信道 + Cube 队列. 载入 = max(A流, B流),
+        A 流只在物化编排 (ModelOptions.act_to_gmm2="gm") 下存在.
 """
 from __future__ import annotations
 

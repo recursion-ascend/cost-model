@@ -8,10 +8,11 @@ from __future__ import annotations
 
 from typing import List
 
-from ..config.hardware import select_kl1
+from ..config.hardware import BW_L1_GM, select_kl1
 from ..costs import gmm2_phase_split
 from ..planning.tile_grid import STAGE_GMM2, validate_tiles
 from .context import BuildContext
+from .pipeline_expand import CH_GM_TO_L1
 from .tiling import resolve_grid, tile_label
 
 
@@ -75,6 +76,10 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             # 同一个 tile 的各 K 段按时长占比分摊本 tile 的 B 流, 信道字节才不会在
             # 计算绑定时被整段时长放大。段的 K 范围决定它等哪些 ACT。
             phases = gmm2_phase_split(c, t.rows, k_gmm2, t.cols)
+            # 物化编排下 GMM2 的 A 要从 GM 读回 (ACT 写出的量化激活); 申报到
+            # gm_to_l1 访存量上。max(A流,B流) 口径下只有较大那一股折算成时长,
+            # 但两股字节都真实发生 —— 这里按字节申报, 不按时长折算。
+            a_gm = (t.rows * k_gmm2) if _a_from_gm(c) else 0
             # C1: 名字不带核号 (见 gmm1.py 的说明)
             gname = f"W{w.index}.E{sl.expert}.S{si}.gmm2.{label}"
             n_seg = len(bounds)
@@ -93,6 +98,8 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                 else:
                     name, part = f"{gname}.k{j}", f"k{j}"
                 seg_meta = dict(meta, part=part)
+                seg_ch = (((CH_GM_TO_L1, a_gm * frac, float(BW_L1_GM)),)
+                          if a_gm else ())
                 if phases is not None:
                     load_us, compute_us = phases
                     seg_meta["load_us"] = load_us * frac
@@ -100,11 +107,12 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                 # 首段持有队列 token; 后续段靠前一段的串接边保序, 不重复占用。
                 if j == 0:
                     builder._event(name, (f"AIC:{core}",), duration * frac,
-                                   deps=deps + seg_acts,
+                                   deps=deps + seg_acts, channel_bytes=seg_ch,
                                    acquires=(q_aic2,), releases=(q_aic2,), meta=seg_meta)
                 else:
                     builder._event(name, (f"AIC:{core}",), duration * frac,
-                                   deps=prev + seg_acts, meta=seg_meta)
+                                   deps=prev + seg_acts, channel_bytes=seg_ch,
+                                   meta=seg_meta)
                 prev = [name]
             builder.gmm2_tail_by_group.setdefault((sl.expert, global_group), []).append(gname)
 
@@ -112,6 +120,15 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             builder.combine_backend.on_gmm2_tile(
                 builder, ctx, w, shape, si, sl, t, label, ntile, core,
                 gname, global_group, call_iteration)
+
+
+def _a_from_gm(costs) -> bool:
+    """GMM2 的 A 是否从 GM 读回: 由 gmm2_tile 背后的公式对象说话.
+
+    自定义 callable 无从内省, 按物化处理 (与 ModelOptions.act_to_gmm2 缺省一致)。
+    """
+    owner = getattr(costs.gmm2_tile, "__self__", None)
+    return bool(getattr(owner, "gmm2_a_from_gm", True))
 
 
 def _k_segment_bounds(k_gmm2: int, kl1: int, segments: int):

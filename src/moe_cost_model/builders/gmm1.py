@@ -8,10 +8,12 @@ from __future__ import annotations
 
 from typing import List
 
+from ..config.hardware import BW_L1_GM
 from ..costs import gmm1_phase_split
 from ..planning.tile_grid import STAGE_GMM1, validate_tiles
 from .activation import add_activation_tile
 from .context import BuildContext
+from .pipeline_expand import CH_GM_TO_L1
 from .tiling import resolve_grid, tile_label
 
 
@@ -100,9 +102,26 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             # 名字带核号的后果是依赖边也带: 换一种分核方式, 图的结构就跟着变, 那是在
             # 复现 kernel 的记账而不是建模。(URMA 路径一直就是这样命名的。)
             gname = f"W{w.index}.E{sl.expert}.S{si}.gmm1.{label}"
+            # GM→L1 访存量: A 流 m·K (dispatch 落 GM 的激活) + B 流 wb·K·cols。
+            # max(A,B) 口径只让较慢的一股决定**时长**, 但两股字节都真实发生,
+            # 所以这里按字节申报 (统计用, 不参与准入)。
+            a_bytes = t.rows * shape.h
+            b_bytes = _gmm1_b_bytes(c, shape.h, t.cols) if b_load[tile_idx] else 0
             builder._event(gname, (f"AIC:{core}",), duration, deps=deps,
-                           acquires=acq, releases=(q_aic,), meta=meta)
+                           acquires=acq, releases=(q_aic,), meta=meta,
+                           channel_bytes=((CH_GM_TO_L1, float(a_bytes + b_bytes),
+                                           float(BW_L1_GM)),))
 
             add_activation_tile(builder, ctx, w, si, sl, t, label, ntile, core,
                                 global_group, gname, out_div,
                                 ub_slot if depth > 0 else None)
+
+
+def _gmm1_b_bytes(costs, k: int, cols: int) -> int:
+    """一个 GMM1 tile 的 B 流字节 = wb·K·cols (wb = 非交织 2 / 交织 1).
+
+    wb 只有解析公式对象知道; 自定义 callable 按 2 算 (与缺省 KernelConfig 一致)。
+    """
+    owner = getattr(costs.gmm1_tile, "__self__", None)
+    wb = int(getattr(owner, "wb", 2))
+    return wb * k * cols

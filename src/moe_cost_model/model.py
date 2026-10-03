@@ -14,7 +14,7 @@ from .scheduler.engine import MultiResourceScheduler
 from .scheduler.policies import (CriticalPathFirst, EarliestStart, PriorityByStage,
                                  WorkConservingCriticalPath)
 from .builders.barriers import apply_barriers
-from .builders.pipeline_expand import apply_pipeline
+from .builders.pipeline_expand import CH_HBM_WRITE, apply_pipeline
 from .costs import PrimitiveCosts
 from .shape import (
     CursorTrace, EngineQueueDepths, MegaMoeShape, ModelOptions,
@@ -123,6 +123,78 @@ def _rewrite_for_late_binding(events: List[Event], roles: Sequence[str], aic_num
                 "暂不支持与 late_bind_pools 同用")
 
 
+def _reconcile_act_to_gmm2(costs: PrimitiveCosts, mode: str) -> PrimitiveCosts:
+    """让 gmm2 公式的 A 流口径与 ModelOptions.act_to_gmm2 一致.
+
+    gmm2_tile 是自定义 callable 时无从改写, 原样返回 (调用方自负一致)。
+    """
+    import dataclasses
+
+    from .costs import AnalyticalGmmCosts
+    owner = getattr(costs.gmm2_tile, "__self__", None)
+    if not isinstance(owner, AnalyticalGmmCosts):
+        return costs
+    want = (mode == "gm")
+    if owner.gmm2_a_from_gm == want:
+        return costs
+    new_g = AnalyticalGmmCosts(
+        bw_bytes_per_us=owner.bw,
+        weight_nz=owner.weight_nz,
+        bw_b_nz_bytes_per_us=(owner.bw_b if owner.weight_nz else 0.0),
+        l1_buf_num=1 if owner.serial else 2,
+        cube_mac_per_us=owner.cube_rate,
+        tile_restart_us=owner.chunk_restart,
+        l1_tile_k=owner._k_l1,
+        gmm1_weight_blocks=owner.wb,
+        gmm2_a_from_gm=want)
+    return dataclasses.replace(costs, gmm1_tile=new_g.gmm1_tile,
+                               gmm2_tile=new_g.gmm2_tile)
+
+
+def _apply_onchip_act_to_gmm2(events: List[Event], pooled: Sequence[str]) -> None:
+    """不物化编排的共位约束: 一个 m-group 的 GMM1/ACT/GMM2 全落同一个核.
+
+    为什么是整个 m-group: GMM2 的 K 就是 GMM1 切分的 N 轴, 一个 GMM2 tile 要累完
+    整个 K, 即吃该 m-group 的全部 ACT。A 不落 GM 就只能在产它的那个核的片上, 所以
+    产它的 ACT 和吃它的 GMM2 必须同核; 对一个 m-group 的所有 ACT 同时成立 =>
+    这些 ACT (以及产它们的 GMM1) 彼此同核。
+
+    后果 (这就是该编排要被评估的那个代价): 一个 m-group 的全部工作串在一个核上,
+    并行度上限 = m-group 数。核数多于 m-group 数时, 多出来的核**无活可做** ——
+    不是违反"有就绪的活就不空闲", 是这个编排本身没有可并行的活。
+
+    ACT 的 GM 写出同时取消 (store_bytes 申报清零): 它本来就是为了让 GMM2 从 GM
+    读回。注意 activation_tile 的时长里含写出那部分, 当前公式不可分, 所以时长**没有**
+    相应变短 —— 这一项是已声明的保守近似。
+    """
+    if "AIC" not in set(pooled):
+        raise ValueError(
+            'act_to_gmm2="onchip" 需要 late_bind_pools 含 "AIC": 共位靠派发时刻'
+            "绑定表达, 建图时静态钉核无从表达 (钉死的核号本来就各不相同)")
+    anchor: Dict[tuple, str] = {}
+    for ev in events:
+        stage = str(ev.meta.get("stage", ""))
+        if stage != "gmm1":
+            continue
+        key = (ev.meta.get("wave"), ev.meta.get("expert"), ev.meta.get("slice"),
+               ev.meta.get("mgroup"))
+        anchor.setdefault(key, ev.name)
+    for ev in events:
+        stage = str(ev.meta.get("stage", ""))
+        if stage == "activation":
+            ev.channel_bytes = tuple(c for c in ev.channel_bytes
+                                     if c[0] != CH_HBM_WRITE)
+            ev.meta = dict(ev.meta, store_bytes=0)
+            continue
+        if stage not in ("gmm1", "gmm2"):
+            continue
+        key = (ev.meta.get("wave"), ev.meta.get("expert"), ev.meta.get("slice"),
+               ev.meta.get("mgroup"))
+        a = anchor.get(key)
+        if a is not None and a != ev.name:
+            ev.colocate_with = a
+
+
 def completion_event(scheduled: Sequence[ScheduledEvent]) -> Optional[ScheduledEvent]:
     """执行时间的终点事件: 最晚结束的 COMBINE.
 
@@ -142,7 +214,13 @@ class A8W8WaveCostModel:
             raise NotImplementedError("v3 models A8W8 COMBINE_NO_QUANT only")
         if options.topk_weights_prefetch:
             raise NotImplementedError("v3 models TopkWeightsPrefetch=false only")
-        self.costs = costs
+        if options.act_to_gmm2 not in ("gm", "onchip"):
+            raise ValueError(
+                f'act_to_gmm2 只能是 "gm" / "onchip", 收到 {options.act_to_gmm2!r}')
+        # 编排与公式必须同口径: "onchip" 下 GMM2 的 A 不付 GM 字节, "gm" 下要付。
+        # 调用方给的 costs 可能两边都不是, 这里按选定的编排改写公式, 不让两套
+        # 口径混在一张图里 (混着就会把物化算成近乎免费)。
+        self.costs = _reconcile_act_to_gmm2(costs, options.act_to_gmm2)
         self.options = options
         self._order = 0
         self._rank = 0
@@ -246,6 +324,9 @@ class A8W8WaveCostModel:
             pools: Dict[str, Tuple[str, ...]] = {}
             if late:
                 _rewrite_for_late_binding(events, late, shape.aic_num, pre, pools)
+            if self.options.act_to_gmm2 == "onchip":
+                # 共位在加 rank 前缀之前打: colocate_with 记的是事件名, 不带前缀。
+                _apply_onchip_act_to_gmm2(events, late)
             capacities: Dict[str, int] = {}
             for ev in events:
                 ev.resources = tuple(pre + r for r in ev.resources)

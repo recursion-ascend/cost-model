@@ -158,12 +158,18 @@ m.register("tile_grid", "split_every_group", SplitEveryGroup)
 
 | stage | 双缓冲 (`l1_buf_num=2`)      | 单缓冲 (`l1_buf_num=1`)          |
 | ----- | ------------------------------ | ---------------------------------- |
-| GMM1  | `max(A流/BW, 计算/R_cube)`   | `A流/BW + 计算/R_cube + restart` |
-| GMM2  | `计算/R_cube`                | `计算/R_cube`                    |
+| GMM1  | `max(载入, 计算/R_cube)`     | `载入 + 计算/R_cube + restart` |
+| GMM2  | `max(载入, 计算/R_cube)`     | `载入 + 计算/R_cube + restart` |
 
-- A 流 = m·K 字节; GMM1 计算 = 2·m·cols·K MACs; GMM2 计算 = m·cols·K2 MACs。
-- GMM2 只有计算: A 从 UB 直达 L0A, 片上带宽约 500 GB/s 且每核独占, 搬运时间忽略不计。restart 是 L1 换块的停顿, A 不经 L1, 所以 GMM2 没有 restart, 时长与 L1 缓冲数无关。
-- B 流 (权重搬运) 不建模: 认为被其他任务的执行掩盖。
+两个 stage 的 `载入 = max(A流/BW, B流/BW_b)` (A/B 并发, 慢侧绑定)。
+
+- GMM1 的 A 流 = m·K 字节, B 流 = `wb`·K·cols (`wb` = 非交织 2 / 交织 1); GMM1 计算 = 2·m·cols·K MACs; GMM2 计算 = m·cols·K2 MACs。
+- GMM2 载入 = `max(A流, B流)`, 与 GMM1 同口径。A 流 = m·K2 字节, **只在物化编排
+  (`ModelOptions.act_to_gmm2="gm"`, 缺省) 下计**: ACT 把量化激活写回 GM, GMM2 的 A
+  再从 GM 读回来 (参考 kernel 就是这样: epilogue 写 `activationQuantDataPtr`, GMM2
+  从 `Location::GM` 取同一个指针)。`"onchip"` 编排下 A 留在片上 (硬件有 UB→L1 通路),
+  A 流不付 GM 字节, 代价是一个 m-group 的 GMM1/ACT/GMM2 必须共位于一个核 ——
+  并行度上限变成 m-group 数。单缓冲下 GMM2 同样加 `restart` (每 kL1 块一次)。
 - `R_cube` (`cube_mac_per_us`) 必填, 无缺省。仓库里没有标定过的 Cube 速率, 示例与测试里的 `2.7e7` 只是占位值。
 
 相位流水 (`options.pipeline`, 可选) 与闭式同口径:
