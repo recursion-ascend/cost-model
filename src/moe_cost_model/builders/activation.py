@@ -31,7 +31,7 @@ def add_activation_tile(builder, ctx: BuildContext, w, si, sl, t, label, ntile,
     # 实测: 28 并发中位 3.899us vs 8~10 并发 3.554us (+9.7%, 同专家受控对比)。
     store_bytes = c.activation_store_bytes(t.rows, out_cols)
     ch_bytes = ((CH_HBM_WRITE, store_bytes, float(BW_LOCAL_GM)),) if store_bytes else ()
-    builder._event(aname, (f"AIV0:{core}",),
+    builder._event(aname, (builder.options.role_resource("activation", core),),
                    c.activation_tile(t.rows, out_cols) + c.activation_ready_publish_us,
                    deps=[gname], acquires=(q_vec,),
                    releases=(q_vec, ub_slot) if ub_slot else (q_vec,),

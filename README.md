@@ -630,6 +630,7 @@ res = m.simulate_routing_counts(
 
 | 旋钮 | 作用 |
 | --- | --- |
+| `ModelOptions.roles` | `stage -> 执行角色` 映射 (`RoleAssignment`): 哪个 stage 跑在 AIC / AIV0 / AIV1 上。矩阵乘只能在 AIC (物理), ACT 与它的 GMM1 必须同核 (Fixpipe), 其余可换。**实测在 A8W8 主路径上换角色不改墙钟** —— 两个向量核利用率都不到 6%, 关键路径在 AIC |
 | `ModelOptions.late_bind_pools` | 角色入池: 事件只声明"要一个 AIC", 调度器在**派发时刻**绑最早空闲的成员。缺省 `("AIC", "AIV1")`; `()` = 静态绑定 (某实现的分核方式)。`"AIC"` 入池隐含 `"AIV0"` 入池 —— `GMM1 -> ACT` 同核是物理约束, 整对一起漂移 |
 | `WorkConservingCriticalPath` | 排序键 `(start, -remaining_path_us, order, name)`: start 仍排第一位, 核不会为等未就绪的事件空闲; 关键路径只在**同样能立刻开始**的候选之间定先后 |
 | `ModelOptions.dispatch_pacing` | 下一波 dispatch 等什么: `"none"` (缺省, 不等, 跨波连续 dispatch) / `"per_core"` (等本核上一波最后一个 combine, `MEGAMOE_A8W8` 用这个) / `"wave"` (等该波全部 combine) |

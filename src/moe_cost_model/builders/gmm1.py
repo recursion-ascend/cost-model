@@ -109,7 +109,8 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             # 所以这里按字节申报 (统计用, 不参与准入)。
             a_bytes = t.rows * shape.h
             b_bytes = _gmm1_b_bytes(c, shape.h, t.cols) * b_load[tile_idx]
-            builder._event(gname, (f"AIC:{core}",), duration, deps=deps,
+            builder._event(gname, (builder.options.role_resource("gmm1", core),),
+                           duration, deps=deps,
                            acquires=acq, releases=(q_aic,), meta=meta,
                            channel_bytes=((CH_GM_TO_L1, float(a_bytes + b_bytes),
                                            float(BW_L1_GM)),))

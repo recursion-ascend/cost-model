@@ -32,6 +32,7 @@
 | swizzle | `KernelConfig.swizzle_offset` / `swizzle_direction` | **仅在每专家多于 1 个 m-group 时有效** (1 组时退化为无效) |
 | tile->核 分配 | `core_assignment` | StaticRoundRobin / GreedyLeastBusy / ContiguousBlock |
 | tile->核 绑定时机 | `ModelOptions.late_bind_pools` | 派发时 (缺省) / 建图时静态 (`MEGAMOE_A8W8`) —— 缺口 3 已补齐 |
+| stage->执行角色 | `ModelOptions.roles` | 哪个 stage 跑 AIC / AIV0 / AIV1 (缺口 2 已补齐) |
 | ready 集选序 | `scheduling_policy` | EarliestStart / WorkConservingCriticalPath / PriorityByStage |
 | stage 波偏移 | `InstancePolicy.wave_offsets` | dispatch 超前波数、GMM2 滞后波数 |
 | dispatch 配速 | `ModelOptions.dispatch_pacing` | none (缺省) / per_core (`MEGAMOE_A8W8`) / wave |
@@ -94,34 +95,51 @@ A 是 1B/元素。**改变它只有三条路**: 部分和降到 fp16 (比值减�
 **G >= 核数时才不亏**。实测 9216/3 专家 (G=3, 28 核) 片上版 1551.78 us vs 物化 196.92 us
 = 7.9 倍, 与并行度比 28/3 = 9.3 同量级 —— 慢在没活干的 25 个核上, 不在带宽上。
 
-## 缺口 2: 角色分配不可配 (是缺口 3/4/5 的前提)
+## 缺口 2: 角色分配不可配 — **已补齐 (2026-10-04)**, 但奖品不在这里
 
-资源名是硬编码的 f-string, 没有旋钮:
+原缺口: 资源名是建图代码里写死的 f-string (`f"AIV1:{core}"`), 所以"换个角色干这件事"
+问不出来。现在是 `ModelOptions.roles` (`config/roles.py` 的 `RoleAssignment`), 建图器一律
+走 `options.role_resource(stage, core)`。
 
+能表达的编排:
+
+```python
+RoleAssignment({"combine": "AIV0"})                 # combine 挪到跑 ACT 的那个向量核
+RoleAssignment({"activation": "AIV1", "combine": "AIV0",
+                "dispatch": "AIV0", "dispatch_call": "AIV0"})   # A8W4 式角色互换
 ```
-gmm1.py:82                    (f"AIC:{core}",)     gmm1
-gmm2.py:101,105               (f"AIC:{core}",)     gmm2 各 K 段
-activation.py:22              (f"AIV0:{core}",)    激活
-base.py:211,215,242           AIC / AIV0 / AIC     共享专家 gmm1 / act / gmm2
-comm/mte.py:52,88,175         (f"AIV1:{core}",)    dispatch_call / dispatch / combine
-comm/urma.py:78,96,112,226    (f"AIV1:{core}",)    recv / maskscan / localcopy / combine
-```
 
-试不了的编排:
+物理边界由构造时校验, 不许被映射表改掉:
 
-- **combine 交给 AIV0**。A8W8 下 AIV0 做完激活就闲着, 而 `GMM2 -> combine` 的同核
-  **不是物理约束**: GMM2 写 `gmm2OutGlobal` (GM), combine 用 `Copy(copyGM2UB, ...)`
-  从 GM 读, 配对只靠 `gmmToEpilogueFlag[blockJob.jobIndex]` 这个索引约定。
-  (对比 `GMM1 -> ACT` 的同核**是物理的**: `CopyCL0c2GmOrUb(..., copyUbToV1)` 走
-  L0C->UB 的 Fixpipe 硬件通路, 只在绑定对内存在。)
-- **dispatch 分给两个 AIV**
-- **A8W4 的角色互换** (激活搬到 AIV1、AIV0 做权重 W4->W8 解压)
+| | 为什么 |
+| --- | --- |
+| 矩阵乘只能在 `AIC` | Cube 独有, 没有别处可去 |
+| 向量 stage 不能放 `AIC` | 没有物理依据 |
+| ACT 必须与它的 GMM1 **同核** | L0C->UB 的 Fixpipe 只在绑定对内 (这条在 `StageLink.colocated_by_hardware`, 本模块不碰) |
 
-改动最小: 把 f-string 换成一张 `stage -> 角色` 的映射表, 建图时查表。
+晚绑定跟着走: "GMM1 入池隐含跑 ACT 的那个角色一起入池"原先写死 AIV0, 现在查映射表。
 
-注意缺口 3 的晚绑定**不覆盖**这一条: 晚绑定只改"同一角色池里哪个核做", 换不了角色本身
-(`combine` 仍然只能是 AIV1)。`_rewrite_for_late_binding` 里的 `POOLABLE_ROLES` 也是写死的
-三个角色。
+### 量出来的结论: 重分角色回收不了空闲的向量核
+
+实测 9216/3 专家/28 核 (规格 Cube 速率):
+
+| 角色 | busy 核·us | 利用率 |
+| --- | ---: | ---: |
+| AIC | 6818.8 | 77.2% |
+| AIV0 | 509.2 | **5.8%** |
+| AIV1 | 463.8 | **5.2%** |
+
+两个向量核合起来利用率不到 6%, 看着有 8328 核·us 可捡。但**把 combine 挪到 AIV0 墙钟
+一点不变** (315.63 -> 315.63): 关键路径在 AIC 上, 在两个向量角色之间挪工作不碰它。
+
+所以"AIV0 闲着"这件事**不能靠重分角色回收** —— 能挪的工作本来就不在关键路径上, 而 AIC
+上的矩阵乘没有别处可去。要用上空闲的向量核, 得给它们**新的**工作 (例如跨核 K-split 的
+归约、或把 GMM 尾段的一部分搬过去), 那是另一个问题。
+
+旋钮确实是活的 (不是装饰): 把全部向量工作挤到一个角色上会变慢 —— 2048/8 专家/2 核
+3861.56 -> 3924.70 (+1.6%), 且挤到 AIV0 与挤到 AIV1 同值 (两个向量角色对称, 合理性校验)。
+
+补齐它顺带解锁: 缺口 11 (combine 换角色/粒度) 的角色那一半、缺口 5 的 A8W4 角色互换。
 
 ---
 

@@ -208,11 +208,11 @@ class EventBuilderBase:
             logical_n = min(TILE_N, sched_n_s - nt * TILE_N)
             core = sc1.owners(1)[0]
             g1s.append(self._event(
-                f"shared.gmm1.m{mg}.n{nt}", (f"AIC:{core}",),
+                f"shared.gmm1.m{mg}.n{nt}", (self.options.role_resource("shared_gmm1", core),),
                 c.gmm1_tile(m_rows, shape.h, logical_n),
                 meta={"stage": "shared_gmm1", "m_rows": m_rows}))
             as_events.append(self._event(
-                f"shared.act.m{mg}.n{nt}", (f"AIV0:{core}",),
+                f"shared.act.m{mg}.n{nt}", (self.options.role_resource("shared_act", core),),
                 c.activation_tile(m_rows, logical_n),
                 deps=(g1s[-1],), meta={"stage": "shared_act", "m_rows": m_rows}))
             self.shared_act_by_group.setdefault(mg, []).append(as_events[-1])
@@ -239,7 +239,7 @@ class EventBuilderBase:
             logical_n = min(tile_n, shape.h - nt * tile_n)
             core = cursor.owners(1)[0]
             tiles.append(self._event(
-                f"shared.gmm2.m{mg}.n{nt}", (f"AIC:{core}",),
+                f"shared.gmm2.m{mg}.n{nt}", (self.options.role_resource("shared_gmm2", core),),
                 c.gmm2_tile(m_rows, k_gmm2, logical_n),
                 deps=(after, *self.shared_act_by_group.get(mg, ())),
                 meta={"stage": "shared_gmm2", "m_rows": m_rows, "mgroup": mg,

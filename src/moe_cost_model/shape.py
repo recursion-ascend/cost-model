@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple
 
 from .config.hardware import EpilogueOverheads
 from .config.links import DEFAULT_LINKS, StageLink, resolve_link, validate_links
+from .config.roles import DEFAULT_ROLES, RoleAssignment
 from .config.policy import InstancePolicy
 from .costs import DispatchDataLayout
 from .config.pipeline import PipelineConstraints
@@ -147,6 +148,11 @@ class ModelOptions:
     # 一条边一个 StageLink, 见 config/links.py。取代原先三个各自为政的旋钮
     # (gmm2_k_segments / act_to_gmm2 / InstancePolicy.gmm1_activation_depth)。
     links: Tuple[object, ...] = DEFAULT_LINKS     # config.links.StageLink
+    # 哪个 stage 跑在哪个执行角色上 (AIC / AIV0 / AIV1), 见 config/roles.py。
+    # 缺省: 矩阵乘上 Cube, ACT 占一个向量角色, 通信与 combine 占另一个。
+    # 换角色是编排选择 —— 实测 A8W8 下两个向量核利用率都不到 6%, 而
+    # GMM2 -> combine 的同核**不是**物理约束 (过 GM), 所以 combine 可以挪。
+    roles: object = DEFAULT_ROLES                 # config.roles.RoleAssignment
     # L3 晚绑定: 哪些角色池的 tile->核 绑定推迟到**派发时刻**。
     #
     # 缺省 = 三个池全入 (派发时刻绑定)。理由是模型的不变量: 决不允许"某 tile 的前置
@@ -176,6 +182,10 @@ class ModelOptions:
 
     def __post_init__(self) -> None:
         validate_links(self.links)
+
+    def role_resource(self, stage: str, core: int) -> str:
+        """该 stage 在 core 号核上的资源名 —— 建图器用它代替写死的 f-string."""
+        return self.roles.resource(stage, core)
 
     def link(self, producer: str, consumer: str) -> StageLink:
         """取这条 stage 边的设置 (没给就回落到缺省)."""

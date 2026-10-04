@@ -67,6 +67,7 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             bounds = _k_segment_bounds(k_gmm2, kl1, link.readiness)
 
             ntile = t.col_begin // TILE_N
+            g2_res = builder.options.role_resource("gmm2", core)
             label = tile_label(t, sl.rows, shape.h, TILE_M, TILE_N)
             meta = {"stage": "gmm2", "wave": w.index,
                     "call_iteration": call_iteration, "expert": sl.expert,
@@ -108,11 +109,11 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                     seg_meta["compute_us"] = compute_us * frac
                 # 首段持有队列 token; 后续段靠前一段的串接边保序, 不重复占用。
                 if j == 0:
-                    builder._event(name, (f"AIC:{core}",), duration * frac,
+                    builder._event(name, (g2_res,), duration * frac,
                                    deps=deps + seg_acts, channel_bytes=seg_ch,
                                    acquires=(q_aic2,), releases=(q_aic2,), meta=seg_meta)
                 else:
-                    builder._event(name, (f"AIC:{core}",), duration * frac,
+                    builder._event(name, (g2_res,), duration * frac,
                                    deps=prev + seg_acts, channel_bytes=seg_ch,
                                    meta=seg_meta)
                 prev = [name]

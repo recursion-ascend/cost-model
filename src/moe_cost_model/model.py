@@ -30,7 +30,8 @@ _CORE_SUFFIX = re.compile(r"c\d+$")
 
 
 def _rewrite_for_late_binding(events: List[Event], roles: Sequence[str], aic_num: int,
-                             pre: str, pools: Dict[str, Tuple[str, ...]]) -> None:
+                             pre: str, pools: Dict[str, Tuple[str, ...]],
+                             act_role: str = "AIV0") -> None:
     """把指定角色的核资源从"建图时定死"改成"派发时绑定最早空闲的核"。
 
     做法: 事件声明 "AIC:*" 而不是 "AIC:7", 调度器在准入那一刻挑成员 (engine 的
@@ -48,7 +49,10 @@ def _rewrite_for_late_binding(events: List[Event], roles: Sequence[str], aic_num
     """
     pooled = set(roles)
     if "AIC" in pooled:
-        pooled.add("AIV0")
+        # ACT 必须与它的 GMM1 同核 (L0C->UB 的 Fixpipe 只在绑定对内), 所以 GMM1 入池
+        # 就隐含"跑 ACT 的那个向量角色"一起入池 —— 整对漂移。哪个角色跑 ACT 由
+        # ModelOptions.roles 决定, 不写死 AIV0。
+        pooled.add(act_role)
     bad = sorted(pooled - set(POOLABLE_ROLES))
     if bad:
         raise ValueError(f"late_bind_pools 只支持 {POOLABLE_ROLES}, 收到 {bad}")
@@ -369,7 +373,9 @@ class A8W8WaveCostModel:
             pre = f"R{shape.rank_id}."
             pools: Dict[str, Tuple[str, ...]] = {}
             if late:
-                _rewrite_for_late_binding(events, late, shape.aic_num, pre, pools)
+                _rewrite_for_late_binding(
+                    events, late, shape.aic_num, pre, pools,
+                    act_role=self.options.roles.role_of("activation"))
             if self.options.link("activation", "gmm2").location == "onchip":
                 # 共位在加 rank 前缀之前打: colocate_with 记的是事件名, 不带前缀。
                 _apply_onchip_act_to_gmm2(events, late)

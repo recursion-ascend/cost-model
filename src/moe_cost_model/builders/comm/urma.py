@@ -77,7 +77,8 @@ class UrmaDispatch(DispatchTransport):
                             + (tokens * self.urma.meta_bytes_per_row
                                + self.urma.flag_window_bytes) / BW_LOCAL_GM)
                 ev = builder._event(
-                    f"W{w.index}.recv.s{src}.b{batch_idx}", (f"AIV1:{core}",), duration,
+                    f"W{w.index}.recv.s{src}.b{batch_idx}",
+                    (builder.options.role_resource("dispatch_recv", core),), duration,
                     deps=(self.aiv1_last[core],) if core in self.aiv1_last else (),
                     meta={"stage": "dispatch_recv", "wave": w.index,
                           "core": core, "src_rank": src, "batch": batch_idx,
@@ -95,7 +96,8 @@ class UrmaDispatch(DispatchTransport):
                 # mask/count 扫描 (本卡 win 内该 (expert, src) 槽位)
                 scan_deps = [d for d in (self.aiv1_last.get(core), shared_gates) if d]
                 scan_name = builder._event(
-                    f"W{w.index}.maskscan.s{src}.e{e}", (f"AIV1:{core}",),
+                    f"W{w.index}.maskscan.s{src}.e{e}",
+                    (builder.options.role_resource("mask_scan", core),),
                     (mask_bytes + _ALIGN_32) / BW_LOCAL_GM, deps=scan_deps,
                     meta={"stage": "mask_scan", "wave": w.index, "core": core,
                           "src_rank": src, "expert": e, "mask_bytes": mask_bytes})
@@ -111,7 +113,8 @@ class UrmaDispatch(DispatchTransport):
                         continue
                     if is_local:
                         name = builder._event(
-                            f"W{w.index}.localcopy.s{src}.e{e}.g{g}", (f"AIV1:{core}",),
+                            f"W{w.index}.localcopy.s{src}.e{e}.g{g}",
+                            (builder.options.role_resource("dispatch_local", core),),
                             m * layout.local_copy_bytes_per_token() / BW_LOCAL_GM,
                             deps=(self.aiv1_last[core],),
                             meta={"stage": "dispatch_local", "wave": w.index,
@@ -225,7 +228,8 @@ class UrmaCombine(CombineTransport):
                         + n_lambda[si] * self.parent.urma.t_put_lat_us
                         + m * put_row_bytes / self.parent.urma.bw_put_single_bytes_per_us)
                 name = builder._event(
-                    f"W{w.index}.combine.e{e}.g{g}.d{dst}", (f"AIV1:{core}",),
+                    f"W{w.index}.combine.e{e}.g{g}.d{dst}",
+                    (builder.options.role_resource("combine", core),),
                     duration, deps=deps,
                     meta={"stage": "combine", "wave": w.index, "expert": e,
                           "mgroup": g, "dst_rank": dst, "core": core,

@@ -62,7 +62,8 @@ class MteDispatch(DispatchTransport):
             if emit_call_events:
                 q_aiv1 = (f"Q:aiv1:c{core}", 1)
                 call_name = builder._event(
-                    f"W{w.index}.dispatch_call.c{core}", (f"AIV1:{core}",),
+                    f"W{w.index}.dispatch_call.c{core}",
+                    (builder.options.role_resource("dispatch_call", core),),
                     call_us, deps=deps,
                     acquires=(q_aiv1,), releases=(q_aiv1,),
                     meta={"stage": "dispatch_call", "wave": w.index, "core": core})
@@ -96,7 +97,7 @@ class MteDispatch(DispatchTransport):
             # (专家, 段, 行区间) 已经唯一标识这一份搬运工作。
             name = (f"W{w.index}.dispatch.e{sl.expert}.s{si}"
                     f".r{b_begin}_{b_end}")
-            resources = [f"AIV1:{core}"]
+            resources = [builder.options.role_resource("dispatch", core)]
             if builder.options.serialize_dispatch_comm and src != shape.rank_id:
                 resources.append("DISPATCH_COMM")
             duration = c.dispatch_mechanistic.segment_us(
@@ -222,7 +223,7 @@ class MteCombine(CombineTransport):
             ch for d, n in enumerate(by_dst) if d != shape.rank_id and n
             for ch in ((f"fab_src:{shape.rank_id}", n * row_bytes, bw_fab),
                        (f"fab_dst:{d}", n * row_bytes, bw_fab)))
-        builder._event(cname, (f"AIV1:{core}",),
+        builder._event(cname, (builder.options.role_resource("combine", core),),
                        c.combine_tile(t.rows, t.cols, remote_rows) + c.combine_ack_us,
                        deps=[gname], acquires=(q_aiv1,), releases=(q_aiv1,),
                        channel_bytes=ch_bytes,
