@@ -102,10 +102,26 @@ class MultiResourceScheduler:
             if not mem:
                 raise ValueError(f"pool {pk} 的成员表为空")
         bound_core: Dict[str, str] = {}      # 事件名 -> 绑定的核号后缀
+        group_core: Dict[str, str] = {}      # 核组名 -> 该组选定的核号 (先到先定)
         charged_once: set = set()            # 已计过的 (once_per_core 键, 核号)
 
         def _core_of(resource: str) -> str:
             return resource.rsplit(":", 1)[1] if ":" in resource else resource
+
+        def _group_members(ev: Event) -> Tuple[str, ...]:
+            """本事件核组的候选成员 (完整资源名). 组已定核则只剩那一个。"""
+            if ev.core_group is None:
+                return ()
+            gid, role = ev.core_group
+            chosen = group_core.get(gid)
+            mem = pool_members.get(role, ())
+            if chosen is not None:
+                same = tuple(r for r in mem if _core_of(r) == chosen)
+                if not same:
+                    raise ValueError(
+                        f"event {ev.name} 的核组 {gid} 已定核 {chosen}, 但池 {role} 无此成员")
+                return same
+            return mem
 
         def _candidates(ev: Event, resource: str) -> Tuple[str, ...]:
             """resource 的候选成员. 具体资源返回自身; 占位符返回池成员, 若本事件
@@ -117,12 +133,16 @@ class MultiResourceScheduler:
             if mem is None:
                 raise ValueError(f"event {ev.name} 引用未声明的资源池 {pk}")
             anchor = ev.colocate_with
+            want = None
             if anchor is not None and anchor in bound_core:
                 want = bound_core[anchor]
+            elif ev.core_group is not None:
+                want = group_core.get(ev.core_group[0])
+            if want is not None:
                 same = tuple(r for r in mem if _core_of(r) == want)
                 if not same:
                     raise ValueError(
-                        f"event {ev.name} 要与 {anchor} 共位于核 {want}, 但池 {pk} 无此成员")
+                        f"event {ev.name} 要落核 {want} (共位/核组), 但池 {pk} 无此成员")
                 return same
             return mem
 
@@ -155,9 +175,13 @@ class MultiResourceScheduler:
                 if pool_key(r) is not None:
                     pooled = r
                     break
-            if pooled is None:
-                return None
-            cand = _candidates(ev, pooled)
+            if pooled is not None:
+                cand = _candidates(ev, pooled)
+            else:
+                # 不持核资源的相位事件: 核号由核组给候选, 判据只剩"该核的槽有没有余量"
+                cand = _group_members(ev)
+                if not cand:
+                    return None
             best_t, best_c = float("inf"), None
             for member in cand:
                 c = _core_of(member)
@@ -193,6 +217,14 @@ class MultiResourceScheduler:
                 out.append(min(cand, key=lambda c: (resource_free.get(c, 0.0), c)))
             return tuple(out)
 
+        def _sched_meta(ev: Event, once_us: float, core: Optional[str]) -> Dict:
+            out = dict(ev.meta)
+            if once_us:
+                out["once_per_core_us"] = once_us
+            if core is not None:
+                out["core"] = int(core) if str(core).isdigit() else core
+            return out
+
         def _remap_tokens(toks, core: Optional[str]):
             """队列 token 的核号占位符 "c*" 换成绑定核号 ("Q:aic:c*" -> "Q:aic:c7")."""
             if core is None:
@@ -221,7 +253,8 @@ class MultiResourceScheduler:
             for r in ev.resources:
                 if pool_key(r) is not None:
                     return tuple(_core_of(c) for c in _candidates(ev, r))
-            return ()
+            # 不持核资源: 核组给候选 (相位拆分的 lg/ld/fix 走这条)
+            return tuple(_core_of(c) for c in _group_members(ev))
 
         has_pools = bool(pool_members)
 
@@ -651,6 +684,15 @@ class MultiResourceScheduler:
             bound_res = _bind(ev, start) if has_pools else ev.resources
             if has_pools and bound_res:
                 bound_core[name] = _core_of(bound_res[0])
+            elif has_pools and ev.core_group is not None:
+                # 不持核资源的相位事件: 核号取自核组 (组未定核则此刻由它选定 ——
+                # 先到先定, 用的是和带核资源事件同一套 _pick_core 判据)
+                gid = ev.core_group[0]
+                core = group_core.get(gid) or pool_pick.get(name) or _pick_core(ev, start)
+                if core is not None:
+                    bound_core[name] = core
+            if has_pools and ev.core_group is not None and bound_core.get(name):
+                group_core.setdefault(ev.core_group[0], bound_core[name])
             # C5: 一次性开销在静态绑定下同样生效 —— 核号直接取绑定到的资源, 不依赖池。
             once_us = 0.0
             if ev.once_per_core is not None and bound_res:
@@ -707,7 +749,10 @@ class MultiResourceScheduler:
                     critical_parent=critical_parent,
                     critical_reason=critical_reason,
                     order=ev.order,
-                    meta=dict(ev.meta, once_per_core_us=once_us) if once_us else dict(ev.meta),
+                    # meta["core"] 一律改写成**真正落到的核号**: 建图时那个核号在晚绑定
+                    # 下只是占位, 留着它会让下游 (空闲分解、利用率、测试) 按错核分组。
+                    # 不持核资源的相位事件也有核号 (来自核组), 这是它唯一的来源。
+                    meta=_sched_meta(ev, once_us, bound_core.get(name)),
                     capacity_wait_us=cap_wait,
                     actionable_us=actionable,
                     acquires=acq,

@@ -112,15 +112,60 @@ def _rewrite_for_late_binding(events: List[Event], roles: Sequence[str], aic_num
             if str(ev.meta.get("stage", "")) == "dispatch_call":
                 ev.duration_us = 0.0
 
-    # 相位拆分事件 (.ld/.cb/fix) 自己不持核资源, 只靠带核号的队列 token 绑核;
-    # 晚绑定下这些 token 无从回填, 先明确拒绝而不是算出一个错数。
+    # 相位拆分事件 (.lg/.ld/.cb/fix 以及 AIV 的 .ld/main) 自己不持核资源 —— 它们代表
+    # 同一个核里不同引擎 (MTE / Cube / Fixpipe) 的工作, 在时间上重叠, 所以不能各自
+    # 独占核资源 (那就被迫串行, 拆了等于没拆)。它们"属于哪个核"原先靠名字里写死核号的
+    # 按核计数信号量 (QUEUE:mte_aic:c7) 记着, 而晚绑定下核号到派发时刻才定, 于是:
+    #   * 回填不了 -> 工作在 3 号核跑、L1 槽从 7 号核扣, 约束等于失效 (偏快);
+    #   * 这就是原先直接拒绝两者同用的原因。
+    #
+    # 现在用**核组**解决: 同一个 tile 的几个相位编成一组, 核号由该组最先派发的那个
+    # 事件选定, 同组其余事件跟随 (Event.core_group, 引擎的 group_core)。为什么不能用
+    # colocate_with: 它要求锚点先绑定, 而先跑的恰恰是不持核资源的那一相。
+    _group_phase_events(events, pooled, pre)
+
+
+def _group_phase_events(events: List[Event], pooled: Sequence[str], pre: str) -> None:
+    """给相位拆分出来的事件编核组, 并把它们按核的 token 换成占位 c*.
+
+    组名 = 去掉相位后缀的事件名 (同一个 tile 的各相位同组)。角色取自同组里**持核
+    资源**的那个相位 (AIC 的 cube 相、AIV 的主相), 它决定候选核表。
+
+    没有相位拆分时本函数什么都不做 (没有不持核资源却带按核 token 的事件)。
+    """
+    def group_of(name: str) -> str:
+        for suffix in (".lg", ".ld", ".cb"):
+            if name.endswith(suffix):
+                return name[: -len(suffix)]
+        return name
+
+    # 组 -> 角色: 由持核资源的那个相位给出
+    role_of: Dict[str, str] = {}
     for ev in events:
-        if ev.resources:
+        for r in ev.resources:
+            role, _, core_s = r.partition(":")
+            if core_s and role in pooled:
+                role_of.setdefault(group_of(ev.name), role)
+    need = {ev.name for ev in events
+            if not ev.resources
+            and any(_CORE_SUFFIX.search(t) for t, _ in ev.acquires + ev.releases)}
+    if not need:
+        return
+    for ev in events:
+        gid = group_of(ev.name)
+        role = role_of.get(gid)
+        if role is None:
             continue
-        if any(_CORE_SUFFIX.search(t) for t, _ in ev.acquires + ev.releases):
-            raise NotImplementedError(
-                f"事件 {ev.name} 不持核资源却带按核的队列信号量 (相位流水), "
-                "暂不支持与 late_bind_pools 同用")
+        # 组里**每个**相位都要带核组: 不光是扣槽的那几个 —— 否则不扣槽的相位 (.ld)
+        # 的 meta["core"] 会留着建图时的占位核号, 下游按核分组时就对不上。
+        ev.core_group = (pre + gid, pre + role)
+        if ev.name in need:
+            ev.acquires = tuple((_CORE_SUFFIX.sub("c*", t), k) for t, k in ev.acquires)
+            ev.releases = tuple((_CORE_SUFFIX.sub("c*", t), k) for t, k in ev.releases)
+    missing = sorted(n for n in need if role_of.get(group_of(n)) is None)
+    if missing:
+        raise NotImplementedError(
+            f"相位事件 {missing[0]} 所在的组里没有持核资源的相位, 无从确定候选核表")
 
 
 def _reconcile_act_to_gmm2(costs: PrimitiveCosts, mode: str) -> PrimitiveCosts:

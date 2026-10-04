@@ -12,7 +12,8 @@ import moe_cost_model as m
 from linkutil import links
 
 
-def _run(depth, pipe=None, local=3, hidden_dim=9216):
+def _run(depth, pipe=None, local=3, hidden_dim=9216,
+         late=m.ModelOptions().late_bind_pools):
     W, PER = 5, 64
     rc = [[[0 if s == d else PER for s in range(W)] for _ in range(local)] for d in range(W)]
     tok = sum(rc[d][e][1] for d in range(W) for e in range(local)) // 6
@@ -21,12 +22,8 @@ def _run(depth, pipe=None, local=3, hidden_dim=9216):
         costs=m.build_analytical_costs(
             h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency()),
         p1_override=1, p2_override=1, topk=6,
-        # 相位拆分目前只在静态绑定下可表达 (相位事件不持核资源, 靠按核的队列
-        # token 绑核, 晚绑定下无从回填 —— 见 model.py 的显式拒绝)。所以拆相位的
-        # 组合显式钉核; 不拆相位的组合走缺省晚绑定。
         options=m.ModelOptions(pipeline=pipe, links=links(depth),
-                               late_bind_pools=() if pipe is not None else
-                               m.ModelOptions().late_bind_pools),
+                               late_bind_pools=late),
         )["rank_results"][0]
 
 
@@ -63,17 +60,18 @@ def _max_inflight(evs):
     return worst
 
 
+@pytest.mark.parametrize("late", [(), ("AIC", "AIV1")])
 @pytest.mark.parametrize("depth", [1, 2, 3])
 @pytest.mark.parametrize("mte_aic", [None, 1, 2])
-def test_ub_depth_is_respected(depth, mte_aic):
-    """六种组合下容量都不得被突破 —— 含相位拆分.
+def test_ub_depth_is_respected(depth, mte_aic, late):
+    """各组合下容量都不得被突破 —— 含相位拆分 x 静态/晚绑定.
 
     回归锚: 拆相位时 lg 相位原先丢掉了非引擎 acquire, 只留 release, 计数器变负,
     这条约束悄悄失效 (该形状上墙钟因此虚低 20%+)。
     """
     pipe = None if mte_aic is None else m.PipelineConstraints(
         queues=m.QueueDepths(mte_aic=mte_aic))
-    evs = _run(depth, pipe)["events"]
+    evs = _run(depth, pipe, late=late)["events"]
     assert _max_inflight(evs) <= depth
 
 

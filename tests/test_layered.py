@@ -20,10 +20,11 @@ def _uniform(world=4, local=64, token_num=64, topk=8):
     return [[[per] * world for _ in range(local)] for _ in range(world)]
 
 
-def _run(C, token_num, topk=8, kernel=None, aic_num=28, h=6144, hidden_dim=4096):
+def _run(C, token_num, topk=8, kernel=None, aic_num=28, h=6144, hidden_dim=4096,
+         options=None):
     return m.simulate_routing_counts(
         routing_counts=C, token_num_per_rank=token_num, h=h, hidden_dim=hidden_dim,
-        aic_num=aic_num, costs=_costs(), topk=topk,
+        aic_num=aic_num, costs=_costs(), topk=topk, options=options or m.ModelOptions(),
         kernel=kernel if kernel is not None else m.KernelConfig(topo_urma=True))
 
 
@@ -109,8 +110,13 @@ def test_layered_end_to_end_stage_inventory():
 
 
 def test_layered_channel_ownership():
-    # 通道归属 = rank % aic_num: 每个 (src, wave) 的接收事件核号必须等于 src%28
-    res = _run(_uniform(), 64)
+    """通道归属 = rank % aic_num: 每个 (src, wave) 的接收事件核号必须等于 src%28.
+
+    这是 Layered **建图**的约定, 所以显式静态钉核来查: 晚绑定 (现为缺省) 下"哪个核做"
+    是调度器在派发时刻的产出, 调度后的 meta["core"] 是真正落到的核, 按设计就不再等于
+    建图时的归属。
+    """
+    res = _run(_uniform(), 64, options=m.ModelOptions(late_bind_pools=()))
     for ev in res["rank_results"][0]["events"]:
         if ev.meta.get("stage") in ("dispatch_recv", "dispatch_local", "mask_scan"):
             assert ev.meta["core"] == ev.meta["src_rank"] % 28

@@ -49,6 +49,16 @@ class Event:
     # (builders/activation.py: "ACT 钉在配对 GMM1 同核的 AIV0 上"), 所以 GMM1 晚绑定到
     # 核 X 时, 它的 ACT 必须落 AIV0:X。只在 resources 含池占位符时生效。
     colocate_with: Optional[str] = None
+    # L3 晚绑定核组: (组名, 角色)。同一组的事件必须落**同一核号**, 核号由该组
+    # **最先派发**的那个事件选定 (之后同组事件一律跟随)。
+    #
+    # 为什么不能用 colocate_with 代替: colocate_with 要求锚点**先**绑定, 而相位拆分
+    # 里先跑的恰恰是不持核资源的那一相 (lg/ld 先于 cb/main)。核组把"谁先到谁决定"
+    # 写进语义, 于是不持核资源的相位也能在派发时刻拿到一个真实核号, 它名字里带
+    # c* 的按核计数信号量 (QUEUE:mte_aic / QUEUE:fix / QUEUE:mte_aiv) 才扣得对。
+    #
+    # 角色是池名的后半段 (例 "AIC"), 用来给不持核资源的事件提供候选核表。
+    core_group: Optional[Tuple[str, str]] = None
     # L3 晚绑定一次性开销: (键, us)。同一键在同一核号上只计一次 —— 本事件若是该核
     # 上第一个带此键的事件, 时长加 us (例: 每波每核的 dispatch 调用开销, 由该核
     # 在这一波做的第一段 dispatch 承担)。开销落在真正干活的核上, 而不必把事件
