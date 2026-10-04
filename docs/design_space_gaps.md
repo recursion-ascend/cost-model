@@ -485,7 +485,7 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 
 ---
 
-## 缺口 10: 输出落点布局 — **结构已补齐 (2026-10-04), 系数待实测**
+## 缺口 10: 输出落点布局 — **结构已补齐 (2026-10-04), 系数待实测 (见 calibration_runs.md R3)**
 
 写落点是 `(tokenIdx·topK + topkIdx)·n`, 这是一种**输出布局选择**: 让 UNPERMUTE 顺序读,
 代价是写侧按 token 散射。现在两种布局都能表达 (`ModelOptions.combine_layout`):
