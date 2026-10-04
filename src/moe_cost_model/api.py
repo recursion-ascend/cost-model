@@ -45,7 +45,8 @@ def _rebind_costs_to_kernel(costs: PrimitiveCosts, kernel) -> PrimitiveCosts:
                 tile_restart_us=g1.chunk_restart,
                 l1_tile_k=kernel.l1_tile_k,
                 gmm1_weight_blocks=want_wb,
-                gmm2_a_from_gm=g1.gmm2_a_from_gm)
+                gmm2_a_from_gm=g1.gmm2_a_from_gm,
+                load_overlap=g1.load_overlap)
             costs = dataclasses.replace(costs, gmm1_tile=new_g.gmm1_tile,
                                         gmm2_tile=new_g.gmm2_tile)
     comb = getattr(costs.combine_tile, "__self__", None)

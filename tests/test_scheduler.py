@@ -56,10 +56,24 @@ def test_l0_edge_latency_dag_level():
 
 
 def test_l0_sync_latency_slows_model():
-    base = _run()
-    slow = _run(options=m.ModelOptions(pipeline=P(
-        sync=m.SyncLatency(gmm1_act_handshake_us=2.0))))
-    assert slow["kernel_total_us"] > base["kernel_total_us"]
+    """同步延迟进依赖边: 静态钉核下墙钟准确加上它; 工作守恒调度下只能说"不更快".
+
+    实测本形状: 静态 237.6300 -> 239.6300 (正好 +2.0), 晚绑定 236.0690 -> 236.0565
+    (-0.0125)。后者是 Graham 异常那一类 —— 边上多 2us 改变了派发次序, 工作守恒并不
+    保证墙钟单调。所以单调性只在静态钉核下断言。
+    """
+    stat = dict(pipeline=P(), late_bind_pools=STATIC)
+    base = _run(options=m.ModelOptions(**stat))
+    slow = _run(options=m.ModelOptions(
+        pipeline=P(sync=m.SyncLatency(gmm1_act_handshake_us=2.0)),
+        late_bind_pools=STATIC))
+    assert abs((slow["kernel_total_us"] - base["kernel_total_us"]) - 2.0) < 1e-6
+
+    # 缺省 (晚绑定) 下只记录事实: 不显著更快
+    lb_base = _run(options=m.ModelOptions(pipeline=P()))["kernel_total_us"]
+    lb_slow = _run(options=m.ModelOptions(pipeline=P(
+        sync=m.SyncLatency(gmm1_act_handshake_us=2.0))))["kernel_total_us"]
+    assert lb_slow > lb_base - 0.1
 
 
 # ---- L1: 缓冲槽位 / 队列深度 (MTE/Cube/Vector/Fix) ----

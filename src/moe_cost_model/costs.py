@@ -231,13 +231,15 @@ class AnalyticalGmmCosts:
     """GMM1/GMM2 的物理公式工厂.
 
     GMM1 每 tile:
-        载入 = A 流 m·K (FP8 激活) + B 流 2·K·cols (SwiGLU gate/up 两块权重)
+        载入 = A 流 m·K (FP8 激活) + B 流 wb·K·cols (SwiGLU gate/up 两块权重)
+        (两股**相加**: 实测依据见 gmm1_phases 的口径沿革; load_overlap="max" 可切成
+         "取较慢一股"做对比)
         计算 = 2·m·cols·K MACs
         b=2: T = max(载入/BW, 计算/R_cube)     载入与计算重叠, 慢侧绑定
         b=1: T = 载入/BW + 计算/R + restart     串行相加
 
     GMM2 每 tile:
-        载入 = max(A 流, B 流), 口径同 GMM1
+        载入 = A 流 + B 流, 口径同 GMM1
             B 流 = K2·cols (权重 GM→L1)
             A 流 = m·K2 —— **只在 gmm2_a_from_gm=True (物化编排) 下计**:
                 ACT 把结果写回 GM, GMM2 的 A 再从 GM 读回来。
@@ -263,7 +265,7 @@ class AnalyticalGmmCosts:
                  l1_buf_num: int = 2, cube_mac_per_us: float = 0.0,
                  gmm1_weight_blocks: int = 2,
                  tile_restart_us: float = 0.0, l1_tile_k: int = 256,
-                 gmm2_a_from_gm: bool = True):
+                 gmm2_a_from_gm: bool = True, load_overlap: str = "sum"):
         if weight_nz and bw_b_nz_bytes_per_us <= 0:
             raise ValueError(
                 "weight_nz=True 需要 bw_b_nz_bytes_per_us (NZ 路径 GM→L1 实测带宽)")
@@ -284,49 +286,77 @@ class AnalyticalGmmCosts:
         # GMM2 的 A 是否要从 GM 读回 (物化编排); 见类 docstring 与
         # ModelOptions.links 里 activation->gmm2 的 location。
         self.gmm2_a_from_gm = bool(gmm2_a_from_gm)
+        # A 流与 B 流怎么合成载入时长:
+        #   "sum" (缺省) 相加 —— 实测支持这个, 见 gmm1_phases 的三条证据
+        #   "max"         取较慢的一股 (假设两股完全并发、互不争用), 留着做对比
+        if load_overlap not in ("sum", "max"):
+            raise ValueError(f'load_overlap 只能是 "sum" / "max", 收到 {load_overlap!r}')
+        self.load_overlap = load_overlap
         self._k_l1 = int(l1_tile_k)
 
     def _chunks(self, k: int) -> int:
         return -(-k // self._k_l1)
 
+    def _load(self, a_us: float, b_us: float) -> float:
+        """A 流与 B 流合成载入时长 (见 __init__ 的 load_overlap)."""
+        return a_us + b_us if self.load_overlap == "sum" else max(a_us, b_us)
+
     def gmm1_phases(self, m: int, k: int, cols: int,
-                    b_load: bool = True) -> Tuple[float, float]:
+                    b_load: float = 1.0) -> Tuple[float, float]:
         """GMM1 tile 的 (载入, 计算) 时长; 单缓冲时载入含 restart.
 
-        载入 = max(A流, B流) —— 两股并发, 搬运事件取较慢的那一股。
-        结果写出 (L0C -> GM/UB 的 Fixpipe) 不计入: 按"数据释放事件忽略不计"的口径。
+        载入 = A流 + B流 (缺省 load_overlap="sum")。结果写出 (L0C -> GM/UB 的 Fixpipe)
+        不计入: 按"数据释放事件忽略不计"的口径。
+        b_load: 本 tile 付多少比例的 B 流 (1.0 = 整份; 见 KernelConfig.gmm1_b_reuse_frac)。
 
-        口径沿革 (这一项反复过两次, 都记下来):
-          2026-09-30(1) 先用 bs36 (m=72) 与 bs8192 (m=256) 两个 run 比, 看到实测单
-            tile 55.0 / 53.8 us 几乎不随 m 变, 于是用了 max(A,B)。当时判断那是混淆
-            变量: bs8192 同时变了 m (72->256) 与每专家 m-group 数 (1->12)。
-          2026-09-30(2) 改回相加。依据是 bs128 (m=256 但仍 1 个 m-group) 把两者分开:
-            bs36   m= 72, 1 组: 实测 55.645   A+B = 57.61 (+3.5%)   max = 50.51 ( -9.2%)
-            bs128  m=256, 1 组: 实测 74.810   A+B = 75.76 (+1.3%)   max = 50.51 (-32.5%)
-            bs8192 m=256,12 组: 实测 53.810   A+B = 75.76 (+40.8%)  max = 50.51 ( -6.1%)
-          2026-10-03 按口径决定改为 max。**与上面两个单 m-group 实测点冲突**:
-            B 流恒大于 A 流时 max 口径的 tile 时长完全不随 m 变, 而 bs36->bs128 是
-            干净的单变量对比 (只有 m 变), 实测从 55.645 升到 74.810, 斜率
-            0.10416 us/行。max 预测 0 斜率。这个冲突没有消解, 是已知的建模取舍:
-            采用 max 口径就意味着在 1 个 m-group 的形状上低估 9%~32%。
-            反过来 max 口径在 12 个 m-group 的 bs8192 上只差 -6.1% (相加口径 +40.8%),
-            而 bs8192 的偏差本来要靠 gmm1_b_reuse 解释 —— 换 max 后那个待定的
-            "B 流付几次" 规律不再是解释 bs8192 的必要条件。
+        口径沿革与实测依据 (这一项反复过三次, 全部记下来):
+
+          2026-09-30(1) 取 max(A,B)。依据: bs36 (m=72) 与 bs8192 (m=256) 的单 tile 实测
+            55.0 / 53.8 us 几乎不随 m 变。**当时就知道那是混淆变量** —— bs8192 同时
+            变了 m (72->256) 与每专家 m-group 数 (1->12)。
+          2026-09-30(2) 改回相加。bs128 (m=256 但仍 1 个 m-group) 把两者分开。
+          2026-10-03 又按口径决定改成 max, 与两个单 m-group 实测点冲突 (低估 9%~32%),
+            理由是 max 在 bs8192 上只差 -6.1%。
+          2026-10-04 定为相加。把三个 run 按"并发核数"与"每专家 m-group 数"分开看,
+            max 的那点支持是巧合, 真正的原因是 B 流复用:
+
+          证据 1 — 固定并发核数, 只变 m (两对独立比较, max 预测斜率为 0):
+            | 波 | 并发核 | bs36 (m=72) | bs128 (m=256) | 实测斜率 |
+            | w0 |     28 |    57.12 us |      77.92 us | 20.80 us / 0.942MB |
+            | w1 |     18 |    29.73 us |      55.20 us | 25.47 us / 0.942MB |
+            两对都随 m 显著变长。B 流 (2.62MB) 恒大于 A 流 (<=1.31MB), 所以 max 口径
+            下这两个数必须相等 —— 实测相差 36% 与 86%。max 口径被否。
+
+          证据 2 — 固定 m 与并发核数, 只变每专家 m-group 数 (bs8192 那点的真因):
+            bs128  m=256, 1 个 m-group, 28 核: 74.81 us
+            bs8192 m=256,12 个 m-group, 28 核: 53.80 us     <- 便宜 21.0 us
+            几何完全相同, 差别只有 m-group 数 -> 这是 B 流复用 (L2 命中), 不是 max。
+
+          证据 3 — 相加口径反解出的带宽自洽:
+            由证据 1 的 w0 斜率得 A 流速率 49.2 GB/s; 以 bs36 为截距得 B 流
+            48.14 us / 2.62MB = 54.4 GB/s。两者同量级, 与标定值 BW_L1_GM = 51.9 GB/s
+            一致 —— 一个共用速率就能同时解释两个点:
+              bs36  (0.369+2.62)MB / 51.9 = 57.6 us  vs 实测 55.645  (+3.5%)
+              bs128 (1.31 +2.62)MB / 51.9 = 75.8 us  vs 实测 74.810  (+1.3%)
+
+          B 流复用付多少 (一个点, 不是规律): bs8192 的 53.80 us 对应每 tile 载入
+            2.79MB, 减去 A 流 1.31MB 得 B 流 1.48MB = 整份的 56.5%。按
+            "首个 m-group 付整份, 其余各付 f" 反解, G=12 时 f ≈ 0.53。
+            **只有这一个点**, 所以 gmm1_b_reuse_frac 缺省 1.0 (不声称有复用)。
         """
         a_load = (m * k) / self.bw
-        b_load_us = (self.wb * k * cols) / self.bw_b if b_load else 0.0
-        # 搬运口径: A 流与 B 流并发, 事件时长取较慢的一股。
-        load = max(a_load, b_load_us)
+        b_load_us = (self.wb * k * cols) / self.bw_b * float(b_load)
+        load = self._load(a_load, b_load_us)
         if self.serial:
             load += self._chunks(k) * self.chunk_restart
         compute = (2.0 * m * cols * k / self.cube_rate) if self.cube_rate > 0 else 0.0
         return load, compute
 
-    def gmm1_tile(self, m: int, k: int, cols: int, b_load: bool = True) -> float:
+    def gmm1_tile(self, m: int, k: int, cols: int, b_load: float = 1.0) -> float:
         """m 行 × cols 列输出 tile.
 
-        b_load: 是否计 B 流 (权重) 的 GM→L1 字节. B 复用模式下切片内只有首个
-        m-group 的 tile 付自己列块的 B, 后续 m-group 假设命中 L2。
+        b_load: 本 tile 付多少比例的 B 流 (权重) 的 GM→L1 字节。1.0 = 整份;
+        B 复用下切片内首个 m-group 付整份, 其余付 KernelConfig.gmm1_b_reuse_frac。
         """
         load, compute = self.gmm1_phases(m, k, cols, b_load)
         return load + compute if self.serial else max(load, compute)
@@ -334,19 +364,19 @@ class AnalyticalGmmCosts:
     def gmm2_phases(self, m: int, k2: int, cols: int) -> Tuple[float, float]:
         """GMM2 tile 的 (载入, 计算) 时长.
 
-        载入 = max(A 流, B 流): B 流是权重 GM→L1; A 流只在物化编排下存在
-        (ACT 写 GM, GMM2 读回), 不物化时为 0。
+        载入 = A 流 + B 流 (口径见 gmm1_phases 的沿革): B 流是权重 GM→L1;
+        A 流只在物化编排下存在 (ACT 写 GM, GMM2 读回), 不物化时为 0。
         """
         b_load = k2 * cols / self.bw_b
         a_load = (m * k2) / self.bw if self.gmm2_a_from_gm else 0.0
-        load = max(a_load, b_load)
+        load = self._load(a_load, b_load)
         if self.serial:
             load += self._chunks(k2) * self.chunk_restart
         compute = (m * cols * k2 / self.cube_rate) if self.cube_rate > 0 else 0.0
         return load, compute
 
     def gmm2_tile(self, m: int, k2: int, cols: int) -> float:
-        """GMM2: 载入 = max(A 流, B 流) (A 流见 gmm2_phases); 计算量 = m·cols·K2."""
+        """GMM2: 载入 = A 流 + B 流 (A 流见 gmm2_phases); 计算量 = m·cols·K2."""
         load, compute = self.gmm2_phases(m, k2, cols)
         return load + compute if self.serial else max(load, compute)
 
@@ -546,6 +576,7 @@ def build_analytical_costs(
     bw_combine_remote: Optional[float] = None,
     count_table_prepare_us: float = T_COUNT_GATE,
     gmm2_a_from_gm: bool = True,
+    load_overlap: str = "sum",
 ) -> PrimitiveCosts:
     """按 (h, KernelConfig) 一致构建解析公式族, 消除 tile_n/l1_tile_k/h 漏配.
 
@@ -570,6 +601,7 @@ def build_analytical_costs(
         l1_tile_k=km.l1_tile_k,
         gmm1_weight_blocks=1 if km.gmm1_interleaved else km.activation_n_half,
         gmm2_a_from_gm=gmm2_a_from_gm,
+        load_overlap=load_overlap,
     )
     act = AnalyticalActCosts(
         bw_ub_bytes_per_us=bw_ub if bw_ub is not None else BW_UB,

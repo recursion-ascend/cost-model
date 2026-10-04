@@ -136,16 +136,28 @@ def test_critical_path_tiebreak_keeps_zero_idle():
         assert abs(_aic(cp).busy_us - _aic(greedy).busy_us) < 1e-6
 
 
-def test_critical_path_usually_wins_but_not_always():
-    """记录上面那条结论: 小形状 CP 更好, 18432/6 上 CP 更差."""
+def test_critical_path_is_never_worse_on_the_measured_shapes():
+    """关键路径优先在现有口径下的八个形状上都不更差 (多数更好).
+
+    这条结论随**搬运口径**变过: max 口径下每个 tile 时长几乎相同, 路径长度退化,
+    18432/6 上 CP 曾比贪心差 6.2%。2026-10-04 定为相加口径后 tile 时长随 m 变,
+    路径有了区分度, 那个反例消失:
+        9216/3   325.28 -> 294.97   9216/6  596.24 -> 547.07
+        14336/6  883.47 -> 864.61  18432/6 1073.39 -> 1063.96
+        6144/3   258.94 -> 228.64   9216/4  377.61 -> 373.90
+        4608/2 与 9216/2 两种策略同值 (每专家只有 1 个 m-group, 无可选序)
+
+    **不断言 CP 一定不差** —— 工作守恒调度不保证最优 (Graham 异常), 本仓已在
+    UB 深度那条上观察到同类现象。这里只记录"在这些形状上没找到反例"。
+    """
     pools = ("AIC", "AIV1")
-    better = worse = 0
-    for hd, local in ((9216, 3), (9216, 6), (18432, 6)):
+    worse = []
+    for hd, local in ((9216, 3), (9216, 6), (6144, 3)):
         g = _run_pol(hd, local, pools)["dag_end_us"]
         c = _run_pol(hd, local, pools, m.WorkConservingCriticalPath())["dag_end_us"]
-        better += c < g
-        worse += c > g
-    assert better >= 2 and worse >= 1
+        if c > g:
+            worse.append((hd, local, g, c))
+    assert not worse, f"出现反例, 把它记进 docstring: {worse}"
 
 
 def test_remaining_path_computed_only_when_policy_asks():

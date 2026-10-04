@@ -319,13 +319,16 @@ class KernelConfig:
     #       mega_moe_wave_a8w8.h:446 (调度宽度), 同文件 377-392 (epilogueN = N/2)。
     gmm1_interleaved: bool = False
     l1_tile_k: int = 256              # K-chunk 基线 (select_kl1 自适应)
-    # GMM1 B 复用: 切片内只有首个 m-group 付自己列块的 B 流 (builders/gmm1.py:32)。
-    # **影响时长** —— b_load 进 gmm1_tile 公式 (costs.py:294)。实测 hidden=9216 专家=3
-    # 全远端: 开启后 dag_end 988.3->827.1 us (-16.3%), 每专家 4 个 m-group 时 -13.0%。
-    # 注意: p1_override/p2_override=1 把每专家压到 1 个 m-group 时本旋钮退化为无效
-    # (只有一个 m-group, 没有可复用的对象)。
-    # "付几次"的规律尚未定 (见 costs.py gmm1_tile 文档: 按 1/12 算会过冲)。
-    gmm1_b_reuse: bool = False
+    # GMM1 B 复用: 切片内首个 m-group 的 tile 付整份 B 流, 其余 m-group 的 tile 各付
+    # **本比例**。1.0 = 不复用 (缺省, 不声称 L2 会命中); 0.0 = 完全复用 (只有首个付)。
+    #
+    # **影响时长** —— 进 gmm1_tile 的 b_load (costs.py)。实测只有一个点:
+    #   bs128  m=256, 1 个 m-group, 28 核: 74.81 us
+    #   bs8192 m=256,12 个 m-group, 28 核: 53.80 us   <- 几何相同, 只差 m-group 数
+    # 反解每 tile 的 B 流只有整份的 56.5%; 按"首个付整份、其余各付 f"算, G=12 时
+    # f ≈ 0.53。**一个点不是规律** (f 可能随 G、随列块数变), 所以缺省不声称复用。
+    # 注意: 每专家只有 1 个 m-group 时本旋钮无效 (没有可复用的对象)。
+    gmm1_b_reuse_frac: float = 1.0
     combine_quant_mode: int = 0       # CombineQuantMode 模板参数: 0=NO_QUANT, 1=QUANT(FP8+scale)
     l1_size: int = 512 * 1024         # DAV_3510 平台
     # 核数 aic_num 是可调场景输入 (MegaMoeShape.aic_num); 向量核数恒为 2×aic_num

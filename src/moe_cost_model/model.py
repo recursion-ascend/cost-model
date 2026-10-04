@@ -191,7 +191,8 @@ def _reconcile_act_to_gmm2(costs: PrimitiveCosts, mode: str) -> PrimitiveCosts:
         tile_restart_us=owner.chunk_restart,
         l1_tile_k=owner._k_l1,
         gmm1_weight_blocks=owner.wb,
-        gmm2_a_from_gm=want)
+        gmm2_a_from_gm=want,
+        load_overlap=owner.load_overlap)
     return dataclasses.replace(costs, gmm1_tile=new_g.gmm1_tile,
                                gmm2_tile=new_g.gmm2_tile)
 

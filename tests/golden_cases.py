@@ -152,7 +152,8 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
         sk(), 64, kernel=kc(l1_buf_num=1, combine_quant_mode=1),
         costs=analytical_costs(kc(l1_buf_num=1, combine_quant_mode=1)))
     c["mte_l1_tile_k512"] = lambda: run_api(sk(), 64, kernel=kc(l1_tile_k=512))
-    c["mte_b_reuse"] = lambda: run_api(w3(), 512, kernel=kc(gmm1_b_reuse=True))
+    # B 复用比例 0.53: 由 bs128 (1 组) 与 bs8192 (12 组) 反解的那一个实测点
+    c["mte_b_reuse"] = lambda: run_api(w3(), 512, kernel=kc(gmm1_b_reuse_frac=0.53))
     c["mte_gmm2_kl1_256"] = lambda: run_api(sk(), 64, options=P.with_options(gmm2_kl1=256))
 
     # ---- 策略旋钮 (经 MegaMoeShape) ----

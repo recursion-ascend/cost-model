@@ -104,10 +104,13 @@ def test_default_pin():
     # 2026-10 dispatch_call 调用开销缺省改 0 (由算子工程师按实现填, 实测参考
     #   T_CALL_OH=1.006): 220.483 -> 219.477
     # 2026-10-03 搬运口径改 max(A流, B流) (原为相加), 结果写出 (数据释放事件) 不计:
-    #   219.477 -> 183.478。与 1 个 m-group 的两个实测点冲突 (低估 9%~32%), 见
-    #   AnalyticalGmmCosts.gmm1_phases 的口径沿革
-    assert abs(res["kernel_total_us"] - 183.478) < 0.01
-    assert abs(res["kernel_dag_end_us"] - 198.128) < 0.01
+    #   219.477 -> 183.478
+    # 2026-10-04 搬运口径定回相加。三个实测点把"m"与"每专家 m-group 数"两个混淆变量
+    #   分开后, max 在三个点上分别低估 9.2% / 32.5% / 46.6%, 相加 + B 复用比例则
+    #   在 +3.5% / +1.3% / +0.4% 内 (见 AnalyticalGmmCosts.gmm1_phases 与
+    #   tests/test_load_convention.py)。183.478 -> 235.775
+    assert abs(res["kernel_total_us"] - 235.775) < 0.01
+    assert abs(res["kernel_dag_end_us"] - 250.425) < 0.01
     # C3: 逐核排空节点 (28 核 x 3 引擎 = 84 个) 换成一个全核排空栅栏 -> 659 - 83 = 576
     assert len(res["rank_results"][0]["events"]) == 576
     # 排队模型生效标志: 资源争用出现 (旧模型恒为 0)
@@ -240,7 +243,7 @@ def _run_costs():
 def test_kl1_override_restores_legacy():
     """kL1=256 显式覆盖应恢复与 auto 相同值 (结构等价性自检)."""
     res = _run(options=m.MEGAMOE_A8W8.with_options(gmm2_kl1=256))
-    assert abs(res["kernel_total_us"] - 183.478) < 0.5
+    assert abs(res["kernel_total_us"] - 235.775) < 0.5
 
 
 def test_primitive_costs_requires_all():

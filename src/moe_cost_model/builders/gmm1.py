@@ -35,10 +35,12 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
         tile_count = len(tiles)
         fill_share = c.gmm1_fill_us / tile_count if tile_count else 0.0
         # 预计算逐 tile 时长 (分核策略按真实代价均衡, 不按个数)
-        # B 复用: 切片内只有首个 m-group 付自己列块的 B 流。
-        # 未开复用时按三参调用 —— 自定义 gmm1_tile callable 只需接三个参数。
-        b_load = [not km.gmm1_b_reuse or t.row_begin < TILE_M for t in tiles]
-        if km.gmm1_b_reuse:
+        # B 复用: 切片内首个 m-group 的 tile 付整份 B 流, 其余各付 gmm1_b_reuse_frac。
+        # 未开复用 (frac == 1.0) 时按三参调用 —— 自定义 gmm1_tile callable 只需接三个参数。
+        frac = float(km.gmm1_b_reuse_frac)
+        reuse = frac != 1.0
+        b_load = [1.0 if (not reuse or t.row_begin < TILE_M) else frac for t in tiles]
+        if reuse:
             tile_costs = [c.gmm1_tile(t.rows, shape.h, t.cols, b_load[i]) + fill_share
                           for i, t in enumerate(tiles)]
         else:
@@ -106,7 +108,7 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             # max(A,B) 口径只让较慢的一股决定**时长**, 但两股字节都真实发生,
             # 所以这里按字节申报 (统计用, 不参与准入)。
             a_bytes = t.rows * shape.h
-            b_bytes = _gmm1_b_bytes(c, shape.h, t.cols) if b_load[tile_idx] else 0
+            b_bytes = _gmm1_b_bytes(c, shape.h, t.cols) * b_load[tile_idx]
             builder._event(gname, (f"AIC:{core}",), duration, deps=deps,
                            acquires=acq, releases=(q_aic,), meta=meta,
                            channel_bytes=((CH_GM_TO_L1, float(a_bytes + b_bytes),
