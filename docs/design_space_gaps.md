@@ -34,6 +34,7 @@
 | tile->核 绑定时机 | `ModelOptions.late_bind_pools` | 派发时 (缺省) / 建图时静态 (`MEGAMOE_A8W8`) —— 缺口 3 已补齐 |
 | stage->执行角色 | `ModelOptions.roles` | 哪个 stage 跑 AIC / AIV0 / AIV1 (缺口 2 已补齐) |
 | combine 粒度 | `ModelOptions.combine_granularity` | per_tile (缺省) / per_expert (缺口 11 已补齐) |
+| combine 落点布局 | `ModelOptions.combine_layout` | token_scatter (缺省) / expert_contiguous (缺口 10 结构已补齐, 系数待实测) |
 | ready 集选序 | `scheduling_policy` | EarliestStart / WorkConservingCriticalPath / PriorityByStage |
 | stage 波偏移 | `InstancePolicy.wave_offsets` | dispatch 超前波数、GMM2 滞后波数 |
 | dispatch 配速 | `ModelOptions.dispatch_pacing` | none (缺省) / per_core (`MEGAMOE_A8W8`) / wave |
@@ -484,31 +485,39 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 
 ---
 
-## 缺口 10: 输出落点布局不可选, 散射写没有"跨度"这个量
+## 缺口 10: 输出落点布局 — **结构已补齐 (2026-10-04), 系数待实测**
 
-COMBINE 把每行写到 `(tokenIdx·topK + topkIdx)·n + nLoc` —— 落点由 token 全局编号决定。
-这是一种**输出布局选择**: 它让 UNPERMUTE 可以顺序读, 代价是写侧按 token 散射。工程师
-可以选别的布局 (例如按专家连续写、UNPERMUTE 侧改成 gather), 用写侧局部性换读侧顺序性。
-**模型表达不出这个选择, 也没有"写落点跨度"这个量**, 所以这笔交换评估不了。
+写落点是 `(tokenIdx·topK + topkIdx)·n`, 这是一种**输出布局选择**: 让 UNPERMUTE 顺序读,
+代价是写侧按 token 散射。现在两种布局都能表达 (`ModelOptions.combine_layout`):
 
-这不只是少一个旋钮 —— 跨度是**真的影响时长**的。2026-10-04 核对 20260930 的 run:
+| 取值 | 跨度 | 换来什么 |
+| --- | --- | --- |
+| `"token_scatter"` (缺省) | token 数 x topk | UNPERMUTE 顺序读 |
+| `"expert_contiguous"` | 本窗行数 (不散开) | 写侧局部性; 读侧改 gather |
 
-| 形状 | 实测单 tile | 模型 | 实测/模型 |
-| --- | ---: | ---: | ---: |
-| bs36  m= 72 | 5.553 us | 1.20 us | 4.6x |
-| bs128 m=256 | 36.751 us | 4.27 us | 8.6x |
+布局 -> 跨度 -> 代价这条链通了: 建图时算出 `spread_slots` 并进 meta, 成本侧
 
-关键不是倍数, 是**标度**: m 比 3.56 倍, 实测时长比 **6.62 倍** —— 超线性。按字节计价与按
-每行固定开销计价**都是线性的**, 两者都解释不了, 调带宽常数也对不上。说得通的机制就是
-跨度: token 数越多, 同一个 tile 的 m 行落点铺得越宽 (bs36 是 36x6 = 216 个槽位,
-bs128 是 768 个), 页局部性越差; 每行 512B (n=256, BF16) 本来就远小于高效突发长度。
+    额外 = m · scatter_us_per_row · (spread_slots / m) ** scatter_exponent
 
-补齐方向: COMBINE 写侧改成 `f(跨度) + 字节/带宽`, 并把"输出布局"变成可选项 (至少两种:
-按 token 散射 / 按专家连续)。定 f 需要**扫 token 数**的 run (固定 m 与 n, 只变 batch) ——
-现有三个 run 里 m 与 token 数一起变, 分不开。
+### 系数缺省 0, 这是有意的
 
-在此之前: **COMBINE 在大 batch 上是乐观的**, 量级见上表。凡结论依赖 COMBINE 占比的
-(combine 配速、EP 摆放/本地亲和度的收益), 都要记住这一点。
+实测 (20260930) 单 tile 中位: bs36 m=72 **5.553us** / bs128 m=256 **36.751us** ——
+m 比 3.56 倍而时长比 **6.62 倍**, 超线性。按字节与按每行固定开销都解释不了 (两者都线性)。
+这两点与 `exponent ≈ 0.5` 相容 ((768/216)**0.5 = 1.88 对实测每行代价比 1.86), 但
+
+  * **两个点定不了一条规律**;
+  * 这两个 run 里 m 与 token 数是**一起变**的, 分不开。
+
+所以模型只提供结构, 系数要由"固定 m 与 n、只扫 token 数"的 run 来定。缺省 0 =
+只按字节算 = 原行为, 所以缺省下换布局只改申报的跨度、不改时长。
+
+### 两处偏置, 别拿这个旋钮当免费收益
+
+1. 写侧系数不填, `token_scatter` 的代价就是 0 —— 现有三个 run 的 4.6x~8.6x 偏差正是它。
+2. 读侧**完全没建模**: UNPERMUTE 现在是"字节量 / BW_UNPERMUTE_AGG"一个除法
+   (`builders/base.py`), 与落点布局无关。所以填了系数之后 `expert_contiguous` 会显得
+   单方面变好 —— 那是模型的偏置, 不是结论。要让这笔交换两侧都算得出, UNPERMUTE 也得
+   有它自己的跨度项。
 
 ---
 

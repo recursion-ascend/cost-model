@@ -160,6 +160,19 @@ class ModelOptions:
     #       攒批: 元数据每行只读一次, 写侧落点跨度也更可控; 代价是等整片。
     # 两种都是合理编排; 参考实现把它与量化模板参数绑在一起, 那是它的耦合 (见 docs 缺口 11)。
     combine_granularity: str = "per_tile"
+    # combine 写出的**落点布局**: 这 m 行写到目的卡窗口的哪里。
+    #   "token_scatter" (缺省) 落点 = (tokenIdx·topK + topkIdx)·n, 由 token 全局编号决定。
+    #       好处: UNPERMUTE 可以顺序读。代价: 写侧按 token 散射, 跨度 = token 数 x topk。
+    #   "expert_contiguous" 按专家连续写 (跨度 = 本窗行数), UNPERMUTE 侧改成 gather。
+    #       好处: 写侧局部性好。代价: 读侧变散。
+    # 这笔交换**两侧都还没算全**:
+    #   写侧代价要靠 AnalyticalCombineCosts 的 scatter_us_per_row, 它缺省 0 (只按字节算),
+    #     所以缺省下换布局只改申报的跨度、不改时长;
+    #   读侧代价 (UNPERMUTE 从顺序读变 gather) **完全没建模** —— UNPERMUTE 现在是
+    #     字节量 / BW_UNPERMUTE_AGG 一个除法 (builders/base.py), 与落点布局无关。
+    # 所以填了 scatter 系数之后 "expert_contiguous" 会显得单方面变好, 那是模型的偏置,
+    # 不是结论。见 docs/design_space_gaps.md 缺口 10。
+    combine_layout: str = "token_scatter"
     # L3 晚绑定: 哪些角色池的 tile->核 绑定推迟到**派发时刻**。
     #
     # 缺省 = 三个池全入 (派发时刻绑定)。理由是模型的不变量: 决不允许"某 tile 的前置

@@ -200,6 +200,22 @@ class MteDispatch(DispatchTransport):
                 ctx.dispatch_ready_event[key] = rn
 
 
+def _spread_slots(options, shape, rows: int) -> float:
+    """这 rows 行的写出落点铺开在多少个槽位里 (ModelOptions.combine_layout).
+
+    token 散射: 落点 = (tokenIdx·topK + topkIdx)·n, 所以整张卡的落点空间是
+        token 数 x topk 个槽位, 本窗这几行散落其中。
+    按专家连续: 落点连续, 跨度就是行数本身 (= 不散开)。
+    """
+    layout = options.combine_layout
+    if layout == "expert_contiguous":
+        return float(rows)
+    if layout != "token_scatter":
+        raise ValueError(
+            f'combine_layout 只能是 "token_scatter" / "expert_contiguous", 收到 {layout!r}')
+    return float(shape.token_num * shape.topk)
+
+
 class MteCombine(CombineTransport):
     """combine 的两种粒度 (ModelOptions.combine_granularity):
 
@@ -243,8 +259,10 @@ class MteCombine(CombineTransport):
             ch for d, n in enumerate(by_dst) if d != shape.rank_id and n
             for ch in ((f"fab_src:{shape.rank_id}", n * row_bytes, bw_fab),
                        (f"fab_dst:{d}", n * row_bytes, bw_fab)))
+        spread = _spread_slots(builder.options, shape, t.rows)
         builder._event(cname, (builder.options.role_resource("combine", core),),
-                       c.combine_tile(t.rows, t.cols, remote_rows) + c.combine_ack_us,
+                       c.combine_tile(t.rows, t.cols, remote_rows, spread)
+                       + c.combine_ack_us,
                        deps=[gname], acquires=(q_aiv1,), releases=(q_aiv1,),
                        channel_bytes=ch_bytes,
                        meta={"stage": "combine", "wave": w.index,
@@ -253,7 +271,8 @@ class MteCombine(CombineTransport):
                              "col_begin": t.col_begin, "col_end": t.col_end,
                              "row_begin": t.row_begin, "row_end": t.row_end,
                              "logical_n": t.cols, "core": core, "m_rows": t.rows,
-                             "remote_rows": remote_rows, "rows_by_dst": by_dst})
+                             "remote_rows": remote_rows, "rows_by_dst": by_dst,
+                             "spread_slots": spread})
         ctx.gmm2_combine_history[core].append(cname)
         ctx.last_combine_by_core[core] = cname
         ctx.combines_by_wave.setdefault(w.index, []).append(cname)
@@ -286,9 +305,11 @@ class MteCombine(CombineTransport):
                            (f"fab_dst:{d}", n * row_bytes, bw_fab)))
             q_aiv1 = (f"Q:aiv1:c{core}", 1)
             cname = f"W{w.index}.E{expert}.S{si}.combine.expert"
+            spread = _spread_slots(builder.options, shape, rows)
             builder._event(
                 cname, (builder.options.role_resource("combine", core),),
-                c.combine_tile(rows, shape.h, remote_rows) + c.combine_ack_us,
+                c.combine_tile(rows, shape.h, remote_rows, spread)
+                + c.combine_ack_us,
                 deps=sorted(slot["deps"]), acquires=(q_aiv1,), releases=(q_aiv1,),
                 channel_bytes=ch_bytes,
                 meta={"stage": "combine", "wave": w.index,
@@ -297,7 +318,8 @@ class MteCombine(CombineTransport):
                       "col_begin": 0, "col_end": shape.h,
                       "row_begin": 0, "row_end": rows,
                       "logical_n": shape.h, "core": core, "m_rows": rows,
-                      "remote_rows": remote_rows, "rows_by_dst": by_dst})
+                      "remote_rows": remote_rows, "rows_by_dst": by_dst,
+                      "spread_slots": spread})
             ctx.gmm2_combine_history[core].append(cname)
             ctx.last_combine_by_core[core] = cname
             ctx.combines_by_wave.setdefault(w.index, []).append(cname)

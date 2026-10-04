@@ -204,7 +204,7 @@ class PrimitiveCosts:
     activation_store_bytes: Callable[[int, float], float]
     # (m 行, 本窗列数, 其中目的卡 != 本卡的行数) -> us
     # 第三参必填: 跨卡行是 COMBINE 的主导项 (实测占 95%), 缺了它公式会低估 10 倍.
-    combine_tile: Callable[[int, float, int], float]
+    combine_tile: Callable[..., float]      # (m, logical_n, remote_rows, spread_slots)
     # 本窗每行写出的字节数, 供 builder 折算片间信道流量.
     # 必填 (不给零值缺省): 缺省 0 会让 COMBINE 的跨卡写悄悄不占片间资源 ——
     # 手工构造 PrimitiveCosts 的调用点会与 build_analytical_costs 静默分叉。
@@ -545,7 +545,9 @@ class AnalyticalCombineCosts:
     def __init__(self, combine_quant_mode: int = COMBINE_NO_QUANT,
                  bw_local_bytes_per_us: float = BW_LOCAL_GM,
                  bw_remote_bytes_per_us: float = BW_REMOTE_WRITE,
-                 meta_bytes_per_row: float = META_BYTES_PER_ROW):
+                 meta_bytes_per_row: float = META_BYTES_PER_ROW,
+                 scatter_us_per_row: float = 0.0,
+                 scatter_exponent: float = 0.0):
         if combine_quant_mode == COMBINE_NO_QUANT:
             self.in_elem_bytes = 2.0        # GMM2 输出 BF16
             self.out_elem_bytes = 2.0       # 部分和 BF16
@@ -562,6 +564,12 @@ class AnalyticalCombineCosts:
         self.bw_local = bw_local_bytes_per_us
         self.bw_remote = bw_remote_bytes_per_us
         self.meta_bytes = meta_bytes_per_row
+        # 写侧**落点跨度**的额外开销 (见 tile 的说明): 缺省 0 = 只按字节算 (现行为)。
+        # 两点实测与 exponent≈0.5 相容, 但两个点定不了指数, 所以不写死 —— 要用就显式填。
+        if scatter_us_per_row < 0 or scatter_exponent < 0:
+            raise ValueError("scatter_us_per_row / scatter_exponent 不能为负")
+        self.scatter_us_per_row = float(scatter_us_per_row)
+        self.scatter_exponent = float(scatter_exponent)
 
     @property
     def write_bytes_per_elem(self) -> float:
@@ -576,18 +584,43 @@ class AnalyticalCombineCosts:
         """一行写出的字节 (CombineTokens 的一次 DataCopyPad); 片间信道按它折算."""
         return self.write_bytes_per_elem * logical_n
 
-    def tile(self, m: int, logical_n: int = 256, remote_rows: int = 0) -> float:
+    def scatter_us(self, m: int, spread_slots: float = 0.0) -> float:
+        """写侧落点跨度带来的额外开销. 缺省系数 0 -> 恒为 0 (只按字节算).
+
+        spread_slots = 这 m 行的落点铺开在多少个槽位里。
+            token 散射布局 (combine_layout="token_scatter"): token 数 x topk ——
+                写的是 (tokenIdx·topK + topkIdx)·n, 落点由 token 全局编号决定。
+            按专家连续 (combine_layout="expert_contiguous"): = m, 即不散开。
+
+        额外 = m · scatter_us_per_row · (spread_slots / m) ** scatter_exponent
+
+        **为什么系数缺省 0**: 实测 (20260930) 单 tile 中位 bs36 m=72 5.553us /
+        bs128 m=256 36.751us —— m 比 3.56 倍而时长比 6.62 倍, 超线性, 按字节与按每行
+        固定开销都解释不了 (两者都线性)。这两点与 exponent ≈ 0.5 相容
+        ((768/216)**0.5 = 1.88 对实测每行代价比 1.86), 但**两个点定不了一条规律**, 而且
+        m 与 token 数在这两个 run 里是一起变的。所以模型只提供这个结构, 系数要由
+        "固定 m 与 n、只扫 token 数"的 run 来定。见 docs/design_space_gaps.md 缺口 10。
+        """
+        if self.scatter_us_per_row <= 0 or m <= 0:
+            return 0.0
+        ratio = max(1.0, float(spread_slots) / m) if spread_slots else 1.0
+        return m * self.scatter_us_per_row * (ratio ** self.scatter_exponent)
+
+    def tile(self, m: int, logical_n: int = 256, remote_rows: int = 0,
+             spread_slots: float = 0.0) -> float:
         """logical_n = 本窗实际列数 (尾 N-tile 时 < 256), 调用期传入.
 
         remote_rows = 本窗 m 行里目的卡 != 本卡的行数, 由 routing 精确算出
         (第 r 卡第 e 专家的行按源卡分段, 源卡 != r 的就要跨卡写回)。
+        spread_slots = 落点跨度 (见 scatter_us); 缺省 0 = 不计跨度项。
         """
         if not 0 <= remote_rows <= m:
             raise ValueError(f"remote_rows={remote_rows} 必须落在 [0, m={m}]")
         row_bytes = self.write_bytes_per_elem * logical_n
         return (self.read_us(m, logical_n)
                 + (m - remote_rows) * row_bytes / self.bw_local
-                + remote_rows * row_bytes / self.bw_remote)
+                + remote_rows * row_bytes / self.bw_remote
+                + self.scatter_us(m, spread_slots))
 
 
 def build_analytical_costs(
