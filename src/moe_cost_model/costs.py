@@ -577,6 +577,8 @@ def build_analytical_costs(
     count_table_prepare_us: float = T_COUNT_GATE,
     gmm2_a_from_gm: bool = True,
     load_overlap: str = "sum",
+    platform=None,
+    active_cores: int = 0,
 ) -> PrimitiveCosts:
     """按 (h, KernelConfig) 一致构建解析公式族, 消除 tile_n/l1_tile_k/h 漏配.
 
@@ -586,13 +588,21 @@ def build_analytical_costs(
     容器只承载硬件常数与 L1 组织参数 — 结构上消除 tile_n/h 双份来源的漏配.
 
     带宽缺省 = constants 实测值; NZ 布局必须显式给 bw_l1_gm_b_nz (零猜测).
-    cube_mac_per_us 缺省 0 = 不计计算项 (实测域内两个 GMM 都是权重载入绑定).
+    cube_mac_per_us 缺省 0 = 不计计算项. 规格峰值用
+    config.platform.cube_mac_per_us("fp8") 取 (A8W8 主路径 1.35e7 MAC/µs)。
+
+    platform / active_cores: 给了这两个就给单核 GM→L1 带宽加**聚合上限** ——
+    单核带宽 x 活跃核数 不得超过该平台的聚合 HBM 带宽 (规格值)。不给 = 只用单核
+    常数, 核数多时可能突破物理上界 (950PR 32 核时 51.9 GB/s/核 已是聚合的 104%)。
     """
     # 几何量 (tile_n/列数) 不进容器: 调用方按 KernelConfig 调用期传入.
     # 容器只承载硬件常数; kernel 参数中仅 L1 组织 (l1_buf_num/l1_tile_k/weight_nz) 影响公式形态.
     km = kernel if kernel is not None else KernelConfig()
+    bw_a = bw_l1_gm if bw_l1_gm is not None else BW_L1_GM
+    if platform is not None and active_cores > 0:
+        bw_a = platform.gm_bw_per_core(active_cores, bw_a)
     gmm = AnalyticalGmmCosts(
-        bw_bytes_per_us=bw_l1_gm if bw_l1_gm is not None else BW_L1_GM,
+        bw_bytes_per_us=bw_a,
         weight_nz=km.weight_nz,
         bw_b_nz_bytes_per_us=bw_l1_gm_b_nz,
         l1_buf_num=km.l1_buf_num,

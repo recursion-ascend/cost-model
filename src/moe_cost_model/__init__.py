@@ -28,6 +28,8 @@ from .config.hardware import (
     VEC_REG_WIDTH, _gmm2_head_tail_fractions, ceil_div, select_kl1,
 )
 from .config.links import DEFAULT_LINKS, StageLink
+from .config.platform import (ASCEND_950DT, ASCEND_950PR, PlatformSpec,
+                              cube_mac_per_us, resolve_platform)
 from .config.policy import InstancePolicy, StageWaveOffsets
 from .config.pipeline import (
     BufferSlots, PhaseRates, PipelineConstraints, QueueDepths, SyncLatency,

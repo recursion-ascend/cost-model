@@ -61,12 +61,16 @@ def _point_row(result: Mapping) -> Dict[str, object]:
 
 def design_space(run: Callable[[object], Mapping],
                  points: Mapping[str, object],
-                 *, baseline: Optional[str] = None) -> List[Dict[str, object]]:
+                 *, baseline: Optional[str] = None,
+                 platform=None) -> List[Dict[str, object]]:
     """逐方案仿真并算出相对基线的差.
 
     run:      run(options) -> simulate_routing_counts 的返回值
     points:   {方案名: ModelOptions}; 保持插入序
     baseline: 用哪个方案做基线; 不给就取第一个
+    platform: config.platform.PlatformSpec。给了就多算一项护栏: 该方案申报的 GM
+              访存量 / 墙钟 = 它需要的聚合带宽, 超过规格聚合 HBM 带宽就是**物理上
+              不可能** —— 那一行的时长不可信 (模型不建带宽争用, 只能事后核对)。
 
     返回每个方案一行 (含 delta_us / delta_pct / 变化最大的 stage / 瓶颈等待构成 /
     访存量差 / 可避免空闲)。
@@ -113,6 +117,16 @@ def design_space(run: Callable[[object], Mapping],
         bad = {k: v for k, v in r["avoidable_idle_us"].items() if v > 1e-6}
         r["invariant_ok"] = not bad
         r["invariant_violations"] = bad
+        # 带宽护栏: 申报的 GM 访存量 / 墙钟 = 这个方案需要的聚合带宽
+        gm = sum(v for k, v in r["traffic_bytes"].items() if k.endswith("gm_to_l1"))
+        r["gm_bytes"] = gm
+        r["gm_bw_needed"] = gm / r["total_us"] if r["total_us"] else 0.0
+        if platform is not None:
+            r["hbm_pct"] = 100.0 * r["gm_bw_needed"] / platform.hbm_bytes_per_us
+            r["bandwidth_ok"] = r["hbm_pct"] <= 100.0
+        else:
+            r["hbm_pct"] = None
+            r["bandwidth_ok"] = True
         rows.append(r)
     return rows
 
@@ -142,6 +156,8 @@ def format_design_space(rows: List[Dict[str, object]]) -> str:
                        for k, v in list(r["traffic_delta_bytes"].items())[:1]) or "-"
         guard = "ok" if r["invariant_ok"] else \
             "违反 " + ",".join(f"{k}{v:.0f}" for k, v in r["invariant_violations"].items())
+        if r["hbm_pct"] is not None:
+            guard += f" | HBM {r['hbm_pct']:.0f}%" + ("" if r["bandwidth_ok"] else " 超!")
         tag = " (基线)" if r["is_baseline"] else ""
         out.append(
             f"{str(r['name']).ljust(w)}  {r['total_us']:9.2f}  {r['delta_us']:+9.2f}  "

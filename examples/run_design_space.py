@@ -10,6 +10,11 @@
   最大等待      改完之后卡在什么上: capacity (信号量/容量) / dep (依赖) / res (核被占)。
   访存量差      少搬/多搬多少字节。片上不物化省的就是这一列。
   护栏          "违反" = 这个方案下有就绪的活却有核空闲, 该行时长偏慢, 收益不可比。
+                "HBM x%" = 这个方案需要的聚合带宽占该平台规格的多少; 超 100% 就是
+                物理上不可能 (模型不建带宽争用, 只能事后核对)。
+
+Cube 速率取规格峰值 (config.platform.cube_mac_per_us("fp8") = 1.35e7 MAC/µs,
+A8W8 主路径), 不是反解值 —— 让模型自己判断谁绑定。
 """
 import sys
 from pathlib import Path
@@ -38,13 +43,19 @@ def main() -> int:
           for d in range(WORLD)]
     tokens = sum(rc[d][e][1] for d in range(WORLD) for e in range(LOCAL)) // 6
 
-    def run(options):
-        return m.simulate_routing_counts(
-            routing_counts=rc, token_num_per_rank=tokens, h=5120, hidden_dim=9216,
-            aic_num=28, topk=6, p1_override=1, p2_override=1,
-            costs=m.build_analytical_costs(
-                h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency()),
-            options=options)
+    AIC = 28                       # 单卡真实可用核数
+
+    def runner(platform):
+        def run(options):
+            return m.simulate_routing_counts(
+                routing_counts=rc, token_num_per_rank=tokens, h=5120, hidden_dim=9216,
+                aic_num=AIC, topk=6, p1_override=1, p2_override=1,
+                costs=m.build_analytical_costs(
+                    h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency(),
+                    cube_mac_per_us=m.cube_mac_per_us("fp8"),
+                    platform=platform, active_cores=AIC),
+                options=options)
+        return run
 
     points = {
         "基线 (最少假设)": OPT(),
@@ -57,12 +68,17 @@ def main() -> int:
         "静态发牌": OPT(late_bind_pools=()),
         "那份实现 (MEGAMOE_A8W8)": m.MEGAMOE_A8W8.options,
     }
-    rows = m.design_space(run, points)
-    print(m.format_design_space(rows))
-    print()
-    best = min((r for r in rows if r["invariant_ok"]), key=lambda r: r["total_us"])
-    print(f"护栏通过的最快方案: {best['name']}  {best['total_us']:.2f} us "
-          f"({best['delta_pct']:+.1f}%)")
+    for platform in (m.ASCEND_950PR, m.ASCEND_950DT):
+        rows = m.design_space(runner(platform), points, platform=platform)
+        print(f"== {platform.name}  (聚合 HBM {platform.hbm_bytes_per_us / 1e6:.1f} TB/s, "
+              f"{AIC} 核)")
+        print(m.format_design_space(rows))
+        ok = [r for r in rows if r["invariant_ok"] and r["bandwidth_ok"]]
+        best = min(ok, key=lambda r: r["total_us"])
+        print(f"   护栏通过的最快方案: {best['name']}  {best['total_us']:.2f} us "
+              f"({best['delta_pct']:+.1f}%), 需要聚合带宽 "
+              f"{best['gm_bw_needed'] / 1e6:.2f} TB/s = 规格的 {best['hbm_pct']:.0f}%")
+        print()
     return 0
 
 

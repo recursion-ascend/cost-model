@@ -1,6 +1,9 @@
 """参数出处系统: 机器可读的常数来源标签.
 
 分类 (source 前缀):
+  spec:<文档>       官方规格 (架构白皮书) 的**上界**。用它算出的是时间下界, 所以
+                     该配效率系数; 与 measured 分开记 —— 后者已含争用与开销, 不该
+                     再乘效率。见 config/platform.py。
   measured:<实验>   单点/差分实测 (注明实验与适用域)
   kernel:            结构常数, 来自 kernel 工程
   derived:<公式>    从其他常数/规格推导
@@ -80,6 +83,7 @@ def provenance_report(entries: Dict[str, Tuple[float, str]]) -> Dict[str, Any]:
         "entries": entries,
         "summary": {c: len(v) for c, v in sorted(cats.items())},
         "assumed": {p: entries[p] for p in cats.get("assumed", [])},
+        "spec": {p: entries[p] for p in cats.get("spec", [])},
         "measured": {p: entries[p] for p in cats.get("measured", [])},
         "kernel": {p: entries[p] for p in cats.get("kernel", [])},
     }
