@@ -160,6 +160,30 @@ OPT(granularity={"gmm1": 2, "gmm2": 2, "combine": 0})
 
 ---
 
+## 4b. 流水编排效率怎么看
+
+`python examples/run_pipeline_study.py` 在一个形状上逐个旋钮给出:
+墙钟、Δ%、AIC 忙碌%、**不可免空闲** (DAG 逼出来的) / **可避免空闲** (有活却空着,
+护栏), 以及关键路径按 `critical_reason` 的归类 (`resource` = 等核, `dependency` =
+等上游数据, `capacity` = 等信号量/槽位)。
+
+两处定位入手点:
+
+* `rank_results[0]["idle_decomposition"]["R0.AIC"].segments` —— 逐段给出**哪些核在空**
+  以及**当时有哪些就绪事件在等** (`waiting_ready`)。可避免空闲不为 0 时直接看这里。
+* `rank_results[0]["critical_path"]` —— 每一步带 `critical_reason` 与 `critical_parent`,
+  所以"为什么这一步在关键路径上"是可读的, 不用猜。
+
+`resource` 与 `dependency` 的比例决定下一步: 前者多就是核不够或分配不均 (加并行度、
+换分核、开晚绑定), 后者多就是依赖结构的问题 (改就绪粒度、片上驻留、波偏移)。
+
+**一个必须知道的口径陷阱**: 开了相位流水 (`options.pipeline`) 的行, 每个 tile 被拆成
+load/cube 两段, load 段不再占住 Cube 管道 (MTE2 与 Cube 在核内是两条管道), 于是
+AIC 忙碌从 47519 降到 16479 核·µs —— **工作量一点没少, 是记账口径变了**。拿拆相位的行
+和不拆的行比"忙碌%"会得出"流水让 Cube 闲下来了"的错结论。
+
+---
+
 ## 5. 扫设计空间 (给算子工程师的主用法)
 
 ```python

@@ -430,6 +430,12 @@ _LIST_NESTED = {
 _MAP_NESTED = {
     (ModelOptions, "granularity"): resolve_granularity,
 }
+# 值为"字符串元组"的字段: 场景文件里写 late_bind_pools = ["AIC"] 或 barriers = ["wave"]。
+# 这两个都是编排旋钮 (晚绑定池 / 分段栅栏), 日常路径是场景文件, 在那儿写不出等于没有。
+_SEQ_STR = {
+    (ModelOptions, "late_bind_pools"),
+    (ModelOptions, "barriers"),
+}
 # 策略字段: 名字 / 表 / 对象, 由 registry 校验
 _STRATEGY_FIELDS = {(Scenario, kind) for kind in registry.KINDS}
 
@@ -461,6 +467,16 @@ def _convert(cls, key: str, value, path: str, base=None):
     if (cls, key) in _STRATEGY_FIELDS:
         registry.resolve(key, value, where=where)
         return value
+    if (cls, key) in _SEQ_STR:
+        if value is None:
+            return ()
+        if isinstance(value, str) or not isinstance(value, (list, tuple)):
+            raise ValueError(
+                f"{where}: 应为字符串数组 (空数组 [] 表示关掉), 得到 {value!r}")
+        bad = [v for v in value if not isinstance(v, str)]
+        if bad:
+            raise ValueError(f"{where}: 每一项应为字符串, 得到 {bad!r}")
+        return tuple(value)
     mapper = _MAP_NESTED.get((cls, key))
     if mapper is not None:
         if value is None:

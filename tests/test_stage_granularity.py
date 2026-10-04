@@ -226,3 +226,23 @@ def test_scenario_rejects_non_integer_and_unknown_stage():
         base.with_overrides({"options.granularity": {"gmm2": 2.5}})
     with pytest.raises(ValueError, match="未知 stage"):
         base.with_overrides({"options.granularity": {"swiglu": 2}})
+
+
+def test_scenario_file_can_set_string_tuple_orchestration_knobs():
+    """late_bind_pools / barriers 也是编排旋钮, 场景文件里写不出等于没有.
+
+    空数组 [] 表示关掉 —— 这是"静态发牌"与"不加栅栏"的写法。
+    """
+    from pathlib import Path
+
+    import moe_cost_model as mm
+    base = mm.load_scenario(Path("examples/scenario_basic.toml"))
+    off = base.with_overrides({"options.late_bind_pools": []})
+    assert off.options.late_bind_pools == ()
+    on = base.with_overrides({"options.late_bind_pools": ["AIC"]})
+    assert on.options.late_bind_pools == ("AIC",)
+    assert base.with_overrides({"options.barriers": ["wave"]}).options.barriers == ("wave",)
+    with pytest.raises(ValueError, match="应为字符串数组"):
+        base.with_overrides({"options.late_bind_pools": "AIC"})
+    with pytest.raises(ValueError, match="每一项应为字符串"):
+        base.with_overrides({"options.barriers": [2]})
