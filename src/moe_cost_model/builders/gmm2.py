@@ -13,7 +13,7 @@ from ..costs import gmm2_phase_split
 from ..planning.tile_grid import STAGE_GMM2, validate_tiles
 from .context import BuildContext
 from .pipeline_expand import CH_GM_TO_L1
-from .tiling import resolve_grid, tile_label
+from .tiling import coalesce_tiles, resolve_grid, tile_label
 
 
 def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
@@ -27,8 +27,13 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
         tiles = grid.plan(stage=STAGE_GMM2, rows=sl.rows, cols=shape.h, kernel=km)
         validate_tiles(tiles, rows=sl.rows, cols=shape.h, tile_m=TILE_M,
                        where=f"GMM2 专家 {sl.expert}")
-        tile_count = len(tiles)
-        tile_costs = [c.gmm2_tile(t.rows, k_gmm2, t.cols) for t in tiles]
+        # 事件粒度 (ModelOptions.granularity): 一个 GMM2 事件覆盖多少个 tile。
+        # 时长按成员逐个算再求和 —— 合并省的是事件间同步, 不省每 tile 的搬运与计算。
+        items = coalesce_tiles(tiles, builder.options.grain("gmm2"),
+                              where=f"GMM2 专家 {sl.expert}")
+        tile_count = len(items)
+        tile_costs = [sum(c.gmm2_tile(mt.rows, k_gmm2, mt.cols) for mt in members)
+                      for _, members in items]
         if core_assign is not None:
             owners = core_assign.assign(tile_count, p, cursor.start,
                                         tile_costs=tile_costs)
@@ -43,7 +48,7 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                          n_windows=km.l1_buf_num)
 
         for tile_idx, core in enumerate(owners):
-            t = tiles[tile_idx]
+            t, members = items[tile_idx]
             duration = tile_costs[tile_idx]
             mg = t.row_begin // TILE_M
             global_group = sl.row_begin // TILE_M + mg
@@ -75,14 +80,15 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                     "col_begin": t.col_begin, "col_end": t.col_end,
                     "row_begin": t.row_begin, "row_end": t.row_end,
                     "logical_n": t.cols, "core": core, "m_rows": t.rows,
-                    "cursor_tile": tile_idx}
+                    "cursor_tile": tile_idx, "tiles_in_event": len(members)}
             # 同一个 tile 的各 K 段按时长占比分摊本 tile 的 B 流, 信道字节才不会在
             # 计算绑定时被整段时长放大。段的 K 范围决定它等哪些 ACT。
-            phases = gmm2_phase_split(c, t.rows, k_gmm2, t.cols)
+            phases = _sum_phases(c, members, k_gmm2)
             # 物化编排下 GMM2 的 A 要从 GM 读回 (ACT 写出的量化激活); 申报到
             # gm_to_l1 访存量上。max(A流,B流) 口径下只有较大那一股折算成时长,
             # 但两股字节都真实发生 —— 这里按字节申报, 不按时长折算。
-            a_gm = (t.rows * k_gmm2) if link.materialised else 0
+            a_gm = (sum(mt.rows * k_gmm2 for mt in members)
+                    if link.materialised else 0)
             # C1: 名字不带核号 (见 gmm1.py 的说明)
             gname = f"W{w.index}.E{sl.expert}.S{si}.gmm2.{label}"
             n_seg = len(bounds)
@@ -123,6 +129,18 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             builder.combine_backend.on_gmm2_tile(
                 builder, ctx, w, shape, si, sl, t, label, ntile, core,
                 gname, global_group, call_iteration)
+
+
+def _sum_phases(costs, members, k_gmm2: int):
+    """粗粒度事件的 load/cube 相位 = 成员逐个拆分再相加 (任一成员不支持则整体不拆)."""
+    total_load = total_compute = 0.0
+    for mt in members:
+        ph = gmm2_phase_split(costs, mt.rows, k_gmm2, mt.cols)
+        if ph is None:
+            return None
+        total_load += ph[0]
+        total_compute += ph[1]
+    return (total_load, total_compute)
 
 
 def _k_segment_bounds(k_gmm2: int, kl1: int, segments: int):

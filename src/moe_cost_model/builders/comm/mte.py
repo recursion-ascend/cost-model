@@ -226,12 +226,22 @@ class MteCombine(CombineTransport):
     """
 
     def __init__(self):
-        #: per_expert 粒度下累计待批: (si, expert) -> [gmm2 末段名], 以及行列范围
+        #: 整片粒度 (0) 下累计待批: (si, expert) -> [gmm2 末段名], 以及行列范围
         self._pending = {}
+        #: 攒 N 个 n-tile 的粒度 (>=2) 下累计待批: (si, expert, 行范围) -> 正在攒的那一项。
+        #: **不按核分组**: combine 从 GM 读 GMM2 的输出 (StageLink location="gm"),
+        #: 与 GMM2 同核不是物理约束, 所以一个 combine 事件可以吃不同核产的 tile。
+        #: 按核分组会让这个旋钮失效 —— 轮转/晚绑定下同一个核拿到的是**不相邻**的 n-tile。
+        self._runs = {}
 
     def on_gmm2_tile(self, builder, ctx: BuildContext, w, shape, si, sl, t, label,
                      ntile, core, gname, global_group, call_iteration):
-        if builder.options.combine_granularity == "per_expert":
+        grain = builder.options.grain("combine")
+        if grain >= 2:
+            self._accumulate(builder, ctx, w, shape, si, sl, t, ntile, core,
+                             gname, global_group, call_iteration, grain)
+            return
+        if grain == 0:
             key = (si, sl.expert)
             slot = self._pending.setdefault(
                 key, {"deps": [], "cores": [], "sl": sl, "si": si,
@@ -240,37 +250,89 @@ class MteCombine(CombineTransport):
             slot["cores"].append(core)
             slot["rows"].add((t.row_begin, t.row_end))
             return
+        self._emit_tile(builder, ctx, w, shape, si, sl, core, gname,
+                        global_group, call_iteration, label=label, ntile=ntile,
+                        row_begin=t.row_begin, row_end=t.row_end,
+                        col_begin=t.col_begin, col_end=t.col_end,
+                        deps=[gname], n_tiles=1)
+
+    def _accumulate(self, builder, ctx, w, shape, si, sl, t, ntile, core, gname,
+                    global_group, call_iteration, grain) -> None:
+        """攒 N 个相邻 n-tile 再发一个 combine (同核、同行范围、列相邻).
+
+        列必须相邻: combine 的代价是 rows x cols 的字节, 不连续的列并集表达不出来。
+        换核/换行范围/列不连续都先把手上那一项发掉 —— 粒度是上界, 不是凑数配额。
+        """
+        key = (si, sl.expert, t.row_begin, t.row_end)
+        cur = self._runs.get(key)
+        if cur is not None and cur["col_end"] != t.col_begin:
+            # 列不相邻: 先把手上那一项发掉 (粒度是上界, 不是凑数配额)
+            self._flush_run(builder, ctx, w, shape, key)
+            cur = None
+        if cur is None:
+            self._runs[key] = {
+                "si": si, "expert": sl.expert, "sl": sl, "ntile": ntile,
+                "row_begin": t.row_begin, "row_end": t.row_end,
+                "col_begin": t.col_begin, "col_end": t.col_end,
+                "deps": [gname], "group": global_group, "core": core,
+                "call_iteration": call_iteration, "n": 1}
+        else:
+            cur["col_end"] = t.col_end
+            cur["deps"].append(gname)
+            cur["n"] += 1
+        if self._runs[key]["n"] >= grain:
+            self._flush_run(builder, ctx, w, shape, key)
+
+    def _flush_run(self, builder, ctx, w, shape, key) -> None:
+        r = self._runs.pop(key, None)
+        if r is None:
+            return
+        # 落核: 取第一个成员所在的核 (晚绑定下调度器会重新决定)
+        core = r["core"]
+        tag = f"m{r['row_begin']}_{r['row_end']}.n{r['col_begin']}_{r['col_end']}"
+        self._emit_tile(builder, ctx, w, shape, r["si"], r["sl"], core,
+                        r["deps"][0], r["group"], r["call_iteration"],
+                        label=tag, ntile=r["ntile"],
+                        row_begin=r["row_begin"], row_end=r["row_end"],
+                        col_begin=r["col_begin"], col_end=r["col_end"],
+                        deps=sorted(r["deps"]), n_tiles=r["n"])
+
+    def _emit_tile(self, builder, ctx, w, shape, si, sl, core, gname,
+                   global_group, call_iteration, *, label, ntile,
+                   row_begin, row_end, col_begin, col_end, deps, n_tiles):
+        rows, cols = row_end - row_begin, col_end - col_begin
         c = builder.costs
         q_aiv1 = (f"Q:aiv1:c{core}", 1)
         # C1: 名字不带核号 (见 gmm1.py 的说明)
         cname = f"W{w.index}.E{sl.expert}.S{si}.combine.{label}"
         # 本窗每行要写回它的来源卡: 行区间按源卡分段, 逐卡行数精确数出。
         # 跨卡行是 COMBINE 的主导项, 所以 EP 摆放/本地亲和度会直接改 combine 代价。
-        abs_begin = sl.row_begin + t.row_begin
+        abs_begin = sl.row_begin + row_begin
         by_dst = rows_by_source_rank(shape.expert_source_tokens[sl.expert],
-                                     abs_begin, abs_begin + t.rows)
+                                     abs_begin, abs_begin + rows)
         remote_rows = sum(n for d, n in enumerate(by_dst) if d != shape.rank_id)
         # 片间信道: 逐目的卡一条边 (fab_src = 流量离开本卡, fab_dst = 到达对端),
         # 与 dispatch 的方向语义一致。争用由速率服务器裁决, 不折进事件时长 ——
         # 时长用无争用带宽, 28 个核同时写同一条 fab 的降速是调度出来的。
-        row_bytes = c.combine_write_bytes_per_row(t.cols)
+        row_bytes = c.combine_write_bytes_per_row(cols)
         bw_fab = c.dispatch_mechanistic.bw_remote_bytes_per_us
         ch_bytes = tuple(
             ch for d, n in enumerate(by_dst) if d != shape.rank_id and n
             for ch in ((f"fab_src:{shape.rank_id}", n * row_bytes, bw_fab),
                        (f"fab_dst:{d}", n * row_bytes, bw_fab)))
-        spread = _spread_slots(builder.options, shape, t.rows)
+        spread = _spread_slots(builder.options, shape, rows)
         builder._event(cname, (builder.options.role_resource("combine", core),),
-                       c.combine_tile(t.rows, t.cols, remote_rows, spread)
+                       c.combine_tile(rows, cols, remote_rows, spread)
                        + c.combine_ack_us,
-                       deps=[gname], acquires=(q_aiv1,), releases=(q_aiv1,),
+                       deps=deps, acquires=(q_aiv1,), releases=(q_aiv1,),
                        channel_bytes=ch_bytes,
                        meta={"stage": "combine", "wave": w.index,
                              "call_iteration": call_iteration, "expert": sl.expert,
                              "slice": si, "mgroup": global_group, "ntile": ntile,
-                             "col_begin": t.col_begin, "col_end": t.col_end,
-                             "row_begin": t.row_begin, "row_end": t.row_end,
-                             "logical_n": t.cols, "core": core, "m_rows": t.rows,
+                             "col_begin": col_begin, "col_end": col_end,
+                             "row_begin": row_begin, "row_end": row_end,
+                             "logical_n": cols, "core": core, "m_rows": rows,
+                             "tiles_in_event": n_tiles,
                              "remote_rows": remote_rows, "rows_by_dst": by_dst,
                              "spread_slots": spread})
         ctx.gmm2_combine_history[core].append(cname)
@@ -278,6 +340,8 @@ class MteCombine(CombineTransport):
         ctx.combines_by_wave.setdefault(w.index, []).append(cname)
 
     def flush_wave(self, builder, ctx: BuildContext, w, shape, km, p):
+        for key in list(self._runs):
+            self._flush_run(builder, ctx, w, shape, key)
         """per_expert 粒度: 每个专家切片发一个 combine, 等该切片全部 GMM2 段做完.
 
         与 per_tile 的实质差别有两处, 都在成本里体现:

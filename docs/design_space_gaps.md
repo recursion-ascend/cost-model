@@ -33,7 +33,9 @@
 | tile->核 分配 | `core_assignment` | StaticRoundRobin / GreedyLeastBusy / ContiguousBlock |
 | tile->核 绑定时机 | `ModelOptions.late_bind_pools` | 派发时 (缺省) / 建图时静态 (`MEGAMOE_A8W8`) —— 缺口 3 已补齐 |
 | stage->执行角色 | `ModelOptions.roles` | 哪个 stage 跑 AIC / AIV0 / AIV1 (缺口 2 已补齐) |
-| combine 粒度 | `ModelOptions.combine_granularity` | per_tile (缺省) / per_expert (缺口 11 已补齐) |
+| **事件粒度 (五个 stage)** | `ModelOptions.granularity` | 每 stage 一个: 1 (缺省, 最细) / N (攒 N 个单元) / 0 (整片; dispatch 的 0 = routeItemsPerBatch)。缺口 12 已补齐 |
+| combine 粒度 (兼容视图) | `ModelOptions.combine_granularity` | per_tile / per_expert —— 是上面那一行的视图, 两边矛盾会报错 |
+| dispatch 粒度 (兼容视图) | `ModelOptions.dispatch_rows_per_item` | 同上, 对应 granularity 的 dispatch |
 | combine 落点布局 | `ModelOptions.combine_layout` | token_scatter (缺省) / expert_contiguous (缺口 10 结构已补齐; 系数留 0, 见下) |
 | ready 集选序 | `scheduling_policy` | EarliestStart / WorkConservingCriticalPath / PriorityByStage |
 | stage 波偏移 | `InstancePolicy.wave_offsets` | dispatch 超前波数、GMM2 滞后波数 |
@@ -567,6 +569,86 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 `per_expert` 真正的卖点是**写侧落点跨度更可控** (一次写整片 h 列, 而不是按 n-tile 分 20 次
 散射)。跨度不在模型里 (缺口 10), 所以现在这个对比只看得见它的代价。
 **不要据上表下"攒批没用"的结论** —— 等缺口 10 补上才有意义。
+
+---
+
+## 缺口 12: 事件粒度只有 combine 有 — **已补齐 (2026-10-04)**
+
+### 毛病出在哪
+
+粒度 (一个事件覆盖多少份该 stage 的自然工作单元) 是**五个 stage 共有**的编排维度。
+补齐前它被拆成了五个各自为政、名字都不一样的东西, 而且其中三个根本没有:
+
+| stage | 补齐前由什么定 | 可配? |
+| --- | --- | --- |
+| dispatch | `dispatch_rows_per_item` + `dispatch_partition` + `dispatch_pacing` | 可配, 但不叫粒度, 三件事混在一起 |
+| gmm1 | 恒 = 一个 `(m-group, n-tile)` | **不可配** |
+| activation (SwiGLU) | 恒与 GMM1 tile 1:1 | **完全硬编码** |
+| gmm2 | 同 gmm1 | **不可配** |
+| combine | `combine_granularity` | 可配 |
+
+`combine_granularity` 是缺口 11 的产物 —— 为回答**一个具体问题** (combine 能不能挪到
+另一个向量角色、逐专家做一遍) 就地加的专用旋钮。dispatch 那三个更早, 为对齐 trace
+加的。GMM1 / ACT / GMM2 的粒度从来没人问过, 所以一直写死。
+
+这是"参数定义"那个毛病的另一种形态: 上一次是**用"等于某实现"定义取值**, 这一次是
+**只有被问到的那一个维度才被抽象出来**。后果一样 —— 设计空间的洞在哪取决于提问历史,
+不取决于物理。丢掉的比如"一个 ACT 事件处理一个波内多个 m-group 的输出" (用更大的 UB
+驻留换更少的同步点), 它在物理上完全合法。
+
+### 还有一处概念混淆: tile 几何 != 事件粒度
+
+  * `KernelConfig.tile_m` / `tile_n` 受 L1/L0C 容量约束 —— **物理**;
+  * "一个事件覆盖几个 tile" 是同步点密度 <-> 并行度的交换 —— **纯编排**。
+
+补齐前只有前者, 所以改 `tile_n` 会同时动这两件事, 算子工程师没法分开扫。
+
+### 补法
+
+`config/granularity.py` 的 `StageGranularity` / `GranularityAssignment`, 与
+`StageLink` (每 stage 一条边)、`RoleAssignment` (每 stage 一个角色) 平行。
+`ModelOptions.granularity` 是唯一真相; `combine_granularity` 与
+`dispatch_rows_per_item` 降级为**兼容视图**, `__post_init__` 把两边对齐,
+**两边都离开缺省且矛盾就报错** —— 不允许两个真相。
+
+合并规则由物理定, 不是口味 (`builders/tiling.coalesce_tiles`): 只合并**行范围相同、
+列范围相邻**的连续项。行不同就不是一个 matmul 输出块, 合并后的矩形会盖住没算的格子;
+列不相邻则下游 (`ctx.activation_ready`、GMM2 的 K 段、combine 的字节) 都按**连续区间**
+挑依赖, 不连续的并集表达不出来。碰到边界就截断 —— 粒度是**上界**, 不是凑数配额。
+
+粗粒度事件的时长按**成员逐个算再求和**, 不是拿合并后的大 tile 去套公式: 公式里的固定项
+与 B 流复用都是按 tile 发生的, 合并只省掉事件之间的同步, 不省每个 tile 的搬运与计算。
+
+### 三条必须写下来的耦合
+
+1. **ACT 的粒度不是自由旋钮。** ACT 必须与产它的 GMM1 同核 (L0C→UB 的 Fixpipe),
+   所以 g>1 只在"喂它的 GMM1 tile 既同核又 n 相邻"时才生效。轮转/贪心分核把相邻
+   n-tile 散到不同核, 这时 g>1 是**空操作**。实测 (4 核 16 tile 夹具):
+   `StaticRoundRobin` 下 act=2 仍是 16 个 ACT 事件, `ContiguousBlock` 下合成 8 个。
+   这是物理与分核策略的耦合, 不是 bug —— 但它意味着这个旋钮会**静默无效**,
+   所以每个 ACT 事件的 meta 里记了 `gmm1_events_in_event`, 用来看它到底有没有生效。
+2. **ACT 粒度 g 要求 UB 槽数 >= g** (或 0 = 不设限): g 个 GMM1 各占一个槽, 要等齐才
+   发 ACT, 槽不够直接死锁。`ActBatcher` 构造时就拒绝, 报错里给出三种改法。
+3. **combine 的攒批不按核分组。** combine 从 GM 读 GMM2 的输出
+   (`StageLink("activation","gmm2").location == "gm"` 之后那一段同理), 与 GMM2 同核
+   **不是**物理约束, 所以一个 combine 事件可以吃不同核产的 tile。按核分组会让这个
+   旋钮在轮转/晚绑定下静默失效 —— 第一版就踩了这个坑。
+
+### 粗粒度不是免费的, 模型要能算出它变差
+
+一个事件只能落一个核, 项数少于核数就有核闲着。确定性夹具 (28 核) 实测:
+
+| 粒度 | 事件数 (gmm1/act/gmm2/combine) | 墙钟 |
+| --- | --- | --- |
+| 全 1 (缺省) | 40 / 40 / 240 / 120 | 245.967 |
+| gmm1=2 | 21 / 21 / 240 / 120 | 408.812 |
+| gmm2=2 | 40 / 40 / 122 / 61 | 355.385 |
+| combine=2 | 40 / 40 / 240 / 60 | 269.265 |
+| combine=0 (整片) | 40 / 40 / 240 / 4 | 596.465 |
+
+全部变差 —— 这个夹具 tile 数本来就不够填满 28 核, 粗粒度只是把并行度进一步砍掉。
+**这正是这个旋钮要让人看见的东西**: 它不是收益开关, 是一笔交换。要看到粗粒度赢,
+得在同步开销占比高、或 tile 数远多于核数的形状上扫。
 
 ---
 

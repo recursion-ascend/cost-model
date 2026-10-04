@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 from .config.hardware import EpilogueOverheads
+from .config.granularity import (DEFAULT_GRANULARITIES, GranularityAssignment,
+                                 resolve_granularity)
 from .config.links import DEFAULT_LINKS, StageLink, resolve_link, validate_links
 from .config.roles import DEFAULT_ROLES, RoleAssignment
 from .config.policy import InstancePolicy
@@ -153,6 +155,13 @@ class ModelOptions:
     # 换角色是编排选择 —— 实测 A8W8 下两个向量核利用率都不到 6%, 而
     # GMM2 -> combine 的同核**不是**物理约束 (过 GM), 所以 combine 可以挪。
     roles: object = DEFAULT_ROLES                 # config.roles.RoleAssignment
+    # 每个 stage 的**事件粒度** (一个事件覆盖多少份该 stage 的自然工作单元),
+    # 见 config/granularity.py。与 links (每 stage 一条边)、roles (每 stage 一个角色)
+    # 平行 —— 粒度是五个 stage 共有的维度, 不是 combine 的特性。
+    # 缺省全 1 = 最细 = 最少假设 (不预设任何攒批)。
+    # 下面 combine_granularity / dispatch_rows_per_item 是它的**兼容视图**,
+    # __post_init__ 会把两边对齐, 冲突直接报错 —— 只允许一个真相。
+    granularity: object = DEFAULT_GRANULARITIES    # config.granularity.GranularityAssignment
     # combine 的**粒度**: 一个 combine 事件覆盖多少工作。角色由 roles 决定, 两者正交。
     #   "per_tile" (缺省) 与每个 GMM2 tile 1:1 配对, 紧跟其后 —— 延迟低, 但每个
     #       n-tile 都要把本窗 m 行的路由元数据读一遍 (读 n_tile 次)。
@@ -202,6 +211,50 @@ class ModelOptions:
 
     def __post_init__(self) -> None:
         validate_links(self.links)
+        object.__setattr__(self, "granularity", resolve_granularity(self.granularity))
+        self._reconcile_granularity_views()
+
+    def _reconcile_granularity_views(self) -> None:
+        """把两个历史旋钮折进统一的 granularity, 保证只有一个真相.
+
+        combine_granularity: "per_tile" <-> combine 粒度 1; "per_expert" <-> 0 (整片)。
+        dispatch_rows_per_item: 就是 dispatch 的粒度 (0 = 用 tiling 的 routeItemsPerBatch)。
+
+        谁赢: 只有一边离开缺省就那一边赢; 两边都离开缺省且矛盾就报错。
+        """
+        g: GranularityAssignment = self.granularity
+        view = {"per_tile": 1, "per_expert": 0}.get(self.combine_granularity)
+        if view is None:
+            raise ValueError(
+                'combine_granularity 只能是 "per_tile" / "per_expert", '
+                f"收到 {self.combine_granularity!r}")
+        have = g.items("combine")
+        if have != view:
+            if view == 1:                    # 视图是缺省 -> granularity 说话
+                # have >= 2 (攒 N 个 tile) 两个字符串取值都表达不了 —— 视图只能
+                # 近似记成 per_tile, 真相在 granularity 里。
+                object.__setattr__(
+                    self, "combine_granularity",
+                    "per_expert" if have == 0 else "per_tile")
+            elif have == 1:                  # granularity 是缺省 -> 视图说话
+                object.__setattr__(self, "granularity", g.with_stage("combine", view))
+            else:
+                raise ValueError(
+                    f"combine_granularity={self.combine_granularity!r} 与 "
+                    f"granularity 里 combine 的 {have} 矛盾 —— 只给一个")
+        g = self.granularity
+        if g.items("dispatch") != self.dispatch_rows_per_item:
+            if self.dispatch_rows_per_item:
+                object.__setattr__(
+                    self, "granularity",
+                    g.with_stage("dispatch", self.dispatch_rows_per_item))
+            else:
+                object.__setattr__(
+                    self, "dispatch_rows_per_item", g.items("dispatch"))
+
+    def grain(self, stage: str) -> int:
+        """该 stage 一个事件覆盖多少单元 (0 = 整个专家切片)."""
+        return self.granularity.items(stage)
 
     def role_resource(self, stage: str, core: int) -> str:
         """该 stage 在 core 号核上的资源名 —— 建图器用它代替写死的 f-string."""

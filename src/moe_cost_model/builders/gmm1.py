@@ -11,10 +11,10 @@ from typing import List
 from ..config.hardware import BW_L1_GM
 from ..costs import gmm1_phase_split
 from ..planning.tile_grid import STAGE_GMM1, validate_tiles
-from .activation import add_activation_tile
+from .activation import ActBatcher
 from .context import BuildContext
 from .pipeline_expand import CH_GM_TO_L1
-from .tiling import resolve_grid, tile_label
+from .tiling import coalesce_tiles, resolve_grid, tile_label
 
 
 def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
@@ -28,23 +28,40 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
     out_div = km.activation_n_half if km.gmm1_interleaved else 1
     grid = resolve_grid(shape)
     cursor = ctx.cursor
+    # ACT 的事件粒度与 UB 槽数有物理耦合, ActBatcher 在构造时就查 (见 activation.py)
+    act_depth = builder.options.link("gmm1", "activation").depth
+    act_batch = ActBatcher(builder.options.grain("activation"), act_depth)
     for si, sl in enumerate(w.slices):
         tiles = grid.plan(stage=STAGE_GMM1, rows=sl.rows, cols=gmm1_sched_n, kernel=km)
         validate_tiles(tiles, rows=sl.rows, cols=gmm1_sched_n, tile_m=TILE_M,
                        where=f"GMM1 专家 {sl.expert}")
-        tile_count = len(tiles)
+        # 事件粒度: 一个 GMM1 事件覆盖多少个 tile (ModelOptions.granularity)。
+        # 合并只发生在行相同、列相邻的连续 tile 之间 (见 coalesce_tiles)。
+        items = coalesce_tiles(tiles, builder.options.grain("gmm1"),
+                              where=f"GMM1 专家 {sl.expert}")
+        tile_count = len(items)
         fill_share = c.gmm1_fill_us / tile_count if tile_count else 0.0
-        # 预计算逐 tile 时长 (分核策略按真实代价均衡, 不按个数)
+        # 预计算逐项时长 (分核策略按真实代价均衡, 不按个数)
         # B 复用: 切片内首个 m-group 的 tile 付整份 B 流, 其余各付 gmm1_b_reuse_frac。
         # 未开复用 (frac == 1.0) 时按三参调用 —— 自定义 gmm1_tile callable 只需接三个参数。
         frac = float(km.gmm1_b_reuse_frac)
         reuse = frac != 1.0
-        b_load = [1.0 if (not reuse or t.row_begin < TILE_M) else frac for t in tiles]
-        if reuse:
-            tile_costs = [c.gmm1_tile(t.rows, shape.h, t.cols, b_load[i]) + fill_share
-                          for i, t in enumerate(tiles)]
-        else:
-            tile_costs = [c.gmm1_tile(t.rows, shape.h, t.cols) + fill_share for t in tiles]
+
+        def _b_load(tile) -> float:
+            return 1.0 if (not reuse or tile.row_begin < TILE_M) else frac
+
+        # 粗粒度下一个事件覆盖多个 tile: 时长按**成员逐个算再求和** (不是拿合并后的
+        # 大 tile 去套公式) —— 公式里的固定项与 B 流复用都是按 tile 发生的, 合并只
+        # 省掉事件之间的同步, 不省掉每个 tile 的搬运与计算。
+        b_load = [_b_load(merged) for merged, _ in items]
+        tile_costs = []
+        for merged, members in items:
+            if reuse:
+                cost = sum(c.gmm1_tile(mt.rows, shape.h, mt.cols, _b_load(mt))
+                           for mt in members)
+            else:
+                cost = sum(c.gmm1_tile(mt.rows, shape.h, mt.cols) for mt in members)
+            tile_costs.append(cost + fill_share)
         if core_assign is not None:
             owners = core_assign.assign(tile_count, p, cursor.start,
                                         tile_costs=tile_costs)
@@ -54,7 +71,7 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
         first_owned = [True] * p
 
         for tile_idx, core in enumerate(owners):
-            t = tiles[tile_idx]
+            t, members = items[tile_idx]
             duration = tile_costs[tile_idx]
             mg = t.row_begin // TILE_M
             global_group = sl.row_begin // TILE_M + mg
@@ -93,9 +110,9 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                     "col_begin": t.col_begin, "col_end": t.col_end,
                     "row_begin": t.row_begin, "row_end": t.row_end,
                     "logical_n": t.cols, "core": core, "m_rows": t.rows,
-                    "cursor_tile": tile_idx,
+                    "cursor_tile": tile_idx, "tiles_in_event": len(members),
                     "dispatch_ready_event": ready_name}
-            phases = gmm1_phase_split(c, t.rows, shape.h, t.cols, b_load[tile_idx])
+            phases = _sum_phases(c, members, shape.h, _b_load)
             if phases is not None:
                 # 相位流水按这组数拆 load/cube 相位并折算 GM→L1 信道字节
                 meta["load_us"], meta["compute_us"] = phases
@@ -107,17 +124,21 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             # GM→L1 访存量: A 流 m·K (dispatch 落 GM 的激活) + B 流 wb·K·cols。
             # max(A,B) 口径只让较慢的一股决定**时长**, 但两股字节都真实发生,
             # 所以这里按字节申报 (统计用, 不参与准入)。
-            a_bytes = t.rows * shape.h
-            b_bytes = _gmm1_b_bytes(c, shape.h, t.cols) * b_load[tile_idx]
+            a_bytes = sum(mt.rows * shape.h for mt in members)
+            b_bytes = sum(_gmm1_b_bytes(c, shape.h, mt.cols) * _b_load(mt)
+                          for mt in members)
             builder._event(gname, (builder.options.role_resource("gmm1", core),),
                            duration, deps=deps,
                            acquires=acq, releases=(q_aic,), meta=meta,
                            channel_bytes=((CH_GM_TO_L1, float(a_bytes + b_bytes),
                                            float(BW_L1_GM)),))
 
-            add_activation_tile(builder, ctx, w, si, sl, t, label, ntile, core,
-                                global_group, gname, out_div,
-                                ub_slot if depth > 0 else None)
+            act_batch.add(builder, ctx, w, si, sl, t, label, ntile, core,
+                          global_group, gname, out_div,
+                          ub_slot if depth > 0 else None)
+        # 攒批不跨切片: ctx.activation_ready 以 (专家, m-group) 为键, 而 GMM2 按这个
+        # 键取依赖 —— 跨切片攒会让依赖指错专家。
+        act_batch.flush_all(builder, ctx, w, si, sl)
 
 
 def _gmm1_b_bytes(costs, k: int, cols: int) -> int:
@@ -128,3 +149,15 @@ def _gmm1_b_bytes(costs, k: int, cols: int) -> int:
     owner = getattr(costs.gmm1_tile, "__self__", None)
     wb = int(getattr(owner, "wb", 2))
     return wb * k * cols
+
+
+def _sum_phases(costs, members, k: int, b_load_of):
+    """粗粒度事件的 load/cube 相位 = 成员逐个拆分再相加 (任一成员不支持则整体不拆)."""
+    total_load = total_compute = 0.0
+    for mt in members:
+        ph = gmm1_phase_split(costs, mt.rows, k, mt.cols, b_load_of(mt))
+        if ph is None:
+            return None
+        total_load += ph[0]
+        total_compute += ph[1]
+    return (total_load, total_compute)

@@ -27,6 +27,8 @@ from .config.hardware import (
     URMA_GET_LAT_US, URMA_PUT_BW_SINGLE, URMA_PUT_LAT_US, VEC_ELEM_FP32,
     VEC_REG_WIDTH, _gmm2_head_tail_fractions, ceil_div, select_kl1,
 )
+from .config.granularity import (DEFAULT_GRANULARITIES, GranularityAssignment,
+                                 StageGranularity)
 from .config.links import DEFAULT_LINKS, StageLink
 from .config.roles import (DEFAULT_ROLES, DEFAULT_STAGE_ROLES, ROLES,
                            RoleAssignment, VECTOR_ROLES)

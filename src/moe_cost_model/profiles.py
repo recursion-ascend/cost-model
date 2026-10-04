@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from typing import Any, Dict
 
 from .config.hardware import EpilogueOverheads, KernelConfig
+from .config.granularity import GranularityAssignment, StageGranularity
 from .config.links import StageLink
 from .config.policy import InstancePolicy
 from .planning.core_assignment import StaticRoundRobin
@@ -118,6 +119,16 @@ MEGAMOE_A8W8 = ReferenceProfile(
         # 波宽由 p1/p2 推导 (kernel 自己按 token 数查表, 见
         # planning.waves.resolve_gmm1_min_logical_tiles_per_core)
         m_groups_per_wave=0,
+        # 事件粒度: 这份实现四个 stage 都是最细 (一个 tile 一个事件), dispatch 用
+        # tiling 算出的 routeItemsPerBatch。**显式声明**, 不靠"缺省恰好等于它" ——
+        # 缺省是本模型的最少假设, 与这份实现碰巧相同是巧合, 不是定义。
+        granularity=GranularityAssignment((
+            StageGranularity("dispatch", 0),      # = routeItemsPerBatch
+            StageGranularity("gmm1", 1),          # 一个 L1 tile 一个 mmad 事件
+            StageGranularity("activation", 1),    # 与配对 GMM1 一对一
+            StageGranularity("gmm2", 1),
+            StageGranularity("combine", 1),       # Gmm2Aiv1Epilogue 与 tile 一对一
+        )),
     ),
     # combine 每行搬满 META_INFO_SIZE=8 个 int32 槽 (算法只需 3 项)
     kernel=KernelConfig(combine_meta_bytes_per_row=32),
