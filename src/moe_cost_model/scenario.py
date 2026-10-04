@@ -338,8 +338,13 @@ class Scenario:
         return self.options
 
 
-def simulate(scenario: Scenario) -> Dict[str, object]:
+def simulate(scenario: Scenario, *, platform=None,
+             check_bounds: bool = False) -> Dict[str, object]:
     """场景 → 执行时间. 返回 simulate_routing_counts 的结果, 另带 scenario.
+
+    platform / check_bounds 直通 simulate_routing_counts: 前者给聚合 HBM 规格 (让带宽
+    下界取 min(每核x核数, 聚合)), 后者决定穿透物理下界时抛异常还是只记录
+    (见 analysis/bounds.py 与 api.simulate_routing_counts 的说明)。
 
     先跑护栏 (guardrails): 给了 [tiling] 时逐字段核对 kernel 真值 (含用 p1/p2 重算
     mGroupsPerWave), 矛盾即报错 (tiling.strict=false 可降级); 路由守恒与信道尺度
@@ -352,6 +357,7 @@ def simulate(scenario: Scenario) -> Dict[str, object]:
         raise ValueError("与 tiling 真值矛盾 (tiling.strict=false 可降级为警告):\n  - "
                          + "\n  - ".join(errors))
     result = simulate_routing_counts(
+        platform=platform, check_bounds=check_bounds,
         routing_counts=wl.routing_counts(), token_num_per_rank=wl.tokens,
         h=scenario.h, hidden_dim=scenario.hidden_dim, aic_num=scenario.aic_num,
         costs=scenario.build_costs(), topk=wl.topk,
