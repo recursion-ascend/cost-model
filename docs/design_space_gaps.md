@@ -34,7 +34,7 @@
 | tile->核 绑定时机 | `ModelOptions.late_bind_pools` | 派发时 (缺省) / 建图时静态 (`MEGAMOE_A8W8`) —— 缺口 3 已补齐 |
 | stage->执行角色 | `ModelOptions.roles` | 哪个 stage 跑 AIC / AIV0 / AIV1 (缺口 2 已补齐) |
 | combine 粒度 | `ModelOptions.combine_granularity` | per_tile (缺省) / per_expert (缺口 11 已补齐) |
-| combine 落点布局 | `ModelOptions.combine_layout` | token_scatter (缺省) / expert_contiguous (缺口 10 结构已补齐, 系数待实测) |
+| combine 落点布局 | `ModelOptions.combine_layout` | token_scatter (缺省) / expert_contiguous (缺口 10 结构已补齐; 系数留 0, 见下) |
 | ready 集选序 | `scheduling_policy` | EarliestStart / WorkConservingCriticalPath / PriorityByStage |
 | stage 波偏移 | `InstancePolicy.wave_offsets` | dispatch 超前波数、GMM2 滞后波数 |
 | dispatch 配速 | `ModelOptions.dispatch_pacing` | none (缺省) / per_core (`MEGAMOE_A8W8`) / wave |
@@ -485,7 +485,7 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 
 ---
 
-## 缺口 10: 输出落点布局 — **结构已补齐 (2026-10-04), 系数待实测 (见 calibration_runs.md R3)**
+## 缺口 10: 输出落点布局 — **结构已补齐 (2026-10-04); 系数应当留 0, 散射机制已被现有数据否掉**
 
 写落点是 `(tokenIdx·topK + topkIdx)·n`, 这是一种**输出布局选择**: 让 UNPERMUTE 顺序读,
 代价是写侧按 token 散射。现在两种布局都能表达 (`ModelOptions.combine_layout`):
@@ -499,21 +499,36 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 
     额外 = m · scatter_us_per_row · (spread_slots / m) ** scatter_exponent
 
-### 系数缺省 0, 这是有意的
+### 系数缺省 0 —— 2026-10-04 修订: 不是“等实测”, 是数据不支持非 0
 
-实测 (20260930) 单 tile 中位: bs36 m=72 **5.553us** / bs128 m=256 **36.751us** ——
-m 比 3.56 倍而时长比 **6.62 倍**, 超线性。按字节与按每行固定开销都解释不了 (两者都线性)。
-这两点与 `exponent ≈ 0.5` 相容 ((768/216)**0.5 = 1.88 对实测每行代价比 1.86), 但
+**先前这里写的理由是错的。** 原话是: 实测 bs36 m=72 **5.553us** / bs128 m=256
+**36.751us**, m 比 3.56 倍而时长比 6.62 倍, 超线性, 而且“与 exponent ≈ 0.5 相容”。
+把 trace 榨到底之后 (payload 解回 (专家, 波次, m 组, N 组), 去掉 pid=0/1 的重复记录),
+这个论证站不住:
 
-  * **两个点定不了一条规律**;
-  * 这两个 run 里 m 与 token 数是**一起变**的, 分不开。
+  * bs128 与 bs8192 **每事件工作量完全相同** (256 行 x 256 列), 而 bs8192 的最快 tile
+    **11.3us** 比 bs128 的最快 tile **22.7us 快一倍** —— 偏偏 bs8192 的落点空间宽
+    **64 倍** (8192x6 = 49152 槽 vs 128x6 = 768 槽)、密度稀 16 倍。跨度越宽反而越快,
+    所以 `spread_slots` 这个量**解释不了**时长。
+  * 同一个 bs8192 run 内部, m 组 0/1/2 中位 **11.46us** (各 206 个样本, p10 11.30,
+    分布紧到只能是硬速率), m 组 9/10/11 中位 **55-58us** —— 行数、字节、跨度全一样。
+    差的是**别的阶段有没有同时在挤带宽**。
 
-所以模型只提供结构, 系数要由"固定 m 与 n、只扫 token 数"的 run 来定。缺省 0 =
-只按字节算 = 原行为, 所以缺省下换布局只改申报的跨度、不改时长。
+所以 COMBINE 时长的主要变化来自**带宽争用**, 不是落点跨度, 也不是 tile 的 m。本模型
+按资源独占排程、不建模带宽争用, 因此:
+
+  * tile 公式对标**最快**那条 tile (没被挤住的那条) —— `BW_REMOTE_WRITE` 就是这么从
+    31000 (假设) 改到 8600 (实测反扣) 的, 见 `config/hardware.py`;
+  * `scatter_exponent` 留 0 **不是保守、不是待办**, 是现有证据不支持非 0。要立起这个
+    机制, 得有一个“固定 m 与 n、只扫 token 数、并且把并发压住”的 run (R3), 而且它得
+    先推翻上面那两条观察;
+  * 结构保留是有意义的: 布局 -> 跨度这条链算得出来并进了 meta, 将来真有证据时只填系数,
+    不动建图。
 
 ### 两处偏置, 别拿这个旋钮当免费收益
 
-1. 写侧系数不填, `token_scatter` 的代价就是 0 —— 现有三个 run 的 4.6x~8.6x 偏差正是它。
+1. 写侧系数不填, 两种布局的时长就完全一样 (只有申报的跨度不同)。按上面的修订这
+   **大概是对的**, 不再当作已知欠账。
 2. 读侧**完全没建模**: UNPERMUTE 现在是"字节量 / BW_UNPERMUTE_AGG"一个除法
    (`builders/base.py`), 与落点布局无关。所以填了系数之后 `expert_contiguous` 会显得
    单方面变好 —— 那是模型的偏置, 不是结论。要让这笔交换两侧都算得出, UNPERMUTE 也得
