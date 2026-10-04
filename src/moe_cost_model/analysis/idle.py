@@ -32,9 +32,24 @@ GMM1 还在等 dispatch_ready (AIV1 产出), 所以开头那段**所有 AIC 必�
 
 avoidable 仍是**上界**
 ----------------------
-①③ 由引擎精确给出 (actionable_us), ⑦ 从排好的时间线精确反推。但共位约束没有建模
-进来: GMM1 落核 X 时 ACT 必须落 AIV0:X, 而 AIV0:X 可能正忙。所以真实可回收量
-<= avoidable_idle_us。
+①③ 由引擎精确给出 (actionable_us), ⑦ 从排好的时间线精确反推。但有**两种"核挪不动"
+的物理约束没有建模进来**, 它们都会让这里虚报:
+
+  共位约束      GMM1 落核 X 时 ACT 必须落 AIV0:X, 而 AIV0:X 可能正忙。
+  相位组绑定    开了相位流水 (ModelOptions.pipeline) 之后, 一个 tile 被拆成
+                .ld / .cb / .fix 几个相位, 它们共用一个 core_group: load 相位把 A/B
+                搬进**某个核的 L1**, cube 相位只能在那个核上算 —— 数据在那儿。所以
+                cube 相位即使"前置齐备且别处有空闲核"也挪不过去。
+
+所以真实可回收量 <= avoidable_idle_us。实测 (2026-10-04, examples/scenario_basic.toml):
+开了晚绑定之后所有配置的 avoidable 都是 0, **只有相位流水那一档剩 1637.5 核·us** ——
+逐段挖进去看, 等着的全是 .cb 相位, 且每一个都在它那个核空出来的**同一时刻**就开跑
+(例: W2.E8.S0.gmm1.m0.n0.cb 绑在 AIC:12, AIC:12 的上一个活跑到 168.97, 它就在
+168.97 开始), 同时另有 16 个核空着。那不是调度没做到位, 是相位组绑定使然。
+
+→ **判读规则**: 静态钉核 (late_bind_pools=()) 下的 avoidable 是真帐, 换晚绑定能回收;
+  相位流水下的 avoidable 含相位组那部分虚报, 不能直接当成违规。要把它收紧, 得把
+  core_group 透进本模块, 把"组已绑定到忙核"的事件从 ready 里剔掉。
 """
 from __future__ import annotations
 
