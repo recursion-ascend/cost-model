@@ -119,7 +119,8 @@ MEGAMOE_A8W8 = ReferenceProfile(
         # planning.waves.resolve_gmm1_min_logical_tiles_per_core)
         m_groups_per_wave=0,
     ),
-    kernel=KernelConfig(),
+    # combine 每行搬满 META_INFO_SIZE=8 个 int32 槽 (算法只需 3 项)
+    kernel=KernelConfig(combine_meta_bytes_per_row=32),
     policy=InstancePolicy(),
     tile_grid=SwizzledTileGrid(),
     core_assignment=StaticRoundRobin(),

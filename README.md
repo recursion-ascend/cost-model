@@ -160,7 +160,8 @@ res = simulate(sc)
 | tile 几何      | `tile_m` / `tile_n` / `l1_tile_k` | 正整数               | 行高、列宽、K 窗              |
 | L1 缓冲        | `l1_buf_num`                          | 1 或 2               | 单缓冲串行或双缓冲重叠        |
 | B 矩阵复用     | `gmm1_b_reuse`                        | 开或关               | 不影响时长 (B 流不建模)       |
-| COMBINE 量化   | `combine_quant_mode`                  | 0 或 1               | BF16 直写或 FP8 加 scale      |
+| COMBINE 数据格式 | `combine_quant_mode`                | 0 或 1               | BF16 直写或 FP8 加 scale (只管字节, 见¹) |
+| COMBINE 元数据   | `combine_meta_bytes_per_row`        | 12 / 16 / 32         | 每行搬几个路由字段 (算法只需 3 项) |
 | 相位流水       | `PipelineConstraints`                 | 队列深度             | load 与 cube 跨 tile 重叠     |
 | 调度策略       | `scheduling_policy`                   | 三种策略             | 就绪集里谁先跑                |
 | 任务转移       | `idle_core_stealing`                  | 重构钩子             | 空闲核拿走忙核的 tile         |
@@ -178,7 +179,13 @@ res = simulate(sc)
 | `gmm2_combine_credit`                                  | 生效               | 生效                                      |
 | `core_assignment`                                      | 生效               | 生效                                      |
 | `tile_m` / `tile_n` / `l1_tile_k` / `l1_buf_num` | 生效               | 生效                                      |
-| `combine_quant_mode`                                   | 生效               | 生效                                      |
+| `combine_quant_mode`                                   | 只有字节宽度生效¹  | 只有字节宽度生效¹                         |
+
+¹ `combine_quant_mode` 只管**数据格式** (写侧每元素字节: BF16 2B → FP8 1B + 1/32 scale)。
+"combine 跑在哪个角色、什么粒度"是**编排**, 模型目前只能表达一种 (AIV1 与 GMM2 tile 1:1
+配对同核); 另一种 (放另一个向量角色、逐专家独立一遍、挂在整波之后) 表达不出来。参考实现
+把这两件事绑在同一个模板参数上, 那是那份实现的耦合, 不是物理 ——
+详见 `docs/design_space_gaps.md` 缺口 11。
 
 `KernelConfig` 的编译期旋钮（`l1_buf_num`、`l1_tile_k`、`combine_quant_mode`）以 `KernelConfig` 为唯一事实源。手工拼 `PrimitiveCosts` 时入口自动按 kernel 重绑公式，任何拼法都生效。`weight_nz` 与 `gmm1_b_reuse` 只描述权重搬运，而权重搬运不建模，所以不影响时长。
 

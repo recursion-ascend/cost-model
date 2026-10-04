@@ -339,7 +339,15 @@ class KernelConfig:
     # f ≈ 0.53。**一个点不是规律** (f 可能随 G、随列块数变), 所以缺省不声称复用。
     # 注意: 每专家只有 1 个 m-group 时本旋钮无效 (没有可复用的对象)。
     gmm1_b_reuse_frac: float = 1.0
-    combine_quant_mode: int = 0       # CombineQuantMode 模板参数: 0=NO_QUANT, 1=QUANT(FP8+scale)
+    combine_quant_mode: int = 0       # CombineQuantMode: 0=NO_QUANT, 1=QUANT(FP8+scale)。
+                                      # 只管**数据格式**; combine 跑在哪个角色/什么粒度
+                                      # 是编排, 模型只能表达一种 (见 docs 缺口 11)
+    # COMBINE 每行要读的路由元数据字节。**搬几个字段是编排选择**:
+    #   12 = 算法下界 (combine 只需 dstRankId / tokenIdx / topkIdx 三项)
+    #   16 = 缺省 (四个具名字段)
+    #   32 = 某实现的取值 (DataCopy 搬满 META_INFO_SIZE=8 个 int32 槽;
+    #        与同仓 DispatchDataLayout.META_BYTES_PER_ROW 一致)
+    combine_meta_bytes_per_row: int = 16
     l1_size: int = 512 * 1024         # DAV_3510 平台
     # 核数 aic_num 是可调场景输入 (MegaMoeShape.aic_num); 向量核数恒为 2×aic_num
     # (每 block 1 AIC + 2 AIV, 平台结构常数), 模型以每核 AIV0/AIV1 两角色表达,

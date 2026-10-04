@@ -109,8 +109,11 @@ def test_default_pin():
     #   分开后, max 在三个点上分别低估 9.2% / 32.5% / 46.6%, 相加 + B 复用比例则
     #   在 +3.5% / +1.3% / +0.4% 内 (见 AnalyticalGmmCosts.gmm1_phases 与
     #   tests/test_load_convention.py)。183.478 -> 235.775
-    assert abs(res["kernel_total_us"] - 235.775) < 0.01
-    assert abs(res["kernel_dag_end_us"] - 250.425) < 0.01
+    # 2026-10-04 combine 的路由元数据从写死 8B/行 改成申报参数
+    #   (算法下界 12B / 缺省 16B / MEGAMOE_A8W8 声明 32B, 与同仓 dispatch 侧一致):
+    #   235.775 -> 235.814
+    assert abs(res["kernel_total_us"] - 235.814) < 0.01
+    assert abs(res["kernel_dag_end_us"] - 250.464) < 0.01
     # C3: 逐核排空节点 (28 核 x 3 引擎 = 84 个) 换成一个全核排空栅栏 -> 659 - 83 = 576
     assert len(res["rank_results"][0]["events"]) == 576
     # 排队模型生效标志: 资源争用出现 (旧模型恒为 0)

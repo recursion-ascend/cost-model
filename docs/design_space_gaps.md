@@ -457,3 +457,63 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 (`tests/test_phase_late_binding.py` 逐核核对在飞载入数 <= 深度) —— 这正是回填不了核号
 时会悄悄失效的那条约束。
 
+---
+
+## 缺口 10: 输出落点布局不可选, 散射写没有"跨度"这个量
+
+COMBINE 把每行写到 `(tokenIdx·topK + topkIdx)·n + nLoc` —— 落点由 token 全局编号决定。
+这是一种**输出布局选择**: 它让 UNPERMUTE 可以顺序读, 代价是写侧按 token 散射。工程师
+可以选别的布局 (例如按专家连续写、UNPERMUTE 侧改成 gather), 用写侧局部性换读侧顺序性。
+**模型表达不出这个选择, 也没有"写落点跨度"这个量**, 所以这笔交换评估不了。
+
+这不只是少一个旋钮 —— 跨度是**真的影响时长**的。2026-10-04 核对 20260930 的 run:
+
+| 形状 | 实测单 tile | 模型 | 实测/模型 |
+| --- | ---: | ---: | ---: |
+| bs36  m= 72 | 5.553 us | 1.20 us | 4.6x |
+| bs128 m=256 | 36.751 us | 4.27 us | 8.6x |
+
+关键不是倍数, 是**标度**: m 比 3.56 倍, 实测时长比 **6.62 倍** —— 超线性。按字节计价与按
+每行固定开销计价**都是线性的**, 两者都解释不了, 调带宽常数也对不上。说得通的机制就是
+跨度: token 数越多, 同一个 tile 的 m 行落点铺得越宽 (bs36 是 36x6 = 216 个槽位,
+bs128 是 768 个), 页局部性越差; 每行 512B (n=256, BF16) 本来就远小于高效突发长度。
+
+补齐方向: COMBINE 写侧改成 `f(跨度) + 字节/带宽`, 并把"输出布局"变成可选项 (至少两种:
+按 token 散射 / 按专家连续)。定 f 需要**扫 token 数**的 run (固定 m 与 n, 只变 batch) ——
+现有三个 run 里 m 与 token 数一起变, 分不开。
+
+在此之前: **COMBINE 在大 batch 上是乐观的**, 量级见上表。凡结论依赖 COMBINE 占比的
+(combine 配速、EP 摆放/本地亲和度的收益), 都要记住这一点。
+
+---
+
+## 缺口 11: combine 的"在哪个角色、什么粒度"只有一种
+
+模型只能把 combine 建成**一种**编排: AIV1 上与 GMM2 tile 1:1 配对、同核、紧跟其后。
+另一种同样合理的编排表达不出来: **放在另一个向量角色上、逐专家独立跑一遍、挂在整个
+GMM2 wave 之后**。两者的取舍很实在 —— 逐 tile 配对让 combine 紧跟计算、延迟低, 但
+combine 与 GMM2 抢同一个核对; 逐专家独立一遍可以攒批、写侧跨度更可控, 代价是等整波。
+
+参考实现里这两种恰好**绑在量化模板参数上** (`CombineQuantMode`): NO_QUANT 走前者
+(`CombineTokenRange`, `GetSubBlockIdx()==1`), QUANT 走后者 (`ProcessCombineExperts`,
+`GetSubBlockIdx()==0`, 见 `mega_moe_wave_a8w8.h:388,532-560`)。**那是那份实现的耦合,
+不是物理** —— 数据格式和"combine 跑在哪"没有因果关系, 本模型不该跟着耦合。
+
+所以 `KernelConfig.combine_quant_mode` 现在只管数据格式 (写侧每元素字节), 名实相符;
+"combine 跑在哪个角色、什么粒度"缺一个独立的编排旋钮, 它正是缺口 2 (角色分配不可配)
+的一个具体用例 —— 补齐缺口 2 时一并给出。
+
+---
+
+## 顺带修掉的一个值: combine 的 metaInfo 字节
+
+原先写死 8B/行, 既不是算法下界也不是任何实现的取值 (同一个仓库里 dispatch 侧早就按 32B
+算了)。现在是申报参数 `KernelConfig.combine_meta_bytes_per_row`:
+
+| 取值 | 含义 |
+| --- | --- |
+| 12 | 算法下界 —— combine 只需 route 三项 (dstRankId / tokenIdx / topkIdx) |
+| **16** | 缺省 —— 四个具名字段 |
+| 32 | 某实现的取值 (`DataCopy` 搬满 `META_INFO_SIZE=8` 个 int32 槽), `MEGAMOE_A8W8` 用它 |
+
+"搬几个字段"是编排选择: 多搬的字段不参与 combine 的计算, 只是跟着 cacheline 走。

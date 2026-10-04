@@ -487,6 +487,14 @@ class AnalyticalCombineCosts:
          m × (e_in·logical_n + meta) 字节, 本卡 HBM → BW_LOCAL_GM
          e_in = BF16 = 2B/元素 (ElementC 一路追到 RunGmm2ByMode, 四个分支
          全部显式传 bfloat16_t)
+         meta = 每行的路由元数据字节, 由 KernelConfig.combine_meta_bytes_per_row 给。
+         **搬几个字段是编排选择, 不是物理**:
+           12 B  算法下界 —— combine 真正要读的只有 route 三项
+                 (dstRankId / tokenIdx / topkIdx)
+           16 B  缺省 —— 四个具名字段 (加 WEIGHT_INDEX)
+           32 B  某实现的取值: DataCopy(..., lenTile * META_INFO_SIZE) 的 count 以
+                 int32 计, META_INFO_SIZE = 8 (constants.h) → 整整 8 个槽。
+                 profiles.MEGAMOE_A8W8 用这个 (与 DispatchDataLayout 的 32B 一致)。
       2. 本卡行写: CombineTokens 里目的卡 == 本卡的那些行 → BW_LOCAL_GM
       3. 跨卡行写: 目的卡 != 本卡的行 → BW_REMOTE_WRITE (每核约 5.1 GB/s)
 
@@ -498,23 +506,42 @@ class AnalyticalCombineCosts:
     写侧每元素 e_out (per-slot 部分和, topk 归约在 UNPERMUTE, 非累加 rmw):
         NO_QUANT: BF16 = 2B/元素
         QUANT:    FP8 = 1B/元素 + MX scale 1B/32元素 = 1/32 B/元素
-    meta: 8B/行 = token 位置 int32 4B (metaInfo, constants.h INT32_PER_256B=8)
-               + topk 权重 fp32 4B (probsGm)
+
+    combine_quant_mode 只管**数据格式** (写侧每元素几个字节)。combine 跑在哪个角色、
+    什么粒度是**编排**, 本模型目前只能表达一种 (AIV1 与 GMM2 tile 1:1 配对同核) ——
+    那是表达力缺口, 见 docs/design_space_gaps.md 缺口 11。两件事在参考实现里恰好绑在
+    一个模板参数上, 但那是那份实现的耦合, 不是物理。
+    meta: 见上 (缺省 16B/行)。2026-10-04 之前写死 8B —— 既不是算法下界也不是任何
+          实现的取值, 同一个仓库里 dispatch 侧早就按 32B 算了。
 
     公式: T = m·(e_in·n + meta)/BW_local
             + (m-remote)·e_out'·n/BW_local
             + remote·e_out'·n/BW_remote        (e_out' = e_out + scale)
 
+    **已知与实测的差距 (2026-10-04 核对 20260930 run, 单 tile 中位)**:
+
+        形状            实测      模型     实测/模型
+        bs36  m= 72    5.553     1.189      4.67x
+        bs128 m=256   36.751     4.228      8.69x
+
+    而且实测对 m 是**超线性**的: m 比 3.56 倍, 时长比 6.62 倍。按字节计价与按每行固定
+    开销计价**都是线性的**, 两者都解释不了。一个物理上说得通的机制: 写的目标偏移是
+    (tokenIdx·topK + topkIdx)·n, token 数越多散射跨度越宽 (bs36 是 216 个槽位,
+    bs128 是 768 个), 页局部性越差。**本模型完全没有"散射跨度"这个量**, 所以 COMBINE
+    在大 batch 上是乐观的 —— 见 docs/design_space_gaps.md 缺口 10。
+
     修订史: 旧公式 T = m×(4·n + 8)/BW_SCATTER 把跨卡写按本卡 HBM 计价
     (BW_SCATTER 是 B=64 随机路由标定的本地口径), 且元素宽度用了 4B(读+写合并),
     对 20260930 bs=36 run 低估 90.6%。见 memory/combine-cost-root-cause。
     """
-    META_BYTES_PER_ROW = 8
+    #: 缺省每行 metaInfo 字节 = 四个具名字段 x int32。算法下界 12B (route 三项),
+    #: 某实现搬满 8 槽 = 32B —— 都是编排选择, 由 KernelConfig 给出。
+    META_BYTES_PER_ROW = 16
 
     def __init__(self, combine_quant_mode: int = COMBINE_NO_QUANT,
                  bw_local_bytes_per_us: float = BW_LOCAL_GM,
                  bw_remote_bytes_per_us: float = BW_REMOTE_WRITE,
-                 meta_bytes_per_row: int = META_BYTES_PER_ROW):
+                 meta_bytes_per_row: float = META_BYTES_PER_ROW):
         if combine_quant_mode == COMBINE_NO_QUANT:
             self.in_elem_bytes = 2.0        # GMM2 输出 BF16
             self.out_elem_bytes = 2.0       # 部分和 BF16
@@ -619,6 +646,7 @@ def build_analytical_costs(
     )
     comb = AnalyticalCombineCosts(
         combine_quant_mode=km.combine_quant_mode,
+        meta_bytes_per_row=km.combine_meta_bytes_per_row,
         bw_local_bytes_per_us=bw_combine_local if bw_combine_local is not None else BW_LOCAL_GM,
         bw_remote_bytes_per_us=(bw_combine_remote if bw_combine_remote is not None
                                 else BW_REMOTE_WRITE),

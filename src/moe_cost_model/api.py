@@ -51,12 +51,13 @@ def _rebind_costs_to_kernel(costs: PrimitiveCosts, kernel) -> PrimitiveCosts:
                                         gmm2_tile=new_g.gmm2_tile)
     comb = getattr(costs.combine_tile, "__self__", None)
     if (isinstance(comb, AnalyticalCombineCosts)
-            and comb.combine_quant_mode != kernel.combine_quant_mode):
+            and (comb.combine_quant_mode != kernel.combine_quant_mode
+                 or comb.meta_bytes != kernel.combine_meta_bytes_per_row)):
         new_c = AnalyticalCombineCosts(
             combine_quant_mode=kernel.combine_quant_mode,
             bw_local_bytes_per_us=comb.bw_local,
             bw_remote_bytes_per_us=comb.bw_remote,
-            meta_bytes_per_row=comb.meta_bytes)
+            meta_bytes_per_row=kernel.combine_meta_bytes_per_row)
         costs = dataclasses.replace(costs, combine_tile=new_c.tile)
     return costs
 
