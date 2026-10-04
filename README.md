@@ -182,10 +182,9 @@ res = simulate(sc)
 | `combine_quant_mode`                                   | 只有字节宽度生效¹  | 只有字节宽度生效¹                         |
 
 ¹ `combine_quant_mode` 只管**数据格式** (写侧每元素字节: BF16 2B → FP8 1B + 1/32 scale)。
-"combine 跑在哪个角色、什么粒度"是**编排**, 模型目前只能表达一种 (AIV1 与 GMM2 tile 1:1
-配对同核); 另一种 (放另一个向量角色、逐专家独立一遍、挂在整波之后) 表达不出来。参考实现
-把这两件事绑在同一个模板参数上, 那是那份实现的耦合, 不是物理 ——
-详见 `docs/design_space_gaps.md` 缺口 11。
+"combine 跑在哪个角色、什么粒度"是**编排**, 分别由 `ModelOptions.roles` 与
+`ModelOptions.combine_granularity` 给 (2026-10-04 补齐, 原缺口 11)。参考实现把数据格式与
+这两件事绑在同一个模板参数上, 那是那份实现的耦合, 不是物理。
 
 `KernelConfig` 的编译期旋钮（`l1_buf_num`、`l1_tile_k`、`combine_quant_mode`）以 `KernelConfig` 为唯一事实源。手工拼 `PrimitiveCosts` 时入口自动按 kernel 重绑公式，任何拼法都生效。`weight_nz` 与 `gmm1_b_reuse` 只描述权重搬运，而权重搬运不建模，所以不影响时长。
 
@@ -630,6 +629,7 @@ res = m.simulate_routing_counts(
 
 | 旋钮 | 作用 |
 | --- | --- |
+| `ModelOptions.combine_granularity` | 一个 combine 事件覆盖多少工作: `"per_tile"` (缺省, 与 GMM2 tile 1:1 配对、与计算交错) / `"per_expert"` (一个专家切片一个事件、等自己那片 GMM2 做完)。与角色正交。实测攒批省 0.5% 元数据字节但墙钟 +30.5% —— 不过模型还算不出它的主要好处 (写侧跨度, 见 `docs` 缺口 10) |
 | `ModelOptions.roles` | `stage -> 执行角色` 映射 (`RoleAssignment`): 哪个 stage 跑在 AIC / AIV0 / AIV1 上。矩阵乘只能在 AIC (物理), ACT 与它的 GMM1 必须同核 (Fixpipe), 其余可换。**实测在 A8W8 主路径上换角色不改墙钟** —— 两个向量核利用率都不到 6%, 关键路径在 AIC |
 | `ModelOptions.late_bind_pools` | 角色入池: 事件只声明"要一个 AIC", 调度器在**派发时刻**绑最早空闲的成员。缺省 `("AIC", "AIV1")`; `()` = 静态绑定 (某实现的分核方式)。`"AIC"` 入池隐含 `"AIV0"` 入池 —— `GMM1 -> ACT` 同核是物理约束, 整对一起漂移 |
 | `WorkConservingCriticalPath` | 排序键 `(start, -remaining_path_us, order, name)`: start 仍排第一位, 核不会为等未就绪的事件空闲; 关键路径只在**同样能立刻开始**的候选之间定先后 |

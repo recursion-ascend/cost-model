@@ -153,6 +153,13 @@ class ModelOptions:
     # 换角色是编排选择 —— 实测 A8W8 下两个向量核利用率都不到 6%, 而
     # GMM2 -> combine 的同核**不是**物理约束 (过 GM), 所以 combine 可以挪。
     roles: object = DEFAULT_ROLES                 # config.roles.RoleAssignment
+    # combine 的**粒度**: 一个 combine 事件覆盖多少工作。角色由 roles 决定, 两者正交。
+    #   "per_tile" (缺省) 与每个 GMM2 tile 1:1 配对, 紧跟其后 —— 延迟低, 但每个
+    #       n-tile 都要把本窗 m 行的路由元数据读一遍 (读 n_tile 次)。
+    #   "per_expert" 一个专家切片一个 combine 事件, 等该切片**全部** GMM2 段做完 ——
+    #       攒批: 元数据每行只读一次, 写侧落点跨度也更可控; 代价是等整片。
+    # 两种都是合理编排; 参考实现把它与量化模板参数绑在一起, 那是它的耦合 (见 docs 缺口 11)。
+    combine_granularity: str = "per_tile"
     # L3 晚绑定: 哪些角色池的 tile->核 绑定推迟到**派发时刻**。
     #
     # 缺省 = 三个池全入 (派发时刻绑定)。理由是模型的不变量: 决不允许"某 tile 的前置

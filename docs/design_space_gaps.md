@@ -33,6 +33,7 @@
 | tile->核 分配 | `core_assignment` | StaticRoundRobin / GreedyLeastBusy / ContiguousBlock |
 | tile->核 绑定时机 | `ModelOptions.late_bind_pools` | 派发时 (缺省) / 建图时静态 (`MEGAMOE_A8W8`) —— 缺口 3 已补齐 |
 | stage->执行角色 | `ModelOptions.roles` | 哪个 stage 跑 AIC / AIV0 / AIV1 (缺口 2 已补齐) |
+| combine 粒度 | `ModelOptions.combine_granularity` | per_tile (缺省) / per_expert (缺口 11 已补齐) |
 | ready 集选序 | `scheduling_policy` | EarliestStart / WorkConservingCriticalPath / PriorityByStage |
 | stage 波偏移 | `InstancePolicy.wave_offsets` | dispatch 超前波数、GMM2 滞后波数 |
 | dispatch 配速 | `ModelOptions.dispatch_pacing` | none (缺省) / per_core (`MEGAMOE_A8W8`) / wave |
@@ -511,21 +512,37 @@ bs128 是 768 个), 页局部性越差; 每行 512B (n=256, BF16) 本来就远�
 
 ---
 
-## 缺口 11: combine 的"在哪个角色、什么粒度"只有一种
+## 缺口 11: combine 的角色与粒度 — **已补齐 (2026-10-04)**
 
-模型只能把 combine 建成**一种**编排: AIV1 上与 GMM2 tile 1:1 配对、同核、紧跟其后。
-另一种同样合理的编排表达不出来: **放在另一个向量角色上、逐专家独立跑一遍、挂在整个
-GMM2 wave 之后**。两者的取舍很实在 —— 逐 tile 配对让 combine 紧跟计算、延迟低, 但
-combine 与 GMM2 抢同一个核对; 逐专家独立一遍可以攒批、写侧跨度更可控, 代价是等整波。
+原缺口: combine 只能是一种编排 —— AIV1 上与 GMM2 tile 1:1 配对同核。两个维度现在都可配,
+而且**彼此正交** (参考实现把它们绑在同一个量化模板参数上, 那是它的耦合, 不是物理):
 
-参考实现里这两种恰好**绑在量化模板参数上** (`CombineQuantMode`): NO_QUANT 走前者
-(`CombineTokenRange`, `GetSubBlockIdx()==1`), QUANT 走后者 (`ProcessCombineExperts`,
-`GetSubBlockIdx()==0`, 见 `mega_moe_wave_a8w8.h:388,532-560`)。**那是那份实现的耦合,
-不是物理** —— 数据格式和"combine 跑在哪"没有因果关系, 本模型不该跟着耦合。
+| 维度 | 旋钮 | 取值 |
+| --- | --- | --- |
+| 跑在哪个角色 | `ModelOptions.roles` | 见缺口 2 |
+| 一个事件覆盖多少工作 | `ModelOptions.combine_granularity` | `"per_tile"` (缺省) / `"per_expert"` |
 
-所以 `KernelConfig.combine_quant_mode` 现在只管数据格式 (写侧每元素字节), 名实相符;
-"combine 跑在哪个角色、什么粒度"缺一个独立的编排旋钮, 它正是缺口 2 (角色分配不可配)
-的一个具体用例 —— 补齐缺口 2 时一并给出。
+`"per_expert"`: 一个专家切片一个 combine 事件, 等**自己那个切片**全部 GMM2 段做完
+(不是等整波 —— 专家 0 的 combine 不等专家 2 的 GMM2)。
+
+### 量出来: 攒批省的字节远不抵丢掉的交错
+
+实测 9216/3 专家/28 核 (规格 Cube 速率, 缺省晚绑定):
+
+| 粒度 | combine 事件数 | 忙碌合计 | 墙钟 |
+| --- | ---: | ---: | ---: |
+| `per_tile` | 60 | 305.34 us | **315.63 us** |
+| `per_expert` | 3 | 303.86 us (−0.5%) | 411.83 us (**+30.5%**) |
+
+省的那 0.5% 是**路由元数据**: `per_tile` 下每个 n-tile 都要把本窗 m 行的元数据读一遍
+(读 20 次), `per_expert` 下每行只读一次。丢的是流水交错 —— 3 个 101us 的大事件堆在各自
+切片末尾, 而 60 个小事件能与 GMM2 交错。
+
+### 但模型算不出 per_expert 的主要好处
+
+`per_expert` 真正的卖点是**写侧落点跨度更可控** (一次写整片 h 列, 而不是按 n-tile 分 20 次
+散射)。跨度不在模型里 (缺口 10), 所以现在这个对比只看得见它的代价。
+**不要据上表下"攒批没用"的结论** —— 等缺口 10 补上才有意义。
 
 ---
 

@@ -201,9 +201,29 @@ class MteDispatch(DispatchTransport):
 
 
 class MteCombine(CombineTransport):
+    """combine 的两种粒度 (ModelOptions.combine_granularity):
+
+      "per_tile"   与每个 GMM2 tile 1:1 配对、紧跟其后。
+      "per_expert" 一个专家切片一个事件, 等该切片全部 GMM2 段做完。
+
+    粒度只改"一个事件覆盖多少工作"; 跑在哪个角色由 ModelOptions.roles 决定, 两者正交。
+    """
+
+    def __init__(self):
+        #: per_expert 粒度下累计待批: (si, expert) -> [gmm2 末段名], 以及行列范围
+        self._pending = {}
 
     def on_gmm2_tile(self, builder, ctx: BuildContext, w, shape, si, sl, t, label,
                      ntile, core, gname, global_group, call_iteration):
+        if builder.options.combine_granularity == "per_expert":
+            key = (si, sl.expert)
+            slot = self._pending.setdefault(
+                key, {"deps": [], "cores": [], "sl": sl, "si": si,
+                      "call_iteration": call_iteration, "rows": set()})
+            slot["deps"].append(gname)
+            slot["cores"].append(core)
+            slot["rows"].add((t.row_begin, t.row_end))
+            return
         c = builder.costs
         q_aiv1 = (f"Q:aiv1:c{core}", 1)
         # C1: 名字不带核号 (见 gmm1.py 的说明)
@@ -239,4 +259,46 @@ class MteCombine(CombineTransport):
         ctx.combines_by_wave.setdefault(w.index, []).append(cname)
 
     def flush_wave(self, builder, ctx: BuildContext, w, shape, km, p):
-        pass
+        """per_expert 粒度: 每个专家切片发一个 combine, 等该切片全部 GMM2 段做完.
+
+        与 per_tile 的实质差别有两处, 都在成本里体现:
+          * 路由元数据每行只读一次 (per_tile 下每个 n-tile 都读一遍本窗 m 行);
+          * 写出是整片 h 列一次, 而不是按 n-tile 分 20 次。
+        代价在 DAG 上: 它等整个切片的 GMM2, 不是等一个 tile。
+        """
+        if not self._pending:
+            return
+        c = builder.costs
+        for idx, (key, slot) in enumerate(sorted(self._pending.items())):
+            si, expert = key
+            sl = slot["sl"]
+            # 落核: 轮转占位 (晚绑定下由调度器决定; 静态绑定下给一个中性分配)
+            core = slot["cores"][0] if slot["cores"] else idx % max(1, p)
+            rows = sum(end - begin for begin, end in sorted(slot["rows"]))
+            by_dst = rows_by_source_rank(shape.expert_source_tokens[expert],
+                                        sl.row_begin, sl.row_begin + rows)
+            remote_rows = sum(n for d, n in enumerate(by_dst) if d != shape.rank_id)
+            row_bytes = c.combine_write_bytes_per_row(shape.h)
+            bw_fab = c.dispatch_mechanistic.bw_remote_bytes_per_us
+            ch_bytes = tuple(
+                ch for d, n in enumerate(by_dst) if d != shape.rank_id and n
+                for ch in ((f"fab_src:{shape.rank_id}", n * row_bytes, bw_fab),
+                           (f"fab_dst:{d}", n * row_bytes, bw_fab)))
+            q_aiv1 = (f"Q:aiv1:c{core}", 1)
+            cname = f"W{w.index}.E{expert}.S{si}.combine.expert"
+            builder._event(
+                cname, (builder.options.role_resource("combine", core),),
+                c.combine_tile(rows, shape.h, remote_rows) + c.combine_ack_us,
+                deps=sorted(slot["deps"]), acquires=(q_aiv1,), releases=(q_aiv1,),
+                channel_bytes=ch_bytes,
+                meta={"stage": "combine", "wave": w.index,
+                      "call_iteration": slot["call_iteration"], "expert": expert,
+                      "slice": si, "granularity": "per_expert",
+                      "col_begin": 0, "col_end": shape.h,
+                      "row_begin": 0, "row_end": rows,
+                      "logical_n": shape.h, "core": core, "m_rows": rows,
+                      "remote_rows": remote_rows, "rows_by_dst": by_dst})
+            ctx.gmm2_combine_history[core].append(cname)
+            ctx.last_combine_by_core[core] = cname
+            ctx.combines_by_wave.setdefault(w.index, []).append(cname)
+        self._pending = {}

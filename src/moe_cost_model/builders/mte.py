@@ -72,6 +72,10 @@ class MteEventBuilder(EventBuilderBase):
                 add_gmm2_wave(self, ctx, waves[gmm2_wave_idx], shape, km, p, c,
                               core_assign, policy, TILE_M, TILE_N, ACT_HALF,
                               call_iteration=iteration)
+                # 该波 GMM2 全部建完 -> 通知 combine 后端收口 (per_expert 粒度在这里
+                # 发事件; per_tile 粒度已在 on_gmm2_tile 里逐 tile 发完, 这里是空操作)
+                self.combine_backend.flush_wave(
+                    self, ctx, waves[gmm2_wave_idx], shape, km, p)
                 gmm2_done.add(gmm2_wave_idx)
             cursor_after_gmm2 = ctx.cursor.start
 
@@ -100,6 +104,7 @@ class MteEventBuilder(EventBuilderBase):
             add_gmm2_wave(self, ctx, waves[k], shape, km, p, c, core_assign,
                           policy, TILE_M, TILE_N, ACT_HALF,
                           call_iteration=n_waves + j)
+            self.combine_backend.flush_wave(self, ctx, waves[k], shape, km, p)
             self.cursor_trace.append(CursorTrace(
                 iteration=n_waves + j,
                 gmm1_wave=None,
