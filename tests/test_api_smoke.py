@@ -112,8 +112,9 @@ def test_default_pin():
     # 2026-10-04 combine 的路由元数据从写死 8B/行 改成申报参数
     #   (算法下界 12B / 缺省 16B / MEGAMOE_A8W8 声明 32B, 与同仓 dispatch 侧一致):
     #   235.775 -> 235.814
-    assert abs(res["kernel_total_us"] - 235.814) < 0.01
-    assert abs(res["kernel_dag_end_us"] - 250.464) < 0.01
+    # 2026-10-04 BW_REMOTE_WRITE 31000 -> 8600 (对标最快 COMBINE tile 反扣) → 245.967
+    assert abs(res["kernel_total_us"] - 245.967) < 0.01
+    assert abs(res["kernel_dag_end_us"] - 260.617) < 0.01
     # C3: 逐核排空节点 (28 核 x 3 引擎 = 84 个) 换成一个全核排空栅栏 -> 659 - 83 = 576
     assert len(res["rank_results"][0]["events"]) == 576
     # 排队模型生效标志: 资源争用出现 (旧模型恒为 0)
@@ -246,7 +247,7 @@ def _run_costs():
 def test_kl1_override_restores_legacy():
     """kL1=256 显式覆盖应恢复与 auto 相同值 (结构等价性自检)."""
     res = _run(options=m.MEGAMOE_A8W8.with_options(gmm2_kl1=256))
-    assert abs(res["kernel_total_us"] - 235.775) < 0.5
+    assert abs(res["kernel_total_us"] - 245.967) < 0.5
 
 
 def test_primitive_costs_requires_all():

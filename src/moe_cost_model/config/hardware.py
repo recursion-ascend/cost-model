@@ -43,16 +43,18 @@ BW_WINDOW = SourcedValue(33000.0, 'measured:跨卡读数据的片间带宽, disp
 # 只剩本卡侧口径: COMBINE 现在把 GM→UB 读回与本卡行写按 BW_LOCAL_GM 计,
 # 跨卡行写按 BW_REMOTE_WRITE 计, 本常数不再进 COMBINE 公式 (留给旧标定复现).
 BW_SCATTER = SourcedValue(139500.0, 'measured:COMBINE 散射写带宽 (旧口径, 已不用); 域受限')
-# COMBINE 的跨卡行写 (CombineTokens 每行一次 DataCopyPad 直写目的卡窗口) 无直测:
-# 现有跨卡常数都是读侧 (BW_REMOTE_GM 是 dispatch 远端段的读)。同引擎同互连,
-# 暂按对称假设取读侧值 —— 与 URMA_PUT_BW_SINGLE 取 GET 对称值同一处理。
-# 标定待办: 20260930 bs=36 run 只有一种 tile 形状 (m=72, 每行 512B), 单点不足以
-# 分离"每行固定开销"与"按字节"两项; 需要扫 m 或扫 tile_n 的 run 才能定这个常数。
-# 聚合核对: 31000 x 28 核 = 0.87 TB/s, 占灵衢 2.0 聚合 2 TB/s 的 43% —— 聚合上没矛盾。
-# 但实测 bs36 单 tile 5.676us 而模型给 1.189us (差 4.8 倍), 所以缺的不是带宽值, 是
-# COMBINE 小包散射写的模型 (每行一次 DataCopyPad, 小 batch 下每行约 10KB, 固定开销占
-# 主导)。要定它得扫包大小。
-BW_REMOTE_WRITE = SourcedValue(31000.0, 'assumed:跨卡写目的卡窗口的带宽 (每核), 取远端读对称值; COMBINE 用')
+# COMBINE 的跨卡行写 (CombineTokens 每行一次 DataCopyPad 直写目的卡窗口) 没有直测,
+# 只能从 COMBINE 事件的总时长里反扣。2026-10-04 之前这里取的是"与读侧对称"的假设值
+# 31000 —— 现已被现有 trace 排除, 见下。
+BW_REMOTE_WRITE = SourcedValue(8600.0, 'measured:跨卡写目的卡窗口的带宽 (每核); COMBINE 用')
+# 8600 B/us 的来历 (2026-10-04, 20260930 三个 noshared run, rank0, 去掉 pid 重复记录):
+#   取每个形状**最快**的 COMBINE tile (未被别的阶段挤的那一条), 把读回与本卡行写按
+#   BW_LOCAL_GM 扣掉, 余下时间除以跨卡字节:
+#     bs8192  m=256 floor 11.46us (206 个样本, p10=11.30, 分布极紧 -> 是硬速率)  -> 9.5 GB/s
+#     bs36    m= 72 min   3.86us                                                -> 7.8 GB/s
+#     bs128   m=256 min  22.74us (该 run 全程被挤, 这个"min"仍含排队)           -> 4.5 GB/s
+#   前两个取中 ~8.6 GB/s; 第三个是下界。**原先的 31000 是"取远端读对称值"的假设,
+#   现有 trace 已经把它排除掉了 (差 3-7 倍)**。要定准仍需 R4 (按每行字节扫)。
 
 # 流水线启动/填充延迟
 # 暂取 0; 实测存在 68ns/tile 的缺口 (n 系差分), 机制待推导.

@@ -15,7 +15,11 @@ ALGO_MIN_META_BYTES = 12
 #: 某实现的取值: 搬满 META_INFO_SIZE=8 个 int32 槽
 ONE_IMPL_META_BYTES = 32
 #: 20260930 run 的 COMBINE 单 tile 中位时长 (rank0, n=256, 3/4 行跨卡)
-MEASURED = {72: 5.553, 256: 36.751}
+# 20260930 三个 noshared run, rank0, 去掉 pid=0/1 的重复记录。
+# 本模型不建模带宽争用 (只按资源独占排程), 所以对标**最快**那条 tile —— 那是没被
+# 别的阶段挤住的一条。中位数留作参考: 72 行 5.553, 256 行 36.751 (bs128) / 31.9 (bs8192)。
+FASTEST = {72: 3.86, 256: 11.3}
+MEDIAN = {72: 5.553, 256: 36.751}
 
 
 def test_meta_bytes_is_declared_not_hardcoded():
@@ -62,21 +66,38 @@ def test_no_quant_writes_bf16_quant_writes_fp8_plus_scale():
     assert q.write_bytes_per_elem == pytest.approx(1 + 1 / 32)
 
 
-def test_model_is_optimistic_and_misses_the_superlinear_scaling():
-    """记录缺口 10: 实测对 m 超线性, 而按字节/按每行固定开销都是线性的.
+def test_tile_cost_is_not_superlinear_in_m_and_spread_does_not_explain_it():
+    """2026-10-04 修订: "COMBINE 对 m 超线性" 这个说法被 trace 本身否掉了。
 
-    实测 m 比 3.56x -> 时长比 6.62x; 模型两个口径都给线性。所以这不是调带宽能修的,
-    缺的是"写落点跨度"这个量 (见 docs/design_space_gaps.md 缺口 10)。
+    bs128 与 bs8192 每事件工作量完全相同 (256 行 x 256 列), 而 bs8192 的最快 tile
+    11.3us 比 bs128 的最快 tile 22.7us **快一倍** —— 偏偏 bs8192 的落点空间宽 64 倍
+    (8192x6 vs 128x6)、密度稀 16 倍。所以 _spread_slots 那个"跨度"量解释不了时长。
+    同一个 bs8192 run 内部, m 组 0/1/2 中位 11.46us (206 样本, p10 11.30, 分布紧到
+    只能是硬速率), m 组 9/10/11 中位 55-58us, 字节一模一样 —— 变化来自**别的阶段挤进来
+    的带宽争用**, 不是 tile 自身。
+
+    本模型按资源独占排程, 不建模带宽争用, 所以 tile 公式对标最快那条; 争用那部分是
+    已知的乐观边界 (见 docs/design_space_gaps.md 与 docs/calibration_runs.md)。
     """
-    C = m.AnalyticalCombineCosts()
-    model = {rows: C.tile(rows, 256, rows * 3 // 4) for rows in MEASURED}
-    # 模型在两个点上都偏快, 且大 m 上更偏
-    ratio = {rows: MEASURED[rows] / model[rows] for rows in MEASURED}
-    assert ratio[72] > 4.0
-    assert ratio[256] > ratio[72]            # 偏差随 m 变大 = 超线性没被建模
-    # 模型自己是线性的: 时长比应当接近字节比
+    C = m.AnalyticalCombineCosts(meta_bytes_per_row=ONE_IMPL_META_BYTES)
+    model = {rows: C.tile(rows, 256, rows * 3 // 4) for rows in FASTEST}
+    # 公式自身是线性的 (按字节计价), 这是**对的**: 没有证据支持非线性项
     assert model[256] / model[72] == pytest.approx(256 / 72, rel=0.02)
-    assert MEASURED[256] / MEASURED[72] > 1.5 * (256 / 72)
+    # 对标最快那条, 两个点都落在 +-25% 以内 —— BW_REMOTE_WRITE 就是这么反扣出来的
+    for rows, want in FASTEST.items():
+        assert model[rows] == pytest.approx(want, rel=0.25), (rows, model[rows], want)
+    # 对中位数仍然乐观 (争用没建模), 且大 m 上更乐观
+    ratio = {rows: MEDIAN[rows] / model[rows] for rows in MEDIAN}
+    assert ratio[72] > 1.0 and ratio[256] > ratio[72]
+
+
+def test_remote_write_bandwidth_is_measured_not_symmetric_assumption():
+    """BW_REMOTE_WRITE 不再是"取远端读的对称值": 现有 trace 已把 31 GB/s 排除。"""
+    from moe_cost_model.config.hardware import BW_REMOTE_WRITE, BW_REMOTE_GM
+    assert BW_REMOTE_WRITE.source.startswith("measured:")
+    assert float(BW_REMOTE_WRITE) == pytest.approx(8600.0)
+    # 写侧明显慢于读侧 —— 这正是原先的对称假设错的地方
+    assert float(BW_REMOTE_WRITE) < 0.5 * float(BW_REMOTE_GM)
 
 
 def test_only_one_combine_orchestration_is_expressible():
