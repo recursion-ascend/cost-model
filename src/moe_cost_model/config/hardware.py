@@ -8,11 +8,11 @@ from dataclasses import dataclass
 from .provenance import SourcedInt, SourcedValue
 
 # 来自 kernel: MEGAMOE_TILE_M
-TILE_M = SourcedInt(256, 'kernel:每个 m-group 的行数')
+TILE_M = SourcedInt(256, 'impl:每个 m-group 的行数')
 # 来自 kernel: MEGAMOE_TILE_N
-TILE_N = SourcedInt(256, 'kernel:每个 N-tile 的列数')
+TILE_N = SourcedInt(256, 'impl:每个 N-tile 的列数')
 # 来自 kernel
-L1_TILE_K = SourcedInt(256, 'kernel:一次载入覆盖的 K 维行数')
+L1_TILE_K = SourcedInt(256, 'impl:一次载入覆盖的 K 维行数')
 
 # ---- 硬件物理参数----
 # 内存子系统带宽
@@ -93,7 +93,7 @@ T_GMM1_OVERLAP = SourcedValue(0.9, 'measured:dispatch 调用首个远端段的�
 # Fetch 背靠背发出 (模板参数 Wait=false), 只有 issueIdx >= bufferCount 才等
 # MTE3_MTE2 让槽腾出来。所以一段里不超过 bufferCount 行是重叠的, 段时长由一次
 # 往返延迟封底, 不随行数线性增长。缺省 6 = 20260930 run 的 tiling 真值。
-DISPATCH_BUFFER_COUNT = SourcedInt(6, 'kernel:dispatchBufferConfig.bufferCount, 行级软流水槽数')
+DISPATCH_BUFFER_COUNT = SourcedInt(6, 'impl:dispatchBufferConfig.bufferCount, 行级软流水槽数')
 # 标定: COUNTS_EXPORT→首 dispatch span.
 T_COUNT_GATE = SourcedValue(53.9, 'measured:COUNTS_EXPORT 到首个 dispatch 的最短间隔')
 
@@ -116,25 +116,25 @@ URMA_PUT_BW_SINGLE = SourcedValue(2253.0, 'assumed:URMA PUT 写带宽, 取 GET �
 # 仲裁量子 << 25KB (细粒度交叉) → 每事件独立 λ+bytes/BW, 不叠加速率服务器。
 # 实测域: 4 卡 / 3 流; world-1 > 3 的并发外推未验证。
 # 来自 kernel: DISPATCH_RECEIVE_BATCH_TOKEN_CAPACITY
-URMA_FLAG_WINDOW_TOKENS = SourcedInt(256, 'kernel:flag 轮询窗槽数')
-URMA_FLAG_BYTES = SourcedInt(8, 'kernel:relay flag 槽位字节数, uint64')
+URMA_FLAG_WINDOW_TOKENS = SourcedInt(256, 'impl:flag 轮询窗槽数')
+URMA_FLAG_BYTES = SourcedInt(8, 'impl:relay flag 槽位字节数, uint64')
 
 # ---- URMA Layered 宏 Wave 策略 ----
-LAYERED_FIRST_WAVE_ROWS = SourcedInt(1024, 'kernel:Layered 首波行数上限, 小 batch 单波判定')
-LAYERED_LATENCY_WAVE_COUNT = SourcedInt(2, 'kernel:Layered 延迟档波数')
-LAYERED_BALANCED_WAVE_COUNT = SourcedInt(6, 'kernel:Layered 均衡档波数')
-LAYERED_THROUGHPUT_WAVE_COUNT = SourcedInt(4, 'kernel:Layered 大批量优先档的波数')
-LAYERED_LATENCY_ROWS_PER_EXPERT = SourcedInt(256, 'kernel:Layered 延迟档每专家行数')
-LAYERED_THROUGHPUT_ROWS_PER_EXPERT = SourcedInt(2048, 'kernel:Layered 大批量优先档的每专家行数')
-LAYERED_FEW_EXPERT_THRESHOLD = SourcedInt(8, 'kernel:Layered 少专家判定阈值, ≤8 走延迟档')
+LAYERED_FIRST_WAVE_ROWS = SourcedInt(1024, 'impl:Layered 首波行数上限, 小 batch 单波判定')
+LAYERED_LATENCY_WAVE_COUNT = SourcedInt(2, 'impl:Layered 延迟档波数')
+LAYERED_BALANCED_WAVE_COUNT = SourcedInt(6, 'impl:Layered 均衡档波数')
+LAYERED_THROUGHPUT_WAVE_COUNT = SourcedInt(4, 'impl:Layered 大批量优先档的波数')
+LAYERED_LATENCY_ROWS_PER_EXPERT = SourcedInt(256, 'impl:Layered 延迟档每专家行数')
+LAYERED_THROUGHPUT_ROWS_PER_EXPERT = SourcedInt(2048, 'impl:Layered 大批量优先档的每专家行数')
+LAYERED_FEW_EXPERT_THRESHOLD = SourcedInt(8, 'impl:Layered 少专家判定阈值, ≤8 走延迟档')
 # Layered 每行元数据: META_INFO_SIZE = 8 × int32
-LAYERED_META_BYTES_PER_ROW = SourcedInt(32, 'kernel:Layered 每行元数据字节数')
+LAYERED_META_BYTES_PER_ROW = SourcedInt(32, 'impl:Layered 每行元数据字节数')
 # 来自 kernel: MXFP_MULTI_BASE_SIZE
-MXFP_MULTI_BASE_SIZE_K = SourcedInt(2, 'kernel:MX scale K 侧每 32 组字节数')
+MXFP_MULTI_BASE_SIZE_K = SourcedInt(2, 'spec:MX scale K 侧每 32 组字节数 (MX 格式标准)')
 
 # 向量引擎
 # 来自 kernel: VECTOR_REG_WIDTH
-VEC_REG_WIDTH = SourcedInt(256, 'kernel:向量寄存器位宽, bit')
+VEC_REG_WIDTH = SourcedInt(256, 'spec:向量寄存器位宽, bit')
 VEC_ELEM_FP32 = VEC_REG_WIDTH // 4   # FP32 元素/向量
 # SwiGLU + MX 量化每向量 (64 个 FP32 元素) 的 UB 流量, 从源码逐句计数:
 #   bf16 中间缓冲被**整体流三遍** (blaze/epilogue/block_epilogue_activation_mx_quant.h):
@@ -153,18 +153,18 @@ ACT_BYTES_PER_VEC = SourcedValue((128 + 128 + 128 + 128 + 8) + (128 + 4 + 4 + 64
                                 'derived:ACT 每处理一个向量的 UB 字节数, 读 520B + 写 202B')
 
 # GMM2 K-window 
-GMM1_MIN_LOGICAL_TILES_PER_CORE = SourcedInt(4, 'kernel:p1 中档缺省: 每核最少 GMM1 逻辑 tile 数')
-GMM1_MIN_LOGICAL_TILES_PER_CORE_SMALL = SourcedInt(2, 'kernel:p1 小批量档: token<2048 时每核最少 GMM1 tile 数')
-GMM1_MIN_LOGICAL_TILES_PER_CORE_LARGE = SourcedInt(6, 'kernel:p1 大批量档: token≥16384 时每核最少 GMM1 tile 数')
-GMM1_SMALL_BATCH_TOKEN_THRESHOLD = SourcedInt(2048, 'kernel:p1 小批量档 token 阈值')
-GMM1_LARGE_BATCH_TOKEN_THRESHOLD = SourcedInt(16384, 'kernel:p1 大批量档 token 阈值')
+GMM1_MIN_LOGICAL_TILES_PER_CORE = SourcedInt(4, 'impl:p1 中档缺省: 每核最少 GMM1 逻辑 tile 数')
+GMM1_MIN_LOGICAL_TILES_PER_CORE_SMALL = SourcedInt(2, 'impl:p1 小批量档: token<2048 时每核最少 GMM1 tile 数')
+GMM1_MIN_LOGICAL_TILES_PER_CORE_LARGE = SourcedInt(6, 'impl:p1 大批量档: token≥16384 时每核最少 GMM1 tile 数')
+GMM1_SMALL_BATCH_TOKEN_THRESHOLD = SourcedInt(2048, 'impl:p1 小批量档 token 阈值')
+GMM1_LARGE_BATCH_TOKEN_THRESHOLD = SourcedInt(16384, 'impl:p1 大批量档 token 阈值')
 # 来自 kernel: p1/p2 分档与阈值
-GMM2_MIN_LOGICAL_TILES_PER_CORE = SourcedInt(1, 'kernel:p2 缺省: 每核最少 GMM2 tile 数')
-GMM2_LAG_MIN_TOKEN_NUM = SourcedInt(4096, 'kernel:GMM2 滞后一波的 token 阈值')
+GMM2_MIN_LOGICAL_TILES_PER_CORE = SourcedInt(1, 'impl:p2 缺省: 每核最少 GMM2 tile 数')
+GMM2_LAG_MIN_TOKEN_NUM = SourcedInt(4096, 'impl:GMM2 滞后一波的 token 阈值')
 # 来自 kernel
-ACTIVATION_N_HALF = SourcedInt(2, 'kernel:SwiGLU 投影数, gate+up 共 2')
+ACTIVATION_N_HALF = SourcedInt(2, 'algo:SwiGLU 投影数, gate+up 共 2 (算法定义, 换算法才变)')
 # config.links 里 gmm1->activation 那条边 depth 的缺省来源
-DAV3510_NONINTERLEAVED_GMM1_ACTIVATION_DEPTH = SourcedInt(1, 'kernel:GMM1→ACT UB 握手深度, 非交织路径')
+DAV3510_NONINTERLEAVED_GMM1_ACTIVATION_DEPTH = SourcedInt(1, 'impl:GMM1→ACT UB 握手深度, 非交织路径')
 
 def _gmm2_head_tail_fractions(k_gmm2: int, kl1: int = 0) -> tuple:
     """GMM2 head/tail by K-window physics: head = first kL1 chunk (starts after
@@ -186,17 +186,17 @@ def ceil_div(a: int, b: int) -> int:
 
 # ---- Ascend 950 (DAV_3510) 物理容量 ----
 # 来自 kernel: __NPU_ARCH__==3510
-TOTAL_L1_SIZE = SourcedInt(512 * 1024, 'kernel:L1 容量, 字节')
+TOTAL_L1_SIZE = SourcedInt(512 * 1024, 'spec:L1 容量, 字节 (平台物理容量)')
 # 来自 kernel
-TOTAL_UB_SIZE = SourcedInt(248 * 1024, 'kernel:UB 容量, 字节')
+TOTAL_UB_SIZE = SourcedInt(248 * 1024, 'spec:UB 容量, 字节 (平台物理容量)')
 # 来自 kernel
-TOTAL_L0C_SIZE = SourcedInt(256 * 1024, 'kernel:L0C 容量, 字节')
+TOTAL_L0C_SIZE = SourcedInt(256 * 1024, 'spec:L0C 容量, 字节 (平台物理容量)')
 # 来自 kernel
-MXFP_DIVISOR_SIZE = SourcedInt(64, 'kernel:MX 量化组大小, 元素/组')
+MXFP_DIVISOR_SIZE = SourcedInt(64, 'spec:MX 量化组大小, 元素/组 (MX 格式标准)')
 # 来自 kernel
-MXFP_MULTI_BASE_SIZE = SourcedInt(2, 'kernel:MX scale 每组字节数')
+MXFP_MULTI_BASE_SIZE = SourcedInt(2, 'spec:MX scale 每组字节数 (MX 格式标准)')
 # 来自 kernel
-SCALE_TRANSFER_BYTES = SourcedInt(64 * 1024, 'kernel:scale 载入窗单侧上限, 字节')
+SCALE_TRANSFER_BYTES = SourcedInt(64 * 1024, 'impl:scale 载入窗单侧上限, 字节')
 
 
 def select_kl1(m_rows: int, k: int, override=None, tile_m: int = TILE_M,

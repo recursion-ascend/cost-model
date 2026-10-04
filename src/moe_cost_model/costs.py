@@ -13,7 +13,7 @@ from .config.hardware import (
     T_COUNT_GATE, T_GMM1_OVERLAP, T_LAT_LOCAL, T_LAT_REMOTE,
     T_STARTUP_VEC,
     MXFP_DIVISOR_SIZE, MXFP_MULTI_BASE_SIZE, MXFP_MULTI_BASE_SIZE_K,
-    URMA_FLAG_BYTES, URMA_FLAG_WINDOW_TOKENS,
+    LAYERED_META_BYTES_PER_ROW, URMA_FLAG_BYTES, URMA_FLAG_WINDOW_TOKENS,
     URMA_GET_BW_SINGLE, URMA_GET_LAT_US, URMA_PUT_BW_SINGLE, URMA_PUT_LAT_US,
     VEC_ELEM_FP32,
 )
@@ -163,13 +163,18 @@ class UrmaMechanisticLatency:
     每批 = 一次 BatchCommit+Drain: λ + bytes / 单流 BW。
     并发纪律: 实测并行不降速 (3 流保持率 0.96)、无 FCFS 预留 → 事件间独立,
     不叠加速率服务器 (与 MTE fab 信道占位状态的处理一致, 且有 probe 证据)。
-    flag 轮询: 每批一次 256-token 窗口的 ReadNbi+Drain (2048B)。
+    flag 轮询: 每批一次窗口的 ReadNbi+Drain, 窗口大小见 flag_window_bytes。
     """
 
     t_get_lat_us: float = URMA_GET_LAT_US
     bw_get_single_bytes_per_us: float = URMA_GET_BW_SINGLE
     t_put_lat_us: float = URMA_PUT_LAT_US
     bw_put_single_bytes_per_us: float = URMA_PUT_BW_SINGLE
+    #: flag 轮询窗口字节与每行元数据字节 —— **都是某实现的选择**, 不是物理:
+    #: 窗口多大、每行搬几个字段都可以换。缺省取那份实现的值 (256 token x 8B;
+    #: 每行 32B = 8 个 int32 槽), 由此处覆盖。
+    flag_window_bytes: float = float(int(URMA_FLAG_WINDOW_TOKENS) * int(URMA_FLAG_BYTES))
+    meta_bytes_per_row: float = float(LAYERED_META_BYTES_PER_ROW)
 
     def get_batch_us(self, nbytes: float) -> float:
         return self.t_get_lat_us + nbytes / self.bw_get_single_bytes_per_us
@@ -178,8 +183,7 @@ class UrmaMechanisticLatency:
         return self.t_put_lat_us + nbytes / self.bw_put_single_bytes_per_us
 
     def flag_poll_us(self) -> float:
-        window_bytes = int(URMA_FLAG_WINDOW_TOKENS) * int(URMA_FLAG_BYTES)
-        return self.t_get_lat_us + window_bytes / self.bw_get_single_bytes_per_us
+        return self.t_get_lat_us + self.flag_window_bytes / self.bw_get_single_bytes_per_us
 
 
 # =====================================================================

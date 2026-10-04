@@ -8,13 +8,15 @@ from __future__ import annotations
 
 from typing import Dict, List, Tuple
 
-from ...config.hardware import BW_LOCAL_GM, LAYERED_META_BYTES_PER_ROW, ceil_div
+from ...config.hardware import BW_LOCAL_GM, ceil_div
 from ...costs import LayeredDispatchLayout
 from ..context import BuildContext
 from .base import CombineTransport, DispatchTransport
 
 _ALIGN_32 = 32
-_FLAG_WINDOW_BYTES = 2048  # 256 token × 8B (URMA_FLAG_WINDOW_TOKENS × URMA_FLAG_BYTES)
+#: 原先这里写死 2048 并在注释里声明"= URMA_FLAG_WINDOW_TOKENS x URMA_FLAG_BYTES" ——
+#: 复制出来的派生值, 改常数不会跟着变。现在从公式容器取 (UrmaMechanisticLatency
+#: 的 flag_window_bytes), 它是某实现的选择, 可覆盖。
 
 
 class UrmaTransport:
@@ -72,8 +74,8 @@ class UrmaDispatch(DispatchTransport):
                 # flag 窗口轮询 (ReadNbi+Drain) + 批量 GET (双 WQE/token) + meta 落盘
                 duration = (self.urma.flag_poll_us()
                             + self.urma.get_batch_us(data_bytes)
-                            + (tokens * int(LAYERED_META_BYTES_PER_ROW) + _FLAG_WINDOW_BYTES)
-                            / BW_LOCAL_GM)
+                            + (tokens * self.urma.meta_bytes_per_row
+                               + self.urma.flag_window_bytes) / BW_LOCAL_GM)
                 ev = builder._event(
                     f"W{w.index}.recv.s{src}.b{batch_idx}", (f"AIV1:{core}",), duration,
                     deps=(self.aiv1_last[core],) if core in self.aiv1_last else (),
@@ -219,7 +221,7 @@ class UrmaCombine(CombineTransport):
                 else:
                     # 远端: meta 读 + 批量 PUT (WQE 引擎直读 GMM2 输出, 无本地写)
                     duration = (
-                        m * int(LAYERED_META_BYTES_PER_ROW) / BW_LOCAL_GM
+                        m * self.parent.urma.meta_bytes_per_row / BW_LOCAL_GM
                         + n_lambda[si] * self.parent.urma.t_put_lat_us
                         + m * put_row_bytes / self.parent.urma.bw_put_single_bytes_per_us)
                 name = builder._event(

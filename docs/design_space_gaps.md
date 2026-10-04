@@ -6,6 +6,12 @@
 
 本文件记录当前表达不了的编排维度, 按补齐价值排序。已覆盖的维度见 README。
 
+**常数的出处分成 spec / algo / impl** (2026-10-04): 原来的 `kernel:` 一个标签盖着硬件容量、
+算法定义与某实现的取值三类, 读到它分不出"物理上只能这样"还是"那份实现这么选的"。`impl:`
+类的数必须能被参数覆盖 —— 本轮接出两个原先焊死的: Layered 每行元数据字节、URMA flag
+轮询窗口 (后者原先是**复制出来的派生值** 2048, 注释声明等于两个常数之积, 但改常数不会
+跟着变)。
+
 **stage 边收成一个概念** (2026-10): `gmm2_k_segments` / `act_to_gmm2` /
 `InstancePolicy.gmm1_activation_depth` 三个旋钮合并为 `ModelOptions.links`
 (一条边一个 `StageLink`, 见 `config/links.py`)。旧名字已移除 —— 留着等于保留两套说法。

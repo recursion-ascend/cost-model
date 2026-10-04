@@ -281,7 +281,11 @@ def test_provenance_report():
     res = _run()
     prov = res["provenance"]
     assert prov["summary"].get("measured", 0) >= 15
-    assert prov["summary"].get("kernel", 0) >= 10
+    # kernel: 已于 2026-10-04 拆成 spec/algo/impl (见 tests/test_provenance_taxonomy.py):
+    # 读到一个标签就要能分出"物理上只能这样"还是"那份实现这么选的"
+    assert prov["summary"].get("impl", 0) >= 10
+    assert prov["summary"].get("spec", 0) >= 1 and prov["summary"].get("algo", 0) >= 1
+    assert prov["summary"].get("kernel", 0) == 0
     # 已知假设值必须出现在报告里 (不能静默)
     assumed_names = {p.split(".")[-1] for p in prov["assumed"]}
     assert "T_FILL_GMM1" in assumed_names or "T_DISPATCH_PREPARE_US" in assumed_names
