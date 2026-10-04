@@ -646,9 +646,15 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 | combine=2 | 40 / 40 / 240 / 60 | 269.265 |
 | combine=0 (整片) | 40 / 40 / 240 / 4 | 596.465 |
 
-全部变差 —— 这个夹具 tile 数本来就不够填满 28 核, 粗粒度只是把并行度进一步砍掉。
-**这正是这个旋钮要让人看见的东西**: 它不是收益开关, 是一笔交换。要看到粗粒度赢,
-得在同步开销占比高、或 tile 数远多于核数的形状上扫。
+全部变差 —— 这个夹具 tile 数本来就不够填满 28 核 (40 个 GMM1 tile / 28 核),
+粗粒度只是把并行度进一步砍掉。
+
+**另一个方向也真实存在**: `examples/scenario_basic.toml` (4 卡 x 64 本地专家, 28 核,
+tile 数远多于核数) 上 `gmm2=2` 从 1751.48 快到 **1741.46** —— 省下的同步点这次赚回来了。
+
+所以这不是收益开关, 是一笔交换, 而且**符号随形状翻转**: 必须扫, 不能照搬取值。
+两条测试分别钉住两个方向 (`test_coarse_granularity_costs_parallelism_not_just_saves_sync`
+与 `test_scenario_file_can_set_granularity_per_stage`)。
 
 ---
 

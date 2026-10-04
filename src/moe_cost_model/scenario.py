@@ -24,6 +24,7 @@ from .config.hardware import KernelConfig
 from .config.pipeline import parse_tiling
 from .config.pipeline import (BufferSlots, PhaseRates, PipelineConstraints,
                               QueueDepths, SyncLatency)
+from .config.granularity import resolve_granularity
 from .config.links import StageLink
 from .config.policy import InstancePolicy, StageWaveOffsets
 from .costs import (DispatchDataLayout, DispatchMechanisticLatency, PrimitiveCosts,
@@ -424,6 +425,11 @@ _NESTED = {
 _LIST_NESTED = {
     (ModelOptions, "links"): StageLink,
 }
+# 值为"stage -> 整数"映射的字段: 场景文件里写 [options.granularity] 下 gmm2 = 2。
+# 每 stage 一个取值, 所以是表而不是表数组 (links 那种每条边一个对象才用表数组)。
+_MAP_NESTED = {
+    (ModelOptions, "granularity"): resolve_granularity,
+}
 # 策略字段: 名字 / 表 / 对象, 由 registry 校验
 _STRATEGY_FIELDS = {(Scenario, kind) for kind in registry.KINDS}
 
@@ -455,6 +461,19 @@ def _convert(cls, key: str, value, path: str, base=None):
     if (cls, key) in _STRATEGY_FIELDS:
         registry.resolve(key, value, where=where)
         return value
+    mapper = _MAP_NESTED.get((cls, key))
+    if mapper is not None:
+        if value is None:
+            return mapper(None)
+        if isinstance(value, Mapping):
+            bad = {k: v for k, v in value.items()
+                   if not (isinstance(v, int) and not isinstance(v, bool))}
+            if bad:
+                raise ValueError(f"{where}: 每个 stage 的粒度应为整数, 得到 {bad!r}")
+        try:
+            return mapper(value)
+        except ValueError as exc:
+            raise ValueError(f"{where}: {exc}") from None
     item = _LIST_NESTED.get((cls, key))
     if item is not None:
         if value is None:

@@ -470,10 +470,13 @@ Cube 效率、`BW_L1_GM` 按并发分档、COMBINE 的落点跨度、`BW_REMOTE_
 
 ## 安装与运行
 
+> **怎么用** 看 [`docs/USAGE.md`](docs/USAGE.md) —— 四个入口、场景文件怎么写、
+> 输出怎么读、旋钮速查、精度边界。本文件讲的是**为什么这样建模**。
+
 ```bash
 cd moe-cost-model
 pip install -e .          # 或直接 pytest (pyproject 已配 pythonpath)
-pytest tests/             # 190 项测试 (5 项需 tiling 真值, 见下), 约 1 分钟
+pytest tests/             # 329 项测试 (5 项需 tiling 真值, 见下), 约 15 分钟
 python examples/run_scenario.py    # 场景文件 + 改旋钮对比
 python examples/run_basic.py       # 底层入口
 ```

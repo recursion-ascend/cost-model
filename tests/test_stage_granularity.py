@@ -198,3 +198,31 @@ def test_profile_declares_its_own_granularity():
     g = m.MEGAMOE_A8W8.options.granularity
     assert g.items("gmm1") == 1 and g.items("activation") == 1
     assert g.items("gmm2") == 1 and g.items("combine") == 1
+
+
+# ------------------------------------------------------ 场景文件也要能给粒度
+
+def test_scenario_file_can_set_granularity_per_stage():
+    """日常路径是场景文件 —— 旋钮必须在 toml 里写得出, 否则等于没有."""
+    from pathlib import Path
+
+    import moe_cost_model as mm
+    base = mm.load_scenario(Path("examples/scenario_basic.toml"))
+    fine = mm.simulate(base)["kernel_total_us"]
+    coarse = mm.simulate(
+        base.with_overrides({"options.granularity": {"gmm2": 2}}))["kernel_total_us"]
+    assert coarse != fine
+    # 这个形状 tile 数远多于核数, 粗粒度是**收益** —— 与 28 核夹具上全部变慢相反,
+    # 正好说明这个旋钮必须扫, 不能照搬取值。
+    assert coarse < fine
+
+
+def test_scenario_rejects_non_integer_and_unknown_stage():
+    from pathlib import Path
+
+    import moe_cost_model as mm
+    base = mm.load_scenario(Path("examples/scenario_basic.toml"))
+    with pytest.raises(ValueError, match="应为整数"):
+        base.with_overrides({"options.granularity": {"gmm2": 2.5}})
+    with pytest.raises(ValueError, match="未知 stage"):
+        base.with_overrides({"options.granularity": {"swiglu": 2}})
