@@ -83,3 +83,21 @@ def test_categories_are_declared_once():
     assert set(CATEGORIES) == {"spec", "algo", "impl", "measured", "derived", "assumed"}
     with pytest.raises(AssertionError):
         assert unknown_categories({"x": (1.0, "kernel:旧标签")}) == {}
+
+
+def test_model_default_has_zero_epilogue_overheads_profile_carries_them():
+    """实测残留不得藏在模型缺省里: 缺省 literal=True 取字面 0, profile 才回落到实测常数.
+
+    2026-10-05: EpilogueOverheads 的 docstring 原先写"缺省沿用实测值, 这样默认结果不变"
+    —— 那句描述的是本类自己 (literal=False) 的行为, 却会被读成"模型缺省沿用实测值"。
+    这条测试把两个缺省的区别钉死, 免得文档再把人 (包括我) 带偏。
+    """
+    import moe_cost_model as m
+    d = m.ModelOptions().epilogue_overheads
+    assert d.literal is True, "模型缺省必须按字面取 0 = 不引用任何实现"
+    assert (d.counts_export_us, d.core_sync_us, d.rank_sync_us,
+            d.output_init_us, d.finalize_us) == (0.0, 0.0, 0.0, 0.0, 0.0)
+    p = m.MEGAMOE_A8W8.options.epilogue_overheads
+    assert p.literal is False, "profile 要回落到模块实测常数 (复现那份实现)"
+    # 回落确实发生: 同一形状下 profile 的尾段比缺省长
+    assert float(m.T_CORE_SYNC_BARRIER_US) > 0 and float(m.T_FINALIZE_US) > 0

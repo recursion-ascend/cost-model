@@ -260,12 +260,25 @@ T_COUNTS_EXPORT_US = SourcedValue(1.0, 'measured:COUNTS_EXPORT 阶段时长')
 class EpilogueOverheads:
     """尾段的固定开销 (C5): 全是**某一版实现**的实测残留, 不是物理定律.
 
-    把它们从模块常数提成一组可配置值, 算子工程师按自己的实现填; 缺省沿用实测值,
-    这样默认结果不变。注意 unpermute 不在这里 —— 它是真实的数据搬运, 由
-    token 数 x topk x h 的字节量除以 BW_UNPERMUTE_AGG 算出来, 属于物理。
-
     counts_export / output_core_sync / output_rank_sync / output_buffer_init /
-    finalize: 这五项是前导尾段的固定耗时, 换一版 kernel 就会变。
+    finalize: 这五项是尾段的固定耗时, 换一版 kernel 就会变。注意 unpermute **不在这里**
+    —— 它是真实的数据搬运, 由 token 数 x topk x h 的字节量除以 BW_UNPERMUTE_AGG 算出来,
+    属于物理。
+
+    **哪个缺省是什么, 2026-10-05 把话说清** (原先这段写"缺省沿用实测值, 这样默认结果
+    不变", 那句描述的是本类自己的行为, 却被读成"模型缺省沿用实测值" —— 我自己照着它
+    误报过好几轮"实测残留藏在缺省值里"):
+
+      literal=False (本类的缺省)   五项里为 0 的回落到模块实测常数
+                                   (T_COUNTS_EXPORT_US / T_CORE_SYNC_BARRIER_US / ...)。
+                                   `profiles.MEGAMOE_A8W8` 用这个 —— 复现那份实现。
+      literal=True                 五项按字面取 (含 0), 不回落。
+                                   **`ModelOptions.epilogue_overheads` 的缺省是这个**
+                                   (shape._ZERO_OVERHEADS), 所以**模型缺省下尾段固定开销
+                                   就是 0**, 实测残留只出现在 profile 里。
+                                   这才符合"缺省值不引用任何实现"。
+
+    换句话说: 实测残留**没有**藏在模型缺省里; 要它得显式用 profile 或自己填值。
     """
     counts_export_us: float = 0.0        # 0 = 用模块常数 T_COUNTS_EXPORT_US
     core_sync_us: float = 0.0            # 0 = T_CORE_SYNC_BARRIER_US
