@@ -137,12 +137,33 @@ class BufferSlots:
 
 @dataclass(frozen=True)
 class QueueDepths:
-    """核内引擎队列深度 (在飞上限). 深度 1 = 串行 = 现行为."""
-    mte_aic: int = 1    # AIC MTE1/MTE2: GM→L1 载入在飞
-    cube: int = 1       # Cube MMAD 在飞
-    fix: int = 1        # FixPipe (L0C→UB) 在飞
-    vec: int = 1        # AIV Vector 在飞
-    mte_aiv: int = 1    # AIV MTE2/MTE3: GM↔UB 在飞
+    """核内引擎队列深度 = **在飞上限 / 缓冲槽数**: 能攒多少笔待处理. 深度 1 = 串行.
+
+    **这不是"同时能跑几笔"。** 两件事必须分开, 混在一起是 2026-10-05 那个 bug 的根源:
+
+      队列深度 (本类)   能提前多少发起 —— 由缓冲槽数决定 (L1 槽、UB 槽), 是编排/
+                        编译期选择, 所以它是旋钮。
+      执行单元数        同时能跑几笔 —— **硬件事实**, 每核每种单元恒为 1
+                        (一个 AIC 一条 MTE2、一条 Cube、一条 FixPipe;
+                         一个 AIV 一条 MTE、一条 Vector)。不是旋钮。
+
+    深度恒为 1 时两者重合, 所以缺省下看不出区别。深度 >1 时, 只有队列深度、没有执行
+    单元约束, 等于给每个核凭空多出几条管道 —— 实测后果: 载入可无限并行, 墙钟低于
+    带宽下界 26.6% (见 docs/design_space_gaps.md 的"下界与漏账")。
+
+    执行单元在 builders/pipeline_expand.py 里按容量 1 的计数信号量给出:
+
+      mte_aic  -> MTE2:c{core}            (.ld 相位; GM→L1)
+      fix      -> FIXPIPE:c{core}         (fix 相位; L0C→UB/GM)
+      mte_aiv  -> MTE_AIV:{eng}:c{core}   (AIV 侧 .ld; GM↔UB)
+      cube     -> 无需另给: .cb 相位本身独占 AIC 核资源
+      vec      -> 无需另给: ACT/COMBINE 主事件本身独占 AIV 核资源
+    """
+    mte_aic: int = 1    # AIC MTE1/MTE2 的 L1 缓冲槽数 (GM→L1 载入能攒几笔)
+    cube: int = 1       # Cube MMAD 能攒几笔
+    fix: int = 1        # FixPipe (L0C→UB) 能攒几笔
+    vec: int = 1        # AIV Vector 能攒几笔
+    mte_aiv: int = 1    # AIV MTE2/MTE3 (GM↔UB) 能攒几笔
 
 
 @dataclass(frozen=True)

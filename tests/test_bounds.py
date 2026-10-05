@@ -153,7 +153,7 @@ def test_phase_pipelining_respects_the_bandwidth_bound():
     低于带宽下界 1665.37us 达 26.6%, 被当成"相位流水省了 30.24%"。
     修法是硬件事实: 一个 AI Core 只有一条 MTE2, 所以 GMM1 与 GMM2 的载入都占
     MTE2:c{core}; 双缓冲 (queues.mte_aic = L1 槽数) 只决定能提前多少发起, 不决定
-    能同时搬几笔。修后真实收益是 1751.48 -> 1748.18 (-0.19%), 不是 -30%。
+    能同时搬几笔。修后真实收益是 0.00% (1751.48, 与基线逐位相同), 不是 -30%。
     """
     base = m.load_scenario(SCENARIO)
     r = m.simulate(base.with_overrides(PIPE))
@@ -204,3 +204,86 @@ def test_check_bounds_raises_by_default_and_records_when_switched_off():
     rr = r["rank_results"][0]
     assert rr["bounds"]["violation"], "降级之后也要把诊断记进结果, 不能悄悄丢掉"
     assert rr["bounds"]["bandwidth_limited_by"] == "aggregate"
+
+
+# ------------------------------- 执行单元数 != 队列深度
+
+#: 每核每种**执行单元**恒为 1 条 (硬件事实). 名字见 builders/pipeline_expand.py。
+EXEC_UNITS = ("MTE2", "FIXPIPE", "MTE_AIV")
+
+
+def _unit_concurrency(events):
+    """每个执行单元实例上的最大同时占用数 (按信号量名分组).
+
+    必须按**信号量名**分组而不是按 meta["core"]: AIC:c7 与 AIV0:c7 是两个物理核,
+    各有自己的搬运单元, 它们重叠是对的。第一次查这个问题时按核分组, 把
+    "AIC 的载入与 AIV 的载入重叠"误报成了违规。
+    """
+    import collections
+    spans = collections.defaultdict(list)
+    for e in events:
+        for tok, _ in getattr(e, "acquires", ()):
+            kind = tok.split(".")[-1].split(":")[0]
+            if kind in EXEC_UNITS:
+                spans[tok].append((e.start_us, e.end_us))
+    out = {}
+    for tok, ss in spans.items():
+        pts = []
+        for a, b in ss:
+            pts += [(a, 1), (b, -1)]
+        pts.sort()
+        cur = mx = 0
+        for _, d in pts:
+            cur += d
+            mx = max(mx, cur)
+        kind = tok.split(".")[-1].split(":")[0]
+        out[kind] = max(out.get(kind, 0), mx)
+    return out
+
+
+@pytest.mark.skipif(not SCENARIO.exists(), reason="需要场景文件")
+def test_execution_units_stay_at_one_even_when_queue_depths_are_raised():
+    """队列深度是"能攒几笔", 执行单元是"同时能跑几笔" —— 后者恒为 1.
+
+    这两件事混在一起就是 2026-10-05 那个 bug 的根源: 只有队列深度、没有执行单元约束,
+    等于给每个核凭空多出几条管道 (载入可无限并行, 墙钟低于带宽下界 26.6%)。
+    当时只补了 mte_aic 的 MTE2; fix 与 mte_aiv 的单元是后补的 —— 这条测试把三个
+    一起钉住, 且**把深度都调到 >1**, 否则深度 1 下两者重合, 测不出区别。
+    """
+    sc = m.load_scenario(SCENARIO).with_overrides({
+        "options.pipeline": {
+            "queues": {"mte_aic": 2, "cube": 2, "fix": 4, "mte_aiv": 3},
+            "phases": {"act_load_bw_bytes_per_us": 157000.0},
+        }})
+    r = m.simulate(sc)
+    got = _unit_concurrency(r["rank_results"][0]["events"])
+    assert got, "没有任何执行单元被占用 —— 相位没拆?"
+    for kind, mx in got.items():
+        assert mx <= 1, f"{kind} 同时跑了 {mx} 笔, 但每核只有一条"
+    # MTE2 与 MTE_AIV 必须真的被用上 (不是空操作); FIXPIPE 见下一条
+    assert got.get("MTE2") == 1
+    assert got.get("MTE_AIV") == 1
+
+
+@pytest.mark.skipif(not SCENARIO.exists(), reason="需要场景文件")
+def test_fixpipe_unit_is_declared_but_currently_dormant():
+    """FIXPIPE 这条约束现在**量不出来**: fix 相位时长恒为 0.
+
+    口径是"结果写出 (数据释放事件) 忽略不计" (见 builders/pipeline_expand.py 的 fix
+    相位与 PhaseRates.fix_bw_bytes_per_us 的说明), 所以给了 fix_bw_bytes_per_us 也不
+    影响时长 —— 那个字段现在是"保留以备改口径"。
+    于是 FIXPIPE 是一条**预置的护栏**: 不花代价, 等口径改了自动生效。
+    这条测试钉住"它确实被申报了"与"它现在确实是空操作"两件事, 避免把它当成已验证的约束。
+    """
+    sc = m.load_scenario(SCENARIO).with_overrides({
+        "options.pipeline": {"queues": {"mte_aic": 2, "cube": 2, "fix": 4},
+                             "phases": {"fix_bw_bytes_per_us": 157000.0}}})
+    r = m.simulate(sc)
+    ev = r["rank_results"][0]["events"]
+    fx = [e for e in ev if (e.meta or {}).get("phase") == "fix"]
+    assert fx, "没有 fix 相位事件"
+    assert all(e.acquires for e in fx)
+    assert any(any("FIXPIPE:" in t for t, _ in e.acquires) for e in fx), \
+        "fix 相位没有申报 FIXPIPE 单元"
+    assert sum(e.end_us - e.start_us for e in fx) == 0.0, \
+        "fix 相位有了非零时长 —— 口径变了, 把这条测试翻成断言 FIXPIPE 并发 <= 1"

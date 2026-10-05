@@ -123,11 +123,19 @@ def apply_pipeline(
         for res, _ in ev.releases:
             used.add(res)
     for res in used:
-        if res.startswith("MTE2:"):
-            # 硬件事实: 一个 AI Core 一条 MTE2 (GM→L1 搬运单元), 容量恒为 1。
+        if res.startswith(("MTE2:", "FIXPIPE:", "MTE_AIV:")):
+            # **执行单元**, 容量恒为 1 —— 这是硬件事实, 不是旋钮:
+            #   MTE2     一个 AIC 一条 (GM→L1 搬运)
+            #   FIXPIPE  一个 AIC 一条 (L0C→UB/GM 搬出)
+            #   MTE_AIV  一个 AIV 一条 (GM↔UB 搬运); 名字带 aiv0/aiv1 是因为
+            #            AIC:c7 配的两个 AIV 是**两个**物理核, 各有自己的 MTE。
+            # 与 QueueDepths 的区别见 config/pipeline.py 的 QueueDepths 文档:
+            # 队列深度 = 在飞上限/缓冲槽数 (能攒多少笔), 执行单元 = 同时能跑几笔。
+            # 两者在深度 1 时重合, 所以缺省下这几条是空操作; 深度 >1 才分开。
+            #
             # 用计数信号量而不是独占资源, 是为了走 late-bind 的 "c*" 占位重映射
             # (model._rewrite_for_late_binding 只改写 acquires/releases 的核后缀) ——
-            # 写成独占资源会把 .ld 钉在建图时的占位核号上, 与它所在相位组绑定的核冲突。
+            # 写成独占资源会把相位钉在建图时的占位核号上, 与它所在相位组绑定的核冲突。
             capacities[res] = 1
         if res.startswith("QUEUE:mte_aic:"):
             capacities[res] = cons.queues.mte_aic
@@ -328,11 +336,16 @@ def _expand_gmm1(
         acquires=((f"QUEUE:cube:c{core}", 1),),
         releases=((f"QUEUE:cube:c{core}", 1),),
     )
+    # fix 相位独占本核的 **FixPipe** (L0C→UB/GM 的搬出单元): 一个 AIC 一条。
+    # 与 MTE2 同一个道理 —— QUEUE:fix 的深度是"在飞上限/缓冲槽数", 决定能攒多少笔
+    # 待搬出; FIXPIPE 容量 1 才是"同时能搬几笔"。深度恒为 1 时两者重合, 深度 >1 时
+    # 不补这一条就等于给每个核多出几条 FixPipe。
+    fixpipe = (f"FIXPIPE:c{core}", 1)
     fx = Event(
         name=ev.name, resources=(), duration_us=fix_dur,
         deps=(ld.name, cb.name), order=ev.order, meta=dict(ev.meta, phase="fix"),
-        acquires=((f"QUEUE:fix:c{core}", 1),),
-        releases=((f"QUEUE:fix:c{core}", 1), mte),
+        acquires=((f"QUEUE:fix:c{core}", 1), fixpipe),
+        releases=((f"QUEUE:fix:c{core}", 1), fixpipe, mte),
     )
     return [lg, ld, cb, fx]
 
@@ -390,8 +403,10 @@ def _expand_aiv(
         meta=dict(ev.meta, phase="load"),
         dep_latency_us=ev.dep_latency_us,
         dep_latency_overrides=ev.dep_latency_overrides,
-        acquires=ev.acquires + ((f"QUEUE:mte_aiv:{eng}:c{core}", 1),),
-        releases=((f"QUEUE:mte_aiv:{eng}:c{core}", 1),),
+        acquires=ev.acquires + ((f"QUEUE:mte_aiv:{eng}:c{core}", 1),
+                                (f"MTE_AIV:{eng}:c{core}", 1)),
+        releases=((f"QUEUE:mte_aiv:{eng}:c{core}", 1),
+                  (f"MTE_AIV:{eng}:c{core}", 1)),
     )
     main = Event(
         name=ev.name, resources=ev.resources, duration_us=base_dur,
