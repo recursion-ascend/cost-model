@@ -192,9 +192,14 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
     c["pipeline_compute_bound"] = lambda: run_api(
         sk(), 64, costs=manual_costs(cube_rate=6.75e6),
         options=_pipeline(queues=m.QueueDepths(mte_aic=2)))
+    # 2026-10-05 审计: 这个 case 原先给 phases=PhaseRates(fix_bw_bytes_per_us=2.0e5),
+    # 但那个参数**没有任何读者** (fix 相位时长恒为 0, 口径是"结果写出/数据释放事件忽略
+    # 不计"), 所以它一直与 pipeline_split 逐位相同 —— 一个**什么都没测到**的 case,
+    # 还占着"已覆盖 fix 相位"的名分。那个参数现在给了值会直接报错, 这里把它去掉。
+    # case 保留: fix 相位的事件结构 (占 QUEUE:fix 与 FIXPIPE 单元) 仍被它覆盖, 而且
+    # 哪天 fix 口径改成计时长, 差异会在这里显形。
     c["pipeline_fix_phase"] = lambda: run_api(
-        sk(), 64, options=_pipeline(queues=m.QueueDepths(mte_aic=2),
-                                    phases=m.PhaseRates(fix_bw_bytes_per_us=2.0e5)))
+        sk(), 64, options=_pipeline(queues=m.QueueDepths(mte_aic=2)))
     c["pipeline_engine_queue2"] = lambda: run_api(
         sk(), 64, options=P.with_options(
             pipeline=m.PipelineConstraints(**split),

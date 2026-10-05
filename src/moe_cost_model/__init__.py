@@ -29,6 +29,13 @@ from .config.hardware import (
 )
 from .config.granularity import (DEFAULT_GRANULARITIES, GranularityAssignment,
                                  StageGranularity)
+from .analysis.bounds import (BoundViolation, Bounds, WorkloadFacts,
+                              bandwidth_bound_us, check_wall_clock,
+                              compute_bound_us, dependency_bound_us,
+                              workload_facts)
+from .analysis.idle import idle_decomposition
+from .analysis.sensitivity import (RANGED, UNCERTAIN_INPUTS, UNKNOWNS, Interval,
+                                   Ranged, Unknown, propagate)
 from .config.links import DEFAULT_LINKS, StageLink
 from .config.roles import (DEFAULT_ROLES, DEFAULT_STAGE_ROLES, ROLES,
                            RoleAssignment, VECTOR_ROLES)

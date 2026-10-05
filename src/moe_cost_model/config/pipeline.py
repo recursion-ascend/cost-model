@@ -173,8 +173,11 @@ class PhaseRates:
     GMM1 的 load / cube 相位时长不在这里给: 取自 GMM 公式的 A 流与计算分解
     (载入带宽与 Cube 速率以公式为唯一来源), 与闭式时长同口径.
     """
-    # FixPipe 带宽 (B/µs)。**当前不影响时长**: 结果写出 (数据释放事件) 按口径忽略
-    # 不计, 见 builders/pipeline_expand.py 的 fix 相位。字段保留以备改口径。
+    # FixPipe 带宽 (B/µs)。**当前没有任何读者**: 结果写出 (数据释放事件) 按口径忽略
+    # 不计, 所以 fix 相位时长恒为 0, 见 builders/pipeline_expand.py 的 fix 相位。
+    # 字段保留以备改口径, 但**给了值会直接报错而不是静默无效** ——
+    # 2026-10-05 审计发现它是全项目唯一"声明了却没有读者"的参数, 一个会静默吞掉
+    # 用户输入的旋钮比没有这个旋钮更糟 (与 weight_nz 必须显式给 NZ 带宽同一个道理)。
     fix_bw_bytes_per_us: Optional[float] = None
     act_load_bw_bytes_per_us: Optional[float] = None  # ACT GM→UB 读带宽
     combine_load_bw_bytes_per_us: Optional[float] = None  # COMBINE GM 读带宽
@@ -193,6 +196,12 @@ class PipelineConstraints:
     phases: PhaseRates = field(default_factory=PhaseRates)
 
     def __post_init__(self) -> None:
+        if self.phases.fix_bw_bytes_per_us is not None:
+            raise ValueError(
+                "PhaseRates.fix_bw_bytes_per_us 当前没有任何读者: 结果写出 (数据释放"
+                "事件) 按口径忽略不计, fix 相位时长恒为 0, 给这个带宽不会改变任何结果。"
+                "与其静默吞掉你的输入, 这里直接报错 —— 要让它生效得先改"
+                "builders/pipeline_expand.py 的 fix 相位口径 (那会动所有 golden)。")
         q = self.queues
         if q.mte_aic < 1 or q.cube < 1 or q.fix < 1 or q.vec < 1 or q.mte_aiv < 1:
             raise ValueError("queue depths must be >= 1")

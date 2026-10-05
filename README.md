@@ -21,9 +21,13 @@ profile = "megamoe-a8w8"     # 场景文件: 以那份实现的取值为底, 下
 ```
 
 ```python
-from moe_cost_model import MEGAMOE_A8W8 as P
+from moe_cost_model import MEGAMOE_A8W8 as P, StageLink
 simulate_routing_counts(..., **P.shape_kw(), options=P.options)
-simulate_routing_counts(..., **P.shape_kw(), options=P.with_options(gmm2_k_segments=0))
+# 以那份实现为底, 只改一条 stage 边 (GMM2 改成逐 kL1 块就绪)
+simulate_routing_counts(..., **P.shape_kw(), options=P.with_options(links=(
+    StageLink("gmm1", "activation", location="onchip", depth=1,
+              colocated_by_hardware=True),
+    StageLink("activation", "gmm2", readiness=0))))
 ```
 
 缺省跑出来的数与那份实现的数不同, 这是信息 (差多少 = 那些编排选择值多少), 不是 bug。
@@ -175,7 +179,7 @@ res = simulate(sc)
 | `wave_packing`                                         | 生效，三种策略     | 失效，Layered 有自己的波规划              |
 | `dispatch_lookahead` / `wave_offsets`                | 生效，控制前瞻     | 失效，Layered 固定 recv 后紧跟 combine    |
 | `gmm2_lag_waves`                                       | 生效，控制滞后     | 失效，Layered 的 GMM2 总与当前波同跑      |
-| `gmm1_activation_depth`                                | 生效               | 生效                                      |
+| `StageLink("gmm1","activation").depth` (原 `gmm1_activation_depth`, 已删) | 生效 | 生效 |
 | `gmm2_combine_credit`                                  | 生效               | 生效                                      |
 | `core_assignment`                                      | 生效               | 生效                                      |
 | `tile_m` / `tile_n` / `l1_tile_k` / `l1_buf_num` | 生效               | 生效                                      |
@@ -186,13 +190,20 @@ res = simulate(sc)
 `ModelOptions.combine_granularity` 给 (2026-10-04 补齐, 原缺口 11)。参考实现把数据格式与
 这两件事绑在同一个模板参数上, 那是那份实现的耦合, 不是物理。
 
-`KernelConfig` 的编译期旋钮（`l1_buf_num`、`l1_tile_k`、`combine_quant_mode`）以 `KernelConfig` 为唯一事实源。手工拼 `PrimitiveCosts` 时入口自动按 kernel 重绑公式，任何拼法都生效。`weight_nz` 与 `gmm1_b_reuse` 只描述权重搬运，而权重搬运不建模，所以不影响时长。
+`KernelConfig` 的编译期旋钮（`l1_buf_num`、`l1_tile_k`、`combine_quant_mode`）以 `KernelConfig` 为唯一事实源。手工拼 `PrimitiveCosts` 时入口自动按 kernel 重绑公式，任何拼法都生效。
+
+> **2026-10-05 订正**: 本段原先写"`weight_nz` 与 `gmm1_b_reuse` 只描述权重搬运, 而权重搬运
+> 不建模, 所以不影响时长"。**那是错的** —— 权重 (B 流) 现在是载入项里**更大**的那一股
+> (`b_load = wb·K·cols / bw_b`), 两个旋钮都显著改时长。实测同一个 tile (m=256, K=6144,
+> cols=256): 基线 90.917us → `weight_nz` + NZ 带宽 80000 得 **69.627us (−23%)**;
+> `gmm1_b_reuse_frac=0.53` 得 **62.430us (−31%)**。
+> 另外字段名已变: `gmm1_b_reuse` → **`gmm1_b_reuse_frac`** (比例, 不是布尔)。
 
 策略旋钮用名字引用：
 
 | 旋钮                  | 可选名字                                                          | 管什么                   |
 | --------------------- | ----------------------------------------------------------------- | ------------------------ |
-| `tile_grid`         | `swizzled` / `split_rows`                                       | GMM1/GMM2 的 tile 怎么切 |
+| `tile_grid`         | `row_major` (缺省) / `swizzled` / `split_rows`                   | GMM1/GMM2 的 tile 怎么切 |
 | `wave_packing`      | `sequential_greedy` / `longest_expert_first` / `balanced_waves` | 专家怎么组成波           |
 | `core_assignment`   | `static_round_robin` / `greedy_least_busy` / `contiguous_block` | tile 分给哪个核          |
 | `scheduling_policy` | `earliest_start` / `critical_path_first` / `priority_by_stage`  | 就绪集里谁先跑           |
@@ -200,6 +211,71 @@ res = simulate(sc)
 | `orchestration`     | `mte` / `layered` / `"包.模块:类"`                              | 用哪个建图器             |
 
 带参数时写成表：`{name = "split_rows", parts = 2}`。自定义策略用 `moe_cost_model.register(类别, 名字, 构造函数)` 注册。
+
+### 事件粒度: 五个 stage 共有的一个维度 (2026-10-04 补齐, 原缺口 12)
+
+**粒度与 tile 几何是两件事**, 补齐前被混成一件:
+
+* `KernelConfig.tile_m` / `tile_n` 受 L1/L0C 容量约束 —— **物理**;
+* "一个事件覆盖几个 tile" 是同步点密度 ↔ 并行度的交换 —— **纯编排**。
+
+`ModelOptions.granularity` 每 stage 一个, 与 `links` (每 stage 一条边)、`roles`
+(每 stage 一个角色) 平行。`1` = 最细 (缺省); `N` = 攒 N 个单元; `0` = 整片
+(dispatch 的 `0` 特殊: 沿用 tiling 的 `routeItemsPerBatch`)。
+
+```toml
+[options.granularity]
+gmm2 = 2        # 一个 GMM2 事件覆盖 2 个相邻 n-tile
+combine = 0     # 一个 combine 事件覆盖整个专家切片
+```
+
+补齐前只有 `combine_granularity` 一个旋钮 (缺口 11 的产物, 为回答一个具体问题就地加的),
+dispatch 的叫 `dispatch_rows_per_item`, 而 GMM1/SwiGLU/GMM2 的写死为 1。那是提问历史留下的
+洞, 不是物理 —— 这与"缺省不引用任何实现"是同一类毛病的另一种形态: **只有被问到的那一个
+维度才被抽象出来**。两个历史旋钮现在降级为兼容视图, 两边矛盾会报错。
+
+三条必须知道的物理耦合:
+
+1. **ACT 的粒度 > 1 可能静默无效。** ACT 必须与产它的 GMM1 同核 (L0C→UB 的 Fixpipe),
+   所以只在"喂它的 tile 既同核又 n 相邻"时才合并。轮转分核把相邻 n-tile 散到不同核,
+   这时它是空操作 —— 查事件 meta 的 `gmm1_events_in_event` 确认它有没有生效。
+2. **ACT 粒度 g 要求 UB 槽数 ≥ g** (`StageLink("gmm1","activation").depth`), 否则死锁,
+   构造时直接报错。
+3. **combine 的攒批不按核分组**: combine 从 GM 读 GMM2 的输出, 同核不是物理约束。
+   按核分组会让这个旋钮在轮转/晚绑定下静默失效。
+
+**粗粒度不是收益开关, 符号随形状翻转**: 28 核确定性夹具 (40 个 GMM1 tile, 填不满核) 上
+四种粗粒度全部变慢 (`combine=0` 从 245.97 慢到 596.47); 而 `scenario_basic.toml`
+(4 卡 × 64 专家, tile 数远多于核数) 上 `gmm2=2` 从 1751.48 快到 1741.46。**必须扫, 不能
+照搬取值。**
+
+### 队列深度 ≠ 执行单元数 (这个混淆是一个真 bug 的根源)
+
+`QueueDepths` 的五个字段是**在飞上限 / 缓冲槽数** —— 能提前多少发起, 由 L1/UB 槽数决定,
+是编排选择, 所以它是旋钮。而**执行单元数**是硬件事实, 每核每种单元恒为 1:
+
+| 队列深度 (旋钮) | 执行单元 (事实, 恒 1) | 怎么表达 |
+| --- | --- | --- |
+| `mte_aic` | 一个 AIC 一条 MTE2 (GM→L1) | `MTE2:c{core}` 容量 1 |
+| `fix` | 一个 AIC 一条 FixPipe (L0C→UB/GM) | `FIXPIPE:c{core}` 容量 1 (见下) |
+| `mte_aiv` | 一个 AIV 一条 MTE (GM↔UB) | `MTE_AIV:{eng}:c{core}` 容量 1 |
+| `cube` | — | `.cb` 相位本身独占 AIC 核资源 |
+| `vec` | — | ACT/COMBINE 主事件本身独占 AIV 核资源 |
+
+深度恒为 1 时两者重合, 所以缺省下看不出区别。**深度 >1 时只有队列深度、没有执行单元约束,
+等于给每个核凭空多出几条管道** —— 那正是下界断言抓到的那个洞 (载入可无限并行, 墙钟低于
+带宽下界 26.6%)。写成**容量 1 的计数信号量**而不是独占资源, 是因为晚绑定只改写
+`acquires`/`releases` 的核后缀 (`:c7` → `:c*`), 独占资源会把相位钉在建图时的占位核号上。
+
+`FIXPIPE` 现在**量不出来**: 结果写出 (数据释放事件) 按口径忽略不计, fix 相位时长恒为 0。
+它是一条预置护栏 —— 不花代价, 口径改了自动生效。`PhaseRates.fix_bw_bytes_per_us` 给了值会
+**直接报错**而不是静默无效 (它是全项目唯一"声明了却没有读者"的参数, 一个会静默吞掉用户
+输入的旋钮比没有这个旋钮更糟)。
+
+顺带查出一个**什么都没测到的 golden case**: `pipeline_fix_phase` 原先靠给那个死参数来
+"覆盖 fix 相位", 于是它一直与 `pipeline_split` 逐位相同 —— 占着名分却没有鉴别力。
+现在去掉那个参数, case 保留 (它仍覆盖 fix 相位的事件结构: 占 `QUEUE:fix` 与 `FIXPIPE`),
+而且哪天 fix 口径改成计时长, 差异会在这里显形。
 
 ### 自定义切分方式
 
@@ -309,7 +385,7 @@ bs36→bs128 只有 m 变 (同样 28 核并发), 实测涨了 34%。bs8192 之�
 
 | 现成件     | 位置                                                 | 内容                       |
 | ---------- | ---------------------------------------------------- | -------------------------- |
-| stage 函数 | `builders/gmm1.py`、`activation.py`、`gmm2.py` | 事件生成，与传输协议无关   |
+| stage 函数 | `builders/gmm1.py`、`builders/activation.py`、`builders/gmm2.py` | 事件生成，与传输协议无关 |
 | 传输后端   | `builders/comm/`                                   | MTE 和 URMA 各一套，可混搭 |
 | 共享状态   | `builders/context.py`                              | 跨 stage 传递的五个字典    |
 | 尾段与完成 | `builders/base.py`                                 | 尾段链和完成事件           |
@@ -354,7 +430,25 @@ bs36→bs128 只有 m 变 (同样 28 核并发), 实测涨了 34%。bs8192 之�
 | `rank_results[r]["stage_resource_queue_us"]`  | 各 stage 等引擎时长 |
 | `rank_results[r]["critical_path"]`            | 关键路径事件链, 终点是最后一个 COMBINE |
 | `rank_results[r]["cursor_trace"]`             | 游标推进轨迹        |
+| `rank_results[r]["idle_decomposition"]`       | 核空闲分解 (forced / avoidable + 逐段给出哪些核在空、当时哪些就绪事件在等) |
+| `rank_results[r]["traffic_bytes"]`            | 各通路访存量 (见下) |
+| `rank_results[r]["bounds"]`                   | **三个下界与谁绑定** + `violation` (穿透就是模型漏算了代价) |
 | `provenance`                                  | 全部常数出处报告    |
+
+`traffic_bytes` 的通路名有语义, 不能混用 —— 塞错地方等于悄悄废掉别处的护栏
+(2026-10-05 踩过: 把 COMBINE 的**读**申报到了 `hbm_write` 上, 直接撞掉
+"不物化就不写 GM" 那条断言):
+
+| 通路 | 是什么 |
+| --- | --- |
+| `gm_to_l1` | GMM1/GMM2 的 A 流 + B 流 (与 `bounds` 的算法必搬字节同口径) |
+| `hbm_write` | ACT 的量化输出写出 + COMBINE 目的卡是本卡的那些行 |
+| `combine_read` | COMBINE 读回 GMM2 tile + 路由元数据 (GM→UB, 既不是 `gm_to_l1` 也不是写) |
+| `dispatch_read` / `dispatch_write` | dispatch 的本卡读写 |
+| `fab_src:{r}` / `fab_dst:{r}` | 片间: 流量离开本卡 / 到达对端 (跨 rank 共享, 不带 rank 前缀) |
+
+**字节由建图器按算法逐项申报, 相位展开只做重新分配, 绝不从时长倒推** —— 否则换一个
+编排旋钮就会改变"搬了多少字节"。这条是不变量, 有测试钉住。
 
 执行时间不含尾段 (counts_export / core_sync / rank_sync / buffer_init / unpermute / finalize)。尾段事件仍在事件图里照常调度, 只是不计入。共享专家的 GMM2 排在尾段 core_sync 之后, 因此也不在执行时间内。
 
@@ -380,6 +474,21 @@ bs36→bs128 只有 m 变 (同样 28 核并发), 实测涨了 34%。bs8192 之�
 
 **`impl:` 类的数必须能被参数覆盖** (`KernelConfig` / `InstancePolicy` / `ModelOptions`),
 模块常数只是那份实现的缺省来源; 模型的缺省值不引用它 (见上文分层)。
+
+### 有读者的常数与只作参考的常数要分开看 (2026-10-05 审计)
+
+出处标签说"这个数是谁定的", 但不说"它现在有没有进公式"。审计发现 **12 个常数没有任何
+读者**, 分三类:
+
+| 类 | 常数 | 为什么没读者 |
+| --- | --- | --- |
+| spec 容量, 只作参考 | `TOTAL_L1_SIZE` / `TOTAL_L0C_SIZE` / `TOTAL_UB_SIZE` / `VEC_REG_WIDTH` | 容量检查走 `KernelConfig.l1_size` 等可覆盖字段 |
+| 前导/尾段, 不计入执行时间 | `T_INIT_US` / `T_INPUT_QUANT_FIXED_US` / `T_INPUT_QUANT_PER_TOKEN_US` / `T_CALL_OH` | 这些阶段不在 `kernel_total_us` 口径内 |
+| 被参数化之后的孤儿 | `T_FILL_GMM1` (=0) / `L1_TILE_K` / `SCALE_TRANSFER_BYTES` / `GMM2_LAG_MIN_TOKEN_NUM` | 实际取值走 `Calibration` / `KernelConfig` / `InstancePolicy` 的同名字段 |
+
+**改这些常数不会改变任何结果** —— 要改行为得改对应的参数。另外 `BW_SCATTER` 已退役
+(2026-10-05): 它曾被用来从**时长倒推**COMBINE 的字节, 那条已删, 现在它不进任何公式、
+不进任何申报, 只留复现记录。
 
 ## 硬件规格 (spec) 与实测 (measured) 分开记
 
@@ -537,8 +646,19 @@ Cube 效率、`BW_L1_GM` 按并发分档、COMBINE 的落点跨度、`BW_REMOTE_
 
 ## 安装与运行
 
-> **怎么用** 看 [`docs/USAGE.md`](docs/USAGE.md) —— 四个入口、场景文件怎么写、
-> 输出怎么读、旋钮速查、精度边界。本文件讲的是**为什么这样建模**。
+> **怎么用** 看 [`docs/USAGE.md`](docs/USAGE.md) —— 入口、场景文件怎么写、输出怎么读、
+> 旋钮速查、精度边界。本文件讲的是**为什么这样建模**。
+
+六个入口, 按"你想干什么"选:
+
+| 想干什么 | 跑什么 |
+| --- | --- |
+| 看一个形状跑多久 | `python examples/run_basic.py` |
+| 写场景文件、改旋钮对比 | `python examples/run_scenario.py` ← 日常 |
+| 扫一片编排, 看每个选择值多少钱 | `python examples/run_design_space.py` |
+| **流水编排逐旋钮** (空闲分解 + 关键路径归因) | `python examples/run_pipeline_study.py` |
+| **结论还站不站得住** (未标定输入 → Δ 的区间) | `python examples/run_uncertainty.py` |
+| 与实测 run 逐 stage 对账 | `python tools/compare_measured.py <run_dir> <场景.toml>` |
 
 ```bash
 cd moe-cost-model
@@ -555,9 +675,12 @@ ACT tile 只产出 GMM2 在 K 上 1/ceil(k/TILE_N) 的部分, GMM2 要累完整�
 独立就绪是编排选择**: L0C 本来就沿 kL1 分块累加 (kernel 的 `ProcessTileL1`), 所以让第 j 段
 只等覆盖自己 K 范围的 ACT 在物理上可行。
 
-`ModelOptions.gmm2_k_segments`:
+`StageLink("activation", "gmm2", readiness=N)` —— 2026-10-04 起由这条边给出
+(原先是 `ModelOptions.gmm2_k_segments`, 已删除; 三个各自为政的旋钮
+`gmm2_k_segments` / `act_to_gmm2` / `InstancePolicy.gmm1_activation_depth`
+合并成"一条边三个问题", 见 `config/links.py`):
 
-| 值 | 含义 |
+| `readiness` | 含义 |
 | --- | --- |
 | `1` (缺省) | 不分段: 等齐覆盖整个 K 的全部 ACT 再开工 —— 最少假设 |
 | `2` | 首个 kL1 块一段 (只等 1 个 ACT), 其余合成一段 (`MEGAMOE_A8W8` 用这个) |

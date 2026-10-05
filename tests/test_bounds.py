@@ -265,19 +265,40 @@ def test_execution_units_stay_at_one_even_when_queue_depths_are_raised():
     assert got.get("MTE_AIV") == 1
 
 
+def test_dead_parameter_fails_loudly_instead_of_silently():
+    """fix_bw_bytes_per_us 没有任何读者 —— 给了值要报错, 不能静默吞掉.
+
+    2026-10-05 审计: 它是全项目唯一"声明了却没有读者"的参数。一个会静默吞掉用户输入
+    的旋钮比没有这个旋钮更糟 —— 用户会以为自己标定了某个东西。
+    """
+    m.PipelineConstraints()                                  # 缺省可用
+    m.PipelineConstraints(phases=m.PhaseRates(act_load_bw_bytes_per_us=1.0))
+    with pytest.raises(ValueError, match="没有任何读者"):
+        m.PipelineConstraints(phases=m.PhaseRates(fix_bw_bytes_per_us=157000.0))
+
+
+def test_bounds_and_sensitivity_types_are_exported():
+    """README 在讲这些类型, 包门面就得有 —— 否则文档指向一个 import 不到的东西."""
+    for n in ("Bounds", "BoundViolation", "WorkloadFacts", "workload_facts",
+              "compute_bound_us", "bandwidth_bound_us", "dependency_bound_us",
+              "check_wall_clock", "Interval", "Ranged", "Unknown", "propagate",
+              "UNCERTAIN_INPUTS", "idle_decomposition"):
+        assert hasattr(m, n), f"{n} 没有从 moe_cost_model 导出"
+        assert n in m.__all__, f"{n} 不在 __all__ 里"
+
+
 @pytest.mark.skipif(not SCENARIO.exists(), reason="需要场景文件")
 def test_fixpipe_unit_is_declared_but_currently_dormant():
     """FIXPIPE 这条约束现在**量不出来**: fix 相位时长恒为 0.
 
     口径是"结果写出 (数据释放事件) 忽略不计" (见 builders/pipeline_expand.py 的 fix
-    相位与 PhaseRates.fix_bw_bytes_per_us 的说明), 所以给了 fix_bw_bytes_per_us 也不
-    影响时长 —— 那个字段现在是"保留以备改口径"。
+    相位), 所以 fix 相位时长恒为 0。PhaseRates.fix_bw_bytes_per_us 现在给了值会直接
+    报错 (见 test_dead_parameter_fails_loudly_instead_of_silently), 不再静默无效。
     于是 FIXPIPE 是一条**预置的护栏**: 不花代价, 等口径改了自动生效。
     这条测试钉住"它确实被申报了"与"它现在确实是空操作"两件事, 避免把它当成已验证的约束。
     """
     sc = m.load_scenario(SCENARIO).with_overrides({
-        "options.pipeline": {"queues": {"mte_aic": 2, "cube": 2, "fix": 4},
-                             "phases": {"fix_bw_bytes_per_us": 157000.0}}})
+        "options.pipeline": {"queues": {"mte_aic": 2, "cube": 2, "fix": 4}}})
     r = m.simulate(sc)
     ev = r["rank_results"][0]["events"]
     fx = [e for e in ev if (e.meta or {}).get("phase") == "fix"]
