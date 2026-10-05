@@ -131,7 +131,12 @@ class Bounds:
                         ("dependency", self.dependency_us)):
             if v >= best - TOL * max(1.0, best):
                 return name
-        return "compute"
+        # 构造上不可达: best = max(三者), 所以必有一个满足上面的比较。
+        # 留着是为了在"三者之一变成 NaN"这种被破坏的状态下有个确定答案而不是
+        # 隐式返回 None。覆盖率会把它报成未覆盖行, 那是对的。
+        raise AssertionError(  # pragma: no cover
+            f"lower_us={best} 不等于三个下界中的任何一个 (NaN?): "
+            f"{self.compute_us} / {self.bandwidth_us} / {self.dependency_us}")
 
     def as_dict(self) -> Dict[str, object]:
         return {

@@ -354,3 +354,49 @@ def test_per_core_bandwidth_is_capped_by_aggregate_spec():
                                       **kw).gmm1_tile.__self__
     assert free.bw_b * 28 > m.ASCEND_950PR.hbm_bytes_per_us      # 不加帽会超规格
     assert capped.bw_b * 28 == pytest.approx(m.ASCEND_950PR.hbm_bytes_per_us)
+
+
+# ------------------------- 校验分支: 错误路径也要有测试
+
+def test_uncalibrated_rates_give_zero_bound_instead_of_dividing_by_zero():
+    """速率未标定 (<=0) 时下界给 0, 不参与取最大 —— 不是除零, 也不是假装有下界."""
+    f = workload_facts(_shape())
+    assert compute_bound_us(f, cube_mac_per_us=0.0, active_cores=28) == 0.0
+    assert compute_bound_us(f, cube_mac_per_us=1e7, active_cores=0) == 0.0
+    us, rate, who = bandwidth_bound_us(f, bw_per_core_bytes_per_us=0.0,
+                                       active_cores=28)
+    assert (us, rate, who) == (0.0, 0.0, "")
+    us2, _, _ = bandwidth_bound_us(f, bw_per_core_bytes_per_us=51900,
+                                   active_cores=0)
+    assert us2 == 0.0
+
+
+def test_granularity_rejects_non_integer_and_unknown_stage_lookup():
+    """校验分支要有测试: 非整数粒度、of() 查未知 stage."""
+    from moe_cost_model.config.granularity import (GranularityAssignment,
+                                                   StageGranularity)
+    with pytest.raises(ValueError, match="必须是整数"):
+        StageGranularity("gmm1", 2.5)          # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="必须是整数"):
+        StageGranularity("gmm1", True)         # bool 不算整数
+    with pytest.raises(ValueError, match="未知 stage"):
+        GranularityAssignment().of("swiglu")
+
+
+def test_stage_link_rejects_negative_readiness_and_depth():
+    """readiness / depth 不能为负 —— 0 有明确含义 (最细 / 不设限), 负数没有."""
+    with pytest.raises(ValueError, match="readiness 不能为负"):
+        m.StageLink("activation", "gmm2", readiness=-1)
+    with pytest.raises(ValueError, match="depth 不能为负"):
+        m.StageLink("gmm1", "activation", depth=-1)
+
+
+def test_resolve_link_falls_back_to_the_default_edge():
+    """问一条没给出的边, 要回落到缺省而不是报错 —— 建图器依赖这个行为."""
+    from moe_cost_model.config.links import resolve_link
+    only_one = (m.StageLink("gmm1", "activation", depth=3),)
+    got = resolve_link(only_one, "activation", "gmm2")       # 没给这条
+    assert got.producer == "activation" and got.consumer == "gmm2"
+    assert resolve_link(only_one, "gmm1", "activation").depth == 3
+    # 完全不认识的一对也给一个中性的 StageLink, 不抛
+    assert resolve_link((), "gmm2", "combine").readiness >= 0
