@@ -123,6 +123,12 @@ def apply_pipeline(
         for res, _ in ev.releases:
             used.add(res)
     for res in used:
+        if res.startswith("MTE2:"):
+            # 硬件事实: 一个 AI Core 一条 MTE2 (GM→L1 搬运单元), 容量恒为 1。
+            # 用计数信号量而不是独占资源, 是为了走 late-bind 的 "c*" 占位重映射
+            # (model._rewrite_for_late_binding 只改写 acquires/releases 的核后缀) ——
+            # 写成独占资源会把 .ld 钉在建图时的占位核号上, 与它所在相位组绑定的核冲突。
+            capacities[res] = 1
         if res.startswith("QUEUE:mte_aic:"):
             capacities[res] = cons.queues.mte_aic
         elif res.startswith("QUEUE:cube:"):
@@ -173,16 +179,24 @@ def _annotate(
     deps, dur = ev.deps, ev.duration_us
     compute_us = ev.meta.get("compute_us")
     if split and load_us and compute_us is not None and core is not None:
+        mte2 = (f"MTE2:c{core}", 1)
         ld = Event(
-            name=ev.name + ".ld", resources=(f"MTE2:c{core}",),
+            name=ev.name + ".ld", resources=(),
             duration_us=float(load_us), deps=ev.deps, order=ev.order,
             meta=dict(ev.meta, phase="load"),
             dep_latency_us=ev.dep_latency_us,
             dep_latency_overrides=ev.dep_latency_overrides,
+            acquires=(mte2,), releases=(mte2,),
             channel_bytes=ch,
         )
         pre = [ld]
-        deps, dur, ch = (ld.name,), float(compute_us), ()
+        # 主事件时长 = 原时长 - 载入份额, **不是** meta 里的 compute_us:
+        # ev.duration_us 里除了 load+compute 还可能有别的项 (首次占核的
+        # gmm2_problem_startup_us、serial 口径下的 chunk_restart)。拿 compute_us 当
+        # 主事件时长会把这些项悄悄丢掉 —— 实测丢了 7.96us, 被
+        # tests/test_scheduler.py::test_phase_split_self_consistency 抓住
+        # (它断言拆相位前后 stage 忙碌时长逐位一致)。
+        deps, dur, ch = (ld.name,), max(0.0, ev.duration_us - float(load_us)), ()
     return pre + [Event(
         name=ev.name, resources=ev.resources, duration_us=dur,
         deps=deps, order=ev.order, meta=dict(ev.meta),
@@ -299,10 +313,12 @@ def _expand_gmm1(
     #   下界 26.6% (见 analysis/bounds.py 与 docs/design_space_gaps.md "下界与漏账")。
     # 占住 MTE2 之后载入并发上限 = 核数, 聚合载入带宽自动不超过 核数 x BW_L1_GM,
     # 带宽下界由构造满足, 不需要速率服务器。
+    mte2 = (f"MTE2:c{core}", 1)
     ld = Event(
-        name=ev.name + ".ld", resources=(f"MTE2:c{core}",), duration_us=load_us,
+        name=ev.name + ".ld", resources=(), duration_us=load_us,
         deps=(lg.name,), order=ev.order,
-        meta=dict(ev.meta, phase="load", overlapped=not load_longer, core=core),
+        meta=dict(ev.meta, phase="load", overlapped=not load_longer),
+        acquires=(mte2,), releases=(mte2,),
         channel_bytes=ch,
     )
     cb = Event(

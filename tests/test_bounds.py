@@ -163,26 +163,29 @@ def test_phase_pipelining_respects_the_bandwidth_bound():
 
 
 def test_load_phase_holds_the_cores_mte2_pipe():
-    """硬件事实: 一个 AI Core 一条 MTE2, 所以载入相位必须独占它.
+    """硬件事实: 一个 AI Core 一条 MTE2, 所以同一个核上两笔载入不得重叠.
 
-    不占的话载入并发只受 L1 槽数限制 (28 核 x d 笔同时满带宽), 聚合载入带宽超过
+    不占的话载入并发只受 L1 槽数限制 (28 核 x d 笔同时满带宽), 聚合载入带宽会超过
     核数 x BW_L1_GM 这条硬件规格。
+    写成计数信号量 (容量 1) 而不是独占资源, 是为了走 late-bind 的 "c*" 占位重映射 ——
+    独占资源会把 .ld 钉在建图时的占位核号上, 与它所在相位组绑定的核冲突。
     """
     base = m.load_scenario(SCENARIO)
     r = m.simulate(base.with_overrides(PIPE))
     lds = [e for e in r["rank_results"][0]["events"] if e.name.endswith(".ld")]
     assert lds, "开了相位流水却没有载入相位事件"
-    mte = [e for e in lds if any("MTE2:" in x for x in e.resources)]
-    assert mte, "载入相位没有占住 MTE2 管道"
-    # 同一个核上两笔载入不得重叠 (独占资源的直接推论, 这里直接验时间线)
+    holding = [e for e in lds
+               if any("MTE2:" in t for t, _ in getattr(e, "acquires", ()))]
+    assert holding, "载入相位没有占住 MTE2 管道"
+    # 同一个核上两笔载入不得重叠 —— 容量 1 的直接推论, 这里直接验时间线。
+    # meta["core"] 由引擎改写成**实际绑定**的核号 (晚绑定下建图时的占位号不作数)。
     by_core = {}
-    for e in mte:
-        key = [x for x in e.resources if "MTE2:" in x][0]
-        by_core.setdefault(key, []).append((e.start_us, e.end_us))
-    for key, spans in by_core.items():
+    for e in holding:
+        by_core.setdefault(e.meta.get("core"), []).append((e.start_us, e.end_us))
+    for core, spans in by_core.items():
         spans.sort()
         for (a0, a1), (b0, _) in zip(spans, spans[1:]):
-            assert b0 >= a1 - 1e-9, f"{key} 上两笔载入重叠: {a1} > {b0}"
+            assert b0 >= a1 - 1e-9, f"核 {core} 上两笔载入重叠: {a1} > {b0}"
 
 
 @pytest.mark.skipif(not SCENARIO.exists(), reason="需要场景文件")

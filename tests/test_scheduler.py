@@ -195,11 +195,17 @@ def _split(**kw):
 def test_phase_split_self_consistency():
     """拆相位与闭式同口径: tile 内 load 与 cube 并行, stage 忙碌时长不重复计.
 
-    已知缺口: mte_aic > 1 时同一个核可以有多个载入在飞, 而模型不阻止一个核超过
-    自己的 GM→L1 带宽 (信道模型已停用, 访存量只做统计)。载入绑定时拆相位因此会比
-    闭式快, 这里只断言方向与 stage 忙碌时长一致, 不断言总时长相等。
+    2026-10-05: 原先这里记着"已知缺口: mte_aic > 1 时同一个核可以有多个载入在飞,
+    模型不阻止一个核超过自己的 GM→L1 带宽"。那个缺口已修 —— 载入相位占住本核那条
+    MTE2 管道 (一个 AI Core 一条, 容量 1 的计数信号量), 所以同核载入不再重叠。
+    仍不断言总时长相等: 拆相位允许**跨 tile** 的 load/cube 重叠, 闭式不允许。
     """
-    for rate in (1.0e9, CUBE_RATE, 6.75e6):      # 载入绑定 / 接近交点 / 计算绑定
+    # 速率要按"载入 vs 计算谁大"选, 不能按名义值。实测本夹具载入合计 4835.6 核·us:
+    #   2.7e7  -> cube 590.0   (cube/载入 0.12, 载入绑定)
+    #   2.0e6  -> cube 7965.0  (cube/载入 1.65, 计算绑定)
+    # 6.75e6 (规格 fp16 速率) 的比值只有 0.49 —— 载入修好之后它**不再是计算绑定**,
+    # 原先看着像是因为载入免费。
+    for rate in (1.0e9, CUBE_RATE, 2.0e6):       # 载入绑定 / 接近交点 / 计算绑定
         # 拆相位只在静态绑定下可表达, 所以闭式那边也钉核, 两边同口径
         base = _run(cube_rate=rate,
                     options=m.ModelOptions(late_bind_pools=STATIC))
@@ -214,9 +220,14 @@ def test_phase_split_self_consistency():
 
 
 def test_phase_split_compute_bound():
-    """计算主导 (cube > load) 时必须变慢."""
+    """计算主导 (cube > load) 时必须变慢.
+
+    速率取 2.0e6: 本夹具下 cube 合计 7965.0 核·us 对载入 4835.6, 比值 1.65, 计算确实
+    主导。原先取 6.75e6 (规格 fp16 速率) 并要求 +20us —— 那是载入免费时代的标定:
+    载入占住 MTE2 之后 6.75e6 的比值只有 0.49, 计算根本不主导, 墙钟只动 3.9us。
+    """
     sub = _run(options=_split())
-    over = _run(cube_rate=6.75e6, options=_split())   # 两边都钉核 (见 STATIC)
+    over = _run(cube_rate=2.0e6, options=_split())    # 两边都钉核 (见 STATIC)
     assert over["kernel_total_us"] > sub["kernel_total_us"] + 20.0
 
 
