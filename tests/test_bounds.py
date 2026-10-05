@@ -287,3 +287,49 @@ def test_fixpipe_unit_is_declared_but_currently_dormant():
         "fix 相位没有申报 FIXPIPE 单元"
     assert sum(e.end_us - e.start_us for e in fx) == 0.0, \
         "fix 相位有了非零时长 —— 口径变了, 把这条测试翻成断言 FIXPIPE 并发 <= 1"
+
+
+# ------------------------- 字节申报不得从时长倒推
+
+@pytest.mark.skipif(not SCENARIO.exists(), reason="需要场景文件")
+@pytest.mark.parametrize("extra,label", [
+    ({}, "缺省"),
+    ({"calibration.gmm1_tile_restart_us": 0.5}, "serial 有 chunk_restart"),
+])
+def test_declared_bytes_do_not_depend_on_phase_pipelining(extra, label):
+    """开不开相位流水, 申报的 GM→L1 字节必须**逐位相同**.
+
+    相位流水是编排旋钮, 它改变的是"什么时候搬", 不是"搬多少"。
+    2026-10-05 之前三处都从时长倒推字节 (时长 x 名义带宽), 于是拆相位会改变申报量:
+      COMBINE  base_dur x BW_SCATTER   —— 连常数都标着"已不用" (已删)
+      GMM1     load_us x BW_L1_GM      —— max 口径下只拿到较大那一股 (已改为透传)
+      GMM2     load_us x BW_L1_GM      —— serial 口径下还把 chunk_restart 当成字节 (已改为透传)
+    现在建图器按算法逐项申报, 相位展开只做重新分配。
+    """
+    base = m.load_scenario(SCENARIO)
+    flat = m.simulate(base.with_overrides(dict(extra)))
+    split = m.simulate(base.with_overrides(
+        {**extra, "options.pipeline": {"queues": {"mte_aic": 2, "cube": 2}}}))
+    a = flat["rank_results"][0]["traffic_bytes"]
+    b = split["rank_results"][0]["traffic_bytes"]
+    assert set(a) == set(b), f"{label}: 拆相位改变了申报的通路集合"
+    for k in a:
+        assert a[k] == pytest.approx(b[k], rel=1e-12), (
+            f"{label}: 拆相位把 {k} 从 {a[k]:.0f} 改成了 {b[k]:.0f} —— "
+            "字节不该随编排旋钮变")
+
+
+def test_per_core_bandwidth_is_capped_by_aggregate_spec():
+    """单核带宽常数乘核数不得超过整卡聚合规格 —— 包括 NZ 布局的 B 流.
+
+    2026-10-05 之前只给 A 流加帽: 一个够大的 bw_l1_gm_b_nz 能让 28 个核合起来抽出
+    2.24 TB/s, 超过 950PR 的 1.60 TB/s 规格。下界断言会抓住它 (墙钟低于带宽下界
+    30.8%), 但更该在源头收敛。
+    """
+    kw = dict(h=6144, dispatch_mechanistic=m.DispatchMechanisticLatency(),
+              kernel=m.KernelConfig(weight_nz=True), bw_l1_gm_b_nz=80000.0)
+    free = m.build_analytical_costs(**kw).gmm1_tile.__self__
+    capped = m.build_analytical_costs(platform=m.ASCEND_950PR, active_cores=28,
+                                      **kw).gmm1_tile.__self__
+    assert free.bw_b * 28 > m.ASCEND_950PR.hbm_bytes_per_us      # 不加帽会超规格
+    assert capped.bw_b * 28 == pytest.approx(m.ASCEND_950PR.hbm_bytes_per_us)

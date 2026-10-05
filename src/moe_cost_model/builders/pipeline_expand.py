@@ -1,4 +1,18 @@
-"""L0/L1/L2 流水线约束施加器.
+"""第 4.5 层: 相位展开 — 把一个事件拆成 load / cube / fix 相位.
+
+**字节申报的口径 (2026-10-05 立为不变量)**: 访存量由**建图器**按算法逐项算出并申报;
+本模块只负责把它**重新分配**到各相位上, **绝不从时长倒推字节**。
+
+为什么这是条硬规矩 —— 倒推 (时长 x 名义带宽) 在三种情况下直接给错数:
+  1. load_overlap="max" 口径下 load_us = max(A流, B流), 倒推只拿到较大那一股;
+  2. serial 口径下 load_us 还含 chunk_restart, 那不是字节;
+  3. weight_nz 时 B 流用的是 bw_b 而不是 BW_L1_GM, 两个常数不同。
+更要命的是: 倒推只发生在拆相位这条路径上, 于是**开不开相位流水会改变"搬了多少
+字节"** —— 换一个编排旋钮不该改变算法必搬的量。
+COMBINE 那条 (base_dur x BW_SCATTER) 已于 2026-10-05 删除, GMM1/GMM2 这两条同日改成
+原样透传。tests/test_bounds.py::test_declared_bytes_do_not_depend_on_phase_pipelining
+把这条不变量钉住。
+L0/L1/L2 流水线约束施加器.
 
 输入 build_events 产出的事件表, 输出 (事件表, 容量表, 信道表) 供调度器.
 
@@ -179,10 +193,9 @@ def _annotate(
     """
     core = ev.meta.get("core")
     qs = tuple((f"{queue}:c{core}", 1) for queue in queues)
-    ch = ()
+    # 字节**原样取建图器申报的那一份**, 不从时长倒推 (见本模块顶部的口径说明)。
+    ch = ev.channel_bytes
     load_us = ev.meta.get("load_us")      # 该事件自己的载入份额, 不是整段时长
-    if load_us:
-        ch = ((CH_GM_TO_L1, load_us * BW_L1_GM, BW_L1_GM),)
     pre: List[Event] = []
     deps, dur = ev.deps, ev.duration_us
     compute_us = ev.meta.get("compute_us")
@@ -260,17 +273,15 @@ def _expand_gmm1(
         raise ValueError(
             f"{ev.name}: 缺 A 流/计算分解 — gmm1_tile 是自定义 callable. "
             "相位拆分 (queues.mte_aic > 1) 需要 AnalyticalGmmCosts 的公式")
-    # 访存量 = 载入相位时长 x 无争用速率。
-    #
-    # 注意 max 口径下这里**不等于两条流的总字节**: load_us = max(A流, B流), 折算出
-    # 的字节只有较大那一股。这是"A/B 并发"这个假设的推论。统计访存量时要记得这一点。
+    # 字节**原样取建图器申报的那一份** (builders/gmm1.py 按 A 流 m·K + B 流 wb·K·cols
+    # 逐项算出), 不从时长倒推 —— 见本模块顶部的口径说明。
     #
     # 已声明未建模: 本批 run 是 MXFP8 (config.json5 的 dtype=fp8_e5m2 ->
     # PROFILE_QUANT=E5M2_QUANT), 载入还有 MX scale 两条流 (A-scale m*k/32,
-    # B-scale 2*k*cols/32, 合计 +3.1%), gmm1_phases 与这里都没算。方向上模型已经
-    # 偏高 (1 个 m-group 的两个形状 +3.5%/+1.3%), 补上 scale 会更高 —— 缺的不是
-    # 这几个字节, 是 BW_L1_GM 本身 (其出处标签已写"旧口径下标定, 待重标")。
-    ch = ((CH_GM_TO_L1, load_us * BW_L1_GM, BW_L1_GM),) if load_us else ()
+    # B-scale 2*k*cols/32, 合计 +3.1%), gmm1_phases 与建图器的字节申报都没算。
+    # 方向上模型已经偏高 (1 个 m-group 的两个形状 +3.5%/+1.3%), 补上 scale 会更高 ——
+    # 缺的不是这几个字节, 是 BW_L1_GM 本身 (其出处标签已写"旧口径下标定, 待重标")。
+    ch = ev.channel_bytes
 
     if not split:
         # 整体标注: 事件时长 = 闭式时长; A 流被信道切速到超过它时随之拉长

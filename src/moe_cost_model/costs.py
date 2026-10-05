@@ -698,12 +698,19 @@ def build_analytical_costs(
     # 容器只承载硬件常数; kernel 参数中仅 L1 组织 (l1_buf_num/l1_tile_k/weight_nz) 影响公式形态.
     km = kernel if kernel is not None else KernelConfig()
     bw_a = bw_l1_gm if bw_l1_gm is not None else BW_L1_GM
+    bw_b_nz = float(bw_l1_gm_b_nz or 0.0)
     if platform is not None and active_cores > 0:
         bw_a = platform.gm_bw_per_core(active_cores, bw_a)
+        # NZ 布局的 B 流也要受聚合带宽约束: 它和 A 流走同一条 HBM。
+        # 2026-10-05 之前只给 bw_a 加帽, 于是一个够大的 bw_l1_gm_b_nz 能让 28 个核
+        # 合起来抽出超过整卡 HBM 的带宽 —— 下界断言会抓住它 (实测给 80000 时墙钟
+        # 低于带宽下界 30.8%)。加帽之后"物理上不可能"的组合会被自动收敛到规格。
+        if bw_b_nz > 0:
+            bw_b_nz = platform.gm_bw_per_core(active_cores, bw_b_nz)
     gmm = AnalyticalGmmCosts(
         bw_bytes_per_us=bw_a,
         weight_nz=km.weight_nz,
-        bw_b_nz_bytes_per_us=bw_l1_gm_b_nz,
+        bw_b_nz_bytes_per_us=bw_b_nz,
         l1_buf_num=km.l1_buf_num,
         cube_mac_per_us=cube_mac_per_us,
         tile_restart_us=gmm1_tile_restart_us,
