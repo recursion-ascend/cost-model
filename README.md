@@ -542,6 +542,68 @@ python tools/compare_trace_structure.py --run bs128
 同一个 run 的不同 stage 用间隔启发式切出来是 7/10/3/5/14 段, 彼此矛盾; 一个看着精确的错数
 比不给数更糟。
 
+### 标定值按域登记: 一个数只在它量过的地方有效
+
+```bash
+python tools/calibration_domain.py --scenario examples/scenario_basic.toml
+```
+
+标定常数原先是模块级全局量, 一套数覆盖所有实现/编译点/形状/拓扑。而那些常数自己的注释早就
+写明不是这样:
+
+| 常数 | 它自己记下的离散 |
+| --- | --- |
+| `BW_L1_GM` 51900 | 按并发核数重拟: 28 核 45300 / 18 核 37000 (**1.40 倍**) |
+| `BW_REMOTE_WRITE` 8600 | 三个形状各自反扣: 9.5 / 7.8 / 4.5 GB/s 每核 (**2.11 倍**) |
+| `BW_UNPERMUTE_AGG` 950000 | h6144 比语料高 **18%** |
+| `T_RANK_SYNC_RTT_US` 2.2 | 缺省形状 1.6-2.0, h6144 是 2.2-2.5 |
+| `URMA_GET_LAT_US` 8.5 | 域是"4 卡 / 3 条流", 超出 world-1 > 3 未验证 |
+
+`implementations/calibration.py` 给每个值配一个域 (实现 id + 编译指纹 + 形状域 + 拓扑),
+查表给三种答案, 并且**三种要分开**:
+
+* `in_domain` —— 实际运行落在量过的范围内;
+* `out_of_domain` —— 哪几维越界、当时量的范围是什么、同一个量在别的条件下的其它观测;
+* `undeclared` —— 这一维**从没声明过范围**。与越界是两种不同的不确定性: `BW_LOCAL_GM`
+  的注释只说"单核大块 MTE 无竞争", 没给任何形状范围, 所以它在任何形状上都是 undeclared ——
+  报 in_domain 会谎称量过, 报 out_of_domain 会谎称量过且超了。
+
+换编译指纹报 `wrong_key` 而**不是**默默拿另一个二进制上量的值顶上 —— 以前没有键, 所以必然顶上。
+
+**不做自动外推**: 越域时不给"修正值"。那些依赖关系只有两三个点 (核数两个、形状三个),
+凭它们造一条曲线再外推, 比直接说"超出标定域"更坏。
+
+这一层立刻查出一件事: **项目自己的缺省场景 `scenario_basic.toml` (h=6144 / hidden_dim=4096 /
+topk=8) 跑在全部带宽常数的标定域之外** —— 实测都是在 h=5120 / hidden=4608 / topk=6 上做的。
+不是说结果没用, 而是读结论时要知道这些数的来源条件与它不同。
+
+种子数据里的一个坑也是这层自己照出来的: 语料的编译指纹最初按模型缺省的
+`combine_meta_bytes_per_row=16` 登记, 而打点跑的是 kernel (搬满 `META_INFO_SIZE` 8 个 int32
+= 32B), 于是"复现那份实现"的场景查标定时全部报 `wrong_key`。现在语料按 32 登记, 与
+`profiles.MEGAMOE_A8W8` 的指纹一致, 有测试钉住。
+
+### 第三份实现: 声明了, 但会拒绝
+
+`ascend950.megamoe.a8w4_wave.v1` 有身份、有源码依据, `accepts()` 会抛 `Unsupported` 并说清
+差哪一步。为什么要有这样一个适配器: 使用者问"支持 A8W4 吗", 三种答案信息量完全不同 ——
+没有这个名字 (像没想过)、有名字但凭空给个数 (最坏)、有名字且说清差什么 (可以照着补)。
+
+从源码能确定的 (所以 DAG 的结构部分写得出来):
+
+* 独立 kernel 类 `MegaMoeA8W4Wave`, 7 个模板参数 (没有 `IsGmm1Interleaved`);
+* 多一段 **AIV 上的权重反量化前段**, A8W8 完全没有: `BlockPrologue` 只在 `IsA8W4` 时非 void,
+  三步是 `CopyGmToUb` (4bit GM→UB) → `WeightAntiQuantComputeNzNk` (4bit→8bit 展开) →
+  `CopyWeightToL1`, L1 双缓冲 384 KiB;
+* B 矩阵分形与布局都不同 (`C0_SIZE_B = 32`, `LayoutB = Te::ZNLayoutPtn`);
+* 角色分工不同 (AIV0 跑 prologue、AIV1 跑 combine), 而模型的角色表是全局的。
+
+**差的是一个量, 不是一个旋钮**: `WeightAntiQuantComputeNzNk` 的向量吞吐。它的地位与 ACT 的
+`ACT_BYTES_PER_VEC` / `BW_UB` 相同 —— 要实测。仓内没有 A8W4 的打点 (`data/` 下六个 run 的
+`dtype` 都是 `fp8_e5m2`), 所以现在给不出。
+
+这正是本项目的边界: 改同一个 variant 的参数可以自动出结果; 改了 C++ 控制流 / 同步协议 /
+缓冲复用 / 流水阶段结构, 就必须重新生成实现描述并重新标定。
+
 ## 输出解读
 
 每次仿真返回以下可分析字段：

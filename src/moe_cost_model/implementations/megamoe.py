@@ -194,3 +194,74 @@ class _BuilderShim:
 
     def measured_end_stage(self) -> str:
         return self._base.measured_end_stage()
+
+
+class A8W4WaveV1Declared(_MegaMoeAdapterBase):
+    """A8W4 动态 Wave (mega_moe_wave_a8w4.h): **已声明, 未建模**.
+
+    为什么要有一个"会拒绝"的适配器 —— 使用者问"这个框架支持 A8W4 吗"时, 三种答案的信息量
+    完全不同: 没有这个名字 (看起来像没想过)、有名字但凭空给个数 (最坏)、有名字且说清差哪一步
+    (可以照着补)。这里取第三种。
+
+    从源码能确定的 (所以 DAG 的结构部分是可以写的):
+      * 独立 kernel 类 MegaMoeA8W4Wave, 7 个模板参数 (没有 IsGmm1Interleaved;
+        基类以 false 绑定) —— mega_moe_wave_a8w4.h:24-34
+      * 多一个**权重反量化前段**, A8W8 完全没有这一段:
+        common/mega_moe_gmm_common.h:106-107 里 BlockPrologue 只在 IsA8W4 时非 void
+        (blaze/prologue/block_prologue_mx_fp8fp4.h), 它在 **AIV** 上跑, 三步:
+          CopyGmToUb                 4bit 权重 GM->UB   (MTE2)
+          WeightAntiQuantComputeNzNk 4bit -> 8bit 展开   (向量)
+          CopyWeightToL1             UB->L1             (MTE2/MTE3)
+        L1 双缓冲, WEIGHT_L1_DB_OFFSET = 384 KiB (同文件)
+      * B 矩阵的分形与布局都不同: C0_SIZE_B = 32 (A8W8 走 AuxGetC0Size<ElementB>),
+        LayoutB = Te::ZNLayoutPtn —— common/mega_moe_gmm_common.h:76, 87
+      * 角色分工不同: AIV0 跑 prologue、AIV1 跑 combine (mega_moe_wave_a8w4.h:149-150),
+        而模型的角色表把 activation 钉在 AIV0、通信钉在 AIV1 (config/roles.py)
+
+    **差的是一个量, 不是一个旋钮**: WeightAntiQuantComputeNzNk 的向量吞吐 (每 µs 能展开多少
+    字节权重)。它的地位与 ACT 的 ACT_BYTES_PER_VEC / BW_UB 相同 —— 那两个也是实测+源码计数
+    定下来的, 不是算出来的。仓内没有这条路径的任何打点 (data/ 下六个 run 全是 A8W8,
+    config.json5 的 dtype 都是 fp8_e5m2), 所以现在给不出。
+
+    按本项目的边界: 改同一个 variant 的参数可以自动出结果; 改了 C++ 控制流 / 同步协议 /
+    缓冲复用 / 流水阶段结构, 就必须重新生成实现描述并重新标定 —— A8W4 属于后者。
+    """
+
+    ID = ImplementationId(
+        hardware_id="ascend950",
+        implementation_id="megamoe.a8w4_wave",
+        variant="v1",
+        source_refs=(
+            "mega_moe/op_kernel/arch35/mega_moe_wave_a8w4.h",
+            "mega_moe/op_kernel/arch35/blaze/prologue/block_prologue_mx_fp8fp4.h",
+            "mega_moe/op_kernel/arch35/common/mega_moe_gmm_common.h",
+        ),
+    )
+
+    #: 还缺什么才能建图 (机器可读, 供报告与测试引用)
+    MISSING = (
+        ("weight_antiquant_bytes_per_us",
+         "WeightAntiQuantComputeNzNk 的向量吞吐 (4bit->8bit 展开, 每 µs 字节)。"
+         "地位同 ACT 的 BW_UB/ACT_BYTES_PER_VEC: 要实测, 算不出来。"
+         "仓内没有 A8W4 的打点 (data/ 下六个 run 的 dtype 都是 fp8_e5m2)"),
+        ("prologue_stage_in_role_table",
+         "角色表要按实现给: A8W4 的 AIV0 跑 prologue、AIV1 跑 combine, 而 config/roles.py "
+         "的 DEFAULT_STAGE_ROLES 把 activation 钉在 AIV0、通信钉在 AIV1 —— 这张表现在是全局的"),
+    )
+
+    def accepts(self, compile_cfg: CompileConfig, options: Any) -> None:
+        missing = "; ".join(f"{name} ({why})" for name, why in self.MISSING)
+        raise Unsupported(
+            f"{self.ID.key}: 结构已从源码确定 (多一段 AIV 上的权重反量化前段, B 矩阵分形与"
+            f"布局不同, 角色分工不同), 但还不能建图, 差: {missing}")
+
+    def plan(self, shape, compile_cfg, options) -> WavePlan:
+        self.accepts(compile_cfg, options)
+
+    def lower(self, shape, plan, costs, options):
+        self.accepts(CompileConfig(), options)
+
+
+ADAPTERS[A8W4WaveV1Declared.ID.key] = A8W4WaveV1Declared
+ALIASES["a8w4"] = A8W4WaveV1Declared.ID.key
+ALIASES["a8w4_wave"] = A8W4WaveV1Declared.ID.key
