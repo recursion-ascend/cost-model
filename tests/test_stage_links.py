@@ -103,3 +103,36 @@ def test_onchip_trades_wall_clock_for_traffic():
     oc = _run(links=links(location="onchip"), late_bind_pools=("AIC",))
     assert oc["traffic_bytes"]["R0.gm_to_l1"] < gm["traffic_bytes"]["R0.gm_to_l1"]
     assert oc["total_us"] > gm["total_us"]
+
+
+def test_anchor_binds_before_anything_colocated_to_it():
+    """共位的锚点总比跟着它的事件先派发 —— 所以"锚点未绑定"这一支取不到.
+
+    为什么必然: 锚点是该 m-group 里 order 最小的那个 GMM1, 而同组 GMM1 的依赖边
+    完全相同 (同样的 m 行, 只是列不同), 所以它们同时进就绪集, 就绪堆的并列判据是
+    order, 锚点先走。ACT/GMM2 更晚 —— 它们以该 GMM1 为依赖。
+    这条断言钉住的是**派发次序**, 不是落核: 落核另有兜底 (派发时锚点已绑定则候选
+    收窄为那一个核号), 但如果次序反过来, 起始时刻会按另一个核的空闲时刻算出来,
+    而真正绑上的是锚点的核 —— 一个偏乐观的 start。次序在此, 偏差就不存在。
+    """
+    import moe_cost_model.scheduler as sch
+
+    captured = []
+    orig = sch.MultiResourceScheduler.schedule
+
+    def spy(self, events, *a, **kw):
+        captured.extend(events)
+        return orig(self, events, *a, **kw)
+
+    sch.MultiResourceScheduler.schedule = spy
+    try:
+        res = _run(links=links(location="onchip"), late_bind_pools=("AIC",))
+    finally:
+        sch.MultiResourceScheduler.schedule = orig
+
+    anchor_of = {e.name: e.colocate_with for e in captured if e.colocate_with}
+    assert anchor_of, "该编排本应产生共位事件"
+    pos = {e.name: i for i, e in enumerate(res["events"])}   # events 按派发序
+    late = [(n, a) for n, a in anchor_of.items()
+            if n in pos and a in pos and pos[a] > pos[n]]
+    assert not late, f"共位事件早于锚点派发: {late[:3]}"
