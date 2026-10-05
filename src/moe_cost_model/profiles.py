@@ -41,6 +41,10 @@ class ReferenceProfile:
 
     options / kernel / policy 是模型入口直接吃的三个对象; 其余是 MegaMoeShape 上的
     策略字段, 经 shape_kw() 一次性给出。
+
+    身份与编译点见 implementation / compile_config (2026-10-05 加): 在它们之前这个类只有
+    name 与自由文本 source, 没有机器可核对的实现 id, 也没有编译指纹 —— 于是标定常数只能
+    是一套覆盖所有编排的全局量。
     """
 
     name: str
@@ -53,6 +57,20 @@ class ReferenceProfile:
     tile_grid: Any = None
     core_assignment: Any = None
     wave_packing: Any = None
+
+    @property
+    def implementation(self):
+        """这份 profile 对应哪个实现 id (按 kernel 的 comm_mode 选)."""
+        from .implementations import CompileConfig
+        from .implementations.megamoe import adapter_for
+        return adapter_for(CompileConfig.from_kernel_config(self.kernel)).identity()
+
+    @property
+    def compile_config(self):
+        """这份 profile 的编译点 (带指纹)."""
+        from .implementations import CompileConfig
+        return CompileConfig.from_kernel_config(
+            self.kernel, provenance=f"profile:{self.name_key or self.name}")
 
     def with_options(self, **overrides) -> ModelOptions:
         """以本 profile 的编排为底, 只改指定几项 (扫设计空间用)."""

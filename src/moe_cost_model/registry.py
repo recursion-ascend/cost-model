@@ -50,7 +50,14 @@ _REGISTRY: Dict[str, Dict[str, Callable[..., object]]] = {
     },
 }
 
-# 建图器: 值是类的引用路径, 用时才导入 (避免与 builders 的导入环)
+# 建图器: 值是类的引用路径, 用时才导入 (避免与 builders 的导入环)。
+#
+# "mte" / "layered" 这两个名字现在走 implementations/ 的**适配器** (见 resolve 与
+# builder_class 里对 ALIASES 的判断), 本表留着它们是为了 names("orchestration") 的提示
+# 与自定义建图器的注册入口。用适配器而不是建图器类的区别: 适配器自带波计划, 所以
+# orchestration="layered" 会用 Layered 的宏波规划, 而不是"Layered 建图器 + m-group 波宽"
+# 那种错配组合 (后者是 2026-10-05 之前的行为; 仓内没有任何用例依赖它 ——
+# tests/test_tiling.py 的两个用例都把 orchestration="layered" 与 topo_urma=True 配对)。
 _ORCHESTRATION: Dict[str, str] = {
     "mte": "moe_cost_model.builders.mte:MteEventBuilder",
     "layered": "moe_cost_model.builders.layered:LayeredEventBuilder",
@@ -80,11 +87,19 @@ def names(kind: str) -> List[str]:
 
 
 def builder_class(spec, where: str = "orchestration"):
-    """建图器: 注册名 / "包.模块:类" / 直接给类. None 表示按 kernel 自动选."""
+    """建图器: 注册名 / "包.模块:类" / 直接给类. None 表示按 kernel 自动选.
+
+    **实现 id** (ascend950.megamoe.a8w8_wave.v1 这种三段式) 不在这里解析: 它对应的是
+    implementations/ 里的适配器, 不是建图器类。返回 None 让调用方 (model.adapter) 去问
+    适配器表 —— 两套名字共存, 旧的 "mte"/"layered" 注册不受影响。
+    """
     if spec is None or isinstance(spec, type):
         return spec
     if not isinstance(spec, str):
         raise ValueError(f"{where}: 应为注册名、\"包.模块:类\" 或建图器类, 得到 {spec!r}")
+    from .implementations.megamoe import ADAPTERS, ALIASES
+    if spec in ADAPTERS or spec in ALIASES:
+        return None
     if ":" in spec:
         module, _, cls = spec.partition(":")
         try:
@@ -93,8 +108,9 @@ def builder_class(spec, where: str = "orchestration"):
             raise ValueError(f"{where}: 无法从 '{spec}' 取到建图器类 — {exc}") from None
     target = _ORCHESTRATION.get(spec)
     if target is None:
-        raise ValueError(f"{where}: 未知建图器 '{spec}'{suggest(spec, _ORCHESTRATION)}; "
-                         f"可选: {', '.join(names('orchestration'))}, "
+        choices = sorted(set(_ORCHESTRATION) | set(ADAPTERS))
+        raise ValueError(f"{where}: 未知建图器 '{spec}'{suggest(spec, choices)}; "
+                         f"可选: {', '.join(choices)}, "
                          "或写 \"包.模块:类\"")
     return target if isinstance(target, type) else builder_class(target, where)
 
@@ -103,6 +119,12 @@ def resolve(kind: str, spec, where: str = ""):
     """策略写法 → 策略对象. None 原样返回 (模型缺省); 非 str/dict 视为现成对象."""
     where = where or kind
     if kind == "orchestration":
+        # 实现 id 原样传下去 (它对应适配器, 不是建图器类): builder_class 对这类名字返回
+        # None, 若在这里就把 None 存进 shape, "指定实现"这个旋钮会被静默忽略 —— 场景里
+        # 写了 orchestration = "ascend950.megamoe.layered.v1" 却照跑 a8w8。
+        from .implementations.megamoe import ADAPTERS, ALIASES
+        if isinstance(spec, str) and (spec in ADAPTERS or spec in ALIASES):
+            return spec
         return builder_class(spec, where)      # 取类, 不实例化
     if spec is None or not isinstance(spec, (str, dict)):
         return spec

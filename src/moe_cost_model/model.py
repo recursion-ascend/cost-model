@@ -3,6 +3,7 @@
 """
 from __future__ import annotations
 
+import dataclasses
 import re
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -17,6 +18,9 @@ from .builders.barriers import apply_barriers
 from .builders.pipeline_expand import CH_HBM_WRITE, apply_pipeline
 from .costs import PrimitiveCosts
 from .analysis.bounds import attach_bounds
+from .implementations import CompileConfig, RuntimeConfig, WavePlan
+from .implementations.megamoe import (_BuilderShim, adapter_for,
+                                      resolve as resolve_adapter)
 from .guardrails import check_shape_conservation
 from .shape import (
     CursorTrace, MegaMoeShape, ModelOptions,
@@ -278,45 +282,57 @@ class A8W8WaveCostModel:
         self._order = 0
         self._rank = 0
         self.cursor_traces: Dict[int, List[CursorTrace]] = {}
+        self._wave_plans: Dict[tuple, WavePlan] = {}
 
     def _kernel_cfg(self, shape: MegaMoeShape) -> KernelConfig:
         return shape.kernel if shape.kernel is not None else KernelConfig()
 
+    def compile_config(self, shape: MegaMoeShape) -> CompileConfig:
+        """本次运行的编译点. 由 shape.kernel (KernelConfig) 的编译轴得出, 带指纹."""
+        return CompileConfig.from_kernel_config(self._kernel_cfg(shape))
+
+    def adapter(self, shape: MegaMoeShape):
+        """这个 shape 用哪份实现的适配器.
+
+        优先 shape.orchestration (场景文件里写 orchestration = "layered" 之类, 或直接给
+        适配器/建图器类), 否则按编译点的 comm_mode 选 —— 即原先的 `km.topo_urma` 分支,
+        现在走 CompileConfig.comm_mode (对应 kernel 的 TILINGKEY_COMM_MODE)。
+        """
+        want = getattr(shape, "orchestration", None)
+        if want is not None:
+            # 旧路径: registry 里注册的是**建图器类**, 不是适配器。两者都要能用, 所以
+            # 先问 registry, 认不出来再问适配器表。
+            cls = registry.builder_class(want)
+            if cls is not None:
+                return _BuilderShim(cls)
+            return resolve_adapter(want)
+        return adapter_for(self.compile_config(shape))
+
+    def wave_plan(self, shape: MegaMoeShape) -> WavePlan:
+        """波计划, 每个 (rank, 形状) 只算一次.
+
+        为什么缓存: _postprocess 要把 wave_count / m_groups_per_wave / waves 放进结果
+        (wave_count 进 golden 指纹), 而它原先**第二次调用** self.waves(shape) 重算。
+        算两遍就有两条路径可以漂, 所以这里算一次, 建图与后处理共用同一个对象。
+        """
+        key = (shape.rank_id, id(shape))
+        got = self._wave_plans.get(key)
+        if got is None:
+            got = self.adapter(shape).plan(shape, self.compile_config(shape), self.options)
+            self._wave_plans[key] = got
+        return got
+
     def m_groups_per_wave(self, shape: MegaMoeShape) -> int:
-        km = self._kernel_cfg(shape)
-        if km.topo_urma:
-            return 0   # Layered 宏 Wave = 专家范围, 无 m-group 波宽概念
-        if self.options.m_groups_per_wave > 0:
-            return self.options.m_groups_per_wave      # C4: 直接给波宽
-        p1 = shape.p1_override if shape.p1_override > 0 else 1
-        p2 = shape.p2_override if shape.p2_override > 0 else 1
-        return calc_m_groups_per_wave(
-            hidden_dim=shape.hidden_dim, h=shape.h, aic_num=shape.aic_num,
-            p1=p1, p2=p2, tile_n=km.tile_n)
+        return self.wave_plan(shape).m_groups_per_wave
 
     def waves(self, shape: MegaMoeShape) -> List[Wave]:
-        km = self._kernel_cfg(shape)
-        if km.topo_urma:
-            return plan_layered_waves(shape.expert_tokens, shape.token_num, shape.topk,
-                                      tile_m=km.tile_m)
-        wp = getattr(shape, "wave_packing", None)
-        if wp is not None:
-            return wp.plan(shape.expert_tokens, self.m_groups_per_wave(shape),
-                           tile_m=km.tile_m)
-        return plan_waves(shape.expert_tokens, self.m_groups_per_wave(shape),
-                          tile_m=km.tile_m)
+        return list(self.wave_plan(shape).waves)
 
     def build_events(self, shape: MegaMoeShape) -> Tuple[List[Event], List[CursorTrace]]:
-        """建图器: shape.orchestration 优先, 未给时按 kernel.topo_urma 自动选."""
-        km = self._kernel_cfg(shape)
-        cls = registry.builder_class(getattr(shape, "orchestration", None))
-        if cls is None:
-            if km.topo_urma:
-                from .builders.layered import LayeredEventBuilder
-                cls = LayeredEventBuilder
-            else:
-                cls = MteEventBuilder
-        return cls(self.costs, self.options).build(shape, self.waves(shape))
+        """降解: 选适配器 -> 校验编译点 -> 用缓存的波计划展开事件图."""
+        adapter = self.adapter(shape)
+        adapter.accepts(self.compile_config(shape), self.options)
+        return adapter.lower(shape, self.wave_plan(shape), self.costs, self.options)
 
 
     def simulate(self, shape: MegaMoeShape, restructure=None) -> Dict[str, object]:
@@ -462,6 +478,24 @@ class A8W8WaveCostModel:
             results[rank]["bounds"] = attach_bounds(
                 shape, results[rank], costs=self.costs,
                 kernel=shape.kernel, active_cores=shape.aic_num)
+            # 每条结果都带上**是谁算的**: 实现 id + 编译指纹 + 运行拓扑。
+            # 在这之前, 一个时长数字离开 Python 之后就无从知道它对应哪份 kernel、哪个
+            # 编译点、几张卡几个核 —— 而 config/hardware.py 的标定注释恰恰说明这些数
+            # 换了编排/拓扑未必还成立。放在这里 (不是 api 层) 是因为 run_shapes 这类
+            # 入口直达本函数, 与 bounds/provenance 同一个理由。
+            adapter = self.adapter(shape)
+            compile_cfg = self.compile_config(shape)
+            results[rank]["implementation"] = {
+                "id": adapter.identity().key,
+                "source_refs": list(adapter.identity().source_refs),
+                "compile_fingerprint": compile_cfg.fingerprint,
+                "compile_point": compile_cfg.describe(),
+                "measured_end_stage": adapter.measured_end_stage(),
+                "topology": dataclasses.asdict(
+                    RuntimeConfig.from_shape(
+                        shape, world_size=len(shapes) if len(shapes) > 1 else None,
+                    ).topology),
+            }
         return results
 
     def _ranks_independent(self, shapes: Sequence[MegaMoeShape], restructure,

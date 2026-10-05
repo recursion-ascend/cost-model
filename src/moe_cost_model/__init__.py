@@ -97,6 +97,9 @@ from .analysis import (
 )
 from .api import simulate_routing_counts
 from .profiles import MEGAMOE_A8W8, ReferenceProfile
+from .implementations import (CalibrationDomain, CompileConfig,
+                              ImplementationId, RuntimeConfig,
+                              RuntimeTopology, ShapeDomain, Unsupported)
 from .registry import register
 from . import guardrails
 from .scenario import (Calibration, Scenario, TilingSource, Workload,
