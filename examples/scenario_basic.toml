@@ -9,6 +9,9 @@ name = "bs64-baseline"
 h = 6144
 hidden_dim = 4096
 aic_num = 28
+# platform = "950pr"        # 950pr / 950dt。不填 = 不声称平台:
+#                           # 单核带宽不按聚合 HBM 收敛, 带宽下界也只用"单核 x 核数"。
+#                           # 填了才会把整卡聚合规格算进去 (见 README 的"带宽护栏")。
 p1_override = 2              # 每波组数; 0 = 按 kernel 分档自动取
 p2_override = 1
 

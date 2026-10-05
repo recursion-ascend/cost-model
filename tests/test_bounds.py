@@ -400,3 +400,54 @@ def test_resolve_link_falls_back_to_the_default_edge():
     assert resolve_link(only_one, "gmm1", "activation").depth == 3
     # 完全不认识的一对也给一个中性的 StageLink, 不抛
     assert resolve_link((), "gmm2", "combine").readiness >= 0
+
+
+# ------------------------- platform: 聚合带宽帽要在日常路径上生效
+
+NZ = {"kernel.weight_nz": True, "calibration.bw_l1_gm_b_nz": 80000.0}
+
+
+@pytest.mark.skipif(not SCENARIO.exists(), reason="需要场景文件")
+def test_scenario_platform_caps_per_core_bandwidth_by_aggregate_spec():
+    """场景文件声明 platform 后, 单核带宽要被整卡聚合规格收敛.
+
+    2026-10-05 之前 Scenario 根本没有 platform 字段, build_costs() 不传它, 于是
+    PlatformSpec.gm_bw_per_core 这条帽在**日常路径上完全失效**。缺省标定看不出来
+    (51900 x 28 = 1.45 TB/s 在 950PR 的 1.60 规格内), 但 NZ 布局就会漏过去:
+    bw_l1_gm_b_nz=80000 时 28 核合计 2.24 TB/s, 超规格 40%。
+    """
+    sc = m.load_scenario(SCENARIO)
+    free = sc.with_overrides(NZ).build_costs().gmm1_tile.__self__
+    assert free.bw_b * 28 > m.ASCEND_950PR.hbm_bytes_per_us        # 不声称平台 = 不帽
+    pr = sc.with_overrides({**NZ, "platform": "950pr"}).build_costs().gmm1_tile.__self__
+    assert pr.bw_b * 28 == pytest.approx(m.ASCEND_950PR.hbm_bytes_per_us)
+    dt = sc.with_overrides({**NZ, "platform": "950dt"}).build_costs().gmm1_tile.__self__
+    assert dt.bw_b == pytest.approx(80000.0)   # 4 TB/s 规格下 80000 不触顶
+
+
+@pytest.mark.skipif(not SCENARIO.exists(), reason="需要场景文件")
+def test_platform_default_is_unclaimed_not_a_guessed_card():
+    """缺省不替人假定用哪张卡: platform 空 -> spec None, 带宽下界只用单核 x 核数."""
+    sc = m.load_scenario(SCENARIO)
+    assert sc.platform == "" and sc.platform_spec() is None
+    r = m.simulate(sc)
+    assert r["rank_results"][0]["bounds"]["bandwidth_limited_by"] == "per_core"
+    r2 = m.simulate(sc.with_overrides({"platform": "950pr"}))
+    assert r2["rank_results"][0]["bounds"]["bandwidth_limited_by"] in ("per_core", "aggregate")
+
+
+def test_bandwidth_bound_uses_the_faster_of_the_two_stream_rates():
+    """下界要用 A/B 两流里**更快**的速率 —— 取慢的会把下界算得过紧.
+
+    时间 >= 字节 / 速率, 所以速率要取"任何搬法都不可能超过"的上界。2026-10-05 实测:
+    NZ 下 bw_b (57143) 比 bw_a (51900) 快, 原先只取 bw_a, 下界偏紧 4.2%, 一个没有任何
+    漏账的运行被报成穿透物理下界。
+    """
+    from moe_cost_model.analysis.bounds import _load_bw_of
+    slow_b = m.build_analytical_costs(
+        h=6144, dispatch_mechanistic=m.DispatchMechanisticLatency())
+    assert _load_bw_of(slow_b) == pytest.approx(float(m.BW_L1_GM))
+    fast_b = m.build_analytical_costs(
+        h=6144, dispatch_mechanistic=m.DispatchMechanisticLatency(),
+        kernel=m.KernelConfig(weight_nz=True), bw_l1_gm_b_nz=80000.0)
+    assert _load_bw_of(fast_b) == pytest.approx(80000.0)   # 取更快的 B 流

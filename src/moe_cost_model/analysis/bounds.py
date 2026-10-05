@@ -290,9 +290,21 @@ def _cube_rate_of(costs) -> float:
 
 
 def _load_bw_of(costs) -> float:
-    """从代价对象上取每核 GM->L1 载入带宽 (B/us)."""
+    """每核 GM->L1 载入带宽 (B/us), 取 A 流与 B 流里**更快**的那个.
+
+    为什么取快的: 这是算**下界**。时间 >= 字节 / 速率, 所以速率要取"任何搬法都不可能
+    超过"的那个上界 —— 每个字节至少以最快的可用速率搬。取慢的会把下界算得过紧,
+    一个合法的模型反而会穿透它。
+
+    2026-10-05 实测踩到: NZ 布局下 B 流用 bw_b (收敛后 57143) 比 A 流的 bw_a (51900) 快,
+    而这里原先只取 bw_a, 于是下界偏紧 4.2%, 一个没有任何漏账的运行被报成穿透。
+    (两股会不会重叠是编排问题 —— 占同一条 MTE2 就不会; 但下界不该依赖编排口径,
+     所以统一按最快速率给, 宁松不紧。)
+    """
     owner = getattr(getattr(costs, "gmm1_tile", None), "__self__", None)
-    return float(getattr(owner, "bw", 0.0) or 0.0)
+    bw_a = float(getattr(owner, "bw", 0.0) or 0.0)
+    bw_b = float(getattr(owner, "bw_b", 0.0) or 0.0)
+    return max(bw_a, bw_b)
 
 
 def _dependency_bound_of(rank_result) -> float:

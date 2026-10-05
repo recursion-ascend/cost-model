@@ -25,6 +25,7 @@ from .config.pipeline import parse_tiling
 from .config.pipeline import (BufferSlots, PhaseRates, PipelineConstraints,
                               QueueDepths, SyncLatency)
 from .config.granularity import resolve_granularity
+from .config.platform import resolve_platform
 from .config.links import StageLink
 from .config.policy import InstancePolicy, StageWaveOffsets
 from .costs import (DispatchDataLayout, DispatchMechanisticLatency, PrimitiveCosts,
@@ -201,6 +202,22 @@ class Scenario:
     h: int = 6144
     hidden_dim: int = 4096
     aic_num: int = 28
+    #: 平台 (硬件规格档位) 的名字: "950pr" / "950dt"。**缺省空 = 不声称平台**。
+    #
+    # 给了它会做两件事:
+    #   1. 把单核带宽按聚合上界收敛 —— PlatformSpec.gm_bw_per_core 取
+    #      min(单核常数, 聚合 HBM / 活跃核数)。一个单核常数在核数足够多时会突破整卡
+    #      聚合带宽, 那在物理上不可能。
+    #   2. 让带宽下界把聚合 HBM 这条规格算进去 (analysis/bounds.py)。
+    #
+    # 2026-10-05 之前**这个字段不存在**, 于是第 1 条在场景文件这条日常路径上完全失效
+    # (build_costs() 不传 platform)。缺省标定下看不出来 —— BW_L1_GM 51900 x 28 核 =
+    # 1.45 TB/s 在 950PR 的 1.60 规格内 —— 但 NZ 布局或更高的带宽标定就会漏过去:
+    # 实测给 bw_l1_gm_b_nz=80000 时 28 核合计 2.24 TB/s, 超规格 40%。
+    #
+    # 缺省不填某个平台, 是因为"用哪张卡"是使用者的事实, 不是模型该替人假定的;
+    # 不填时带宽下界只用"单核带宽 x 核数", 不含聚合这条。
+    platform: str = ""
     name: str = ""
     # 实例层 profile: 以某一份实现的取值为底 (profiles.PROFILES 的名字), 文件里
     # 显式写出的字段再覆盖它。不给 = 模型缺省 = 最少假设, 不复现任何实现。
@@ -307,6 +324,12 @@ class Scenario:
 
     # ---- 仿真输入 ----
 
+    def platform_spec(self):
+        """platform 名字 -> PlatformSpec; 空字符串 -> None (不声称平台)."""
+        if not self.platform:
+            return None
+        return resolve_platform(self.platform)
+
     def build_costs(self) -> PrimitiveCosts:
         if self.costs is not None:
             return self.costs
@@ -328,6 +351,7 @@ class Scenario:
         if window > 0 and int(window) != int(dispatch.buffer_count):
             dispatch = dataclasses.replace(dispatch, buffer_count=int(window))
         return build_analytical_costs(
+            platform=self.platform_spec(), active_cores=self.aic_num,
             h=self.h, kernel=self.kernel,
             dispatch_mechanistic=dispatch, urma_mechanistic=cal.urma,
             bw_l1_gm=cal.bw_l1_gm, bw_l1_gm_b_nz=cal.bw_l1_gm_b_nz,
@@ -361,8 +385,10 @@ def simulate(scenario: Scenario, *, platform=None,
     if errors and strict:
         raise ValueError("与 tiling 真值矛盾 (tiling.strict=false 可降级为警告):\n  - "
                          + "\n  - ".join(errors))
+    # platform 以场景文件里声明的为缺省; 显式传参可覆盖 (扫平台时用)
     result = simulate_routing_counts(
-        platform=platform, check_bounds=check_bounds,
+        platform=platform if platform is not None else scenario.platform_spec(),
+        check_bounds=check_bounds,
         routing_counts=wl.routing_counts(), token_num_per_rank=wl.tokens,
         h=scenario.h, hidden_dim=scenario.hidden_dim, aic_num=scenario.aic_num,
         costs=scenario.build_costs(), topk=wl.topk,
