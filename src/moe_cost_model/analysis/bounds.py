@@ -221,3 +221,92 @@ def idle_split_us(idle_report, active_cores: int) -> Dict[str, float]:
         "avoidable_idle_us": idle_report.avoidable_idle_us / n,
         "horizon_us": idle_report.horizon_us,
     }
+
+
+def attach_bounds(shape, rank_result, *, costs, kernel=None, platform=None,
+                  active_cores=None, check: bool = True):
+    """给一个 rank 算三个下界并断言墙钟没穿透它们.
+
+    放在这一层 (而不是 api) 是因为**护栏不能被绕过**: 2026-10-05 发现
+    tests/golden_cases.run_shapes 直达 A8W8WaveCostModel.simulate_multi 并手工拼结果,
+    于是四个 golden case 完全没跑下界断言。任何入口 (api / model / 手工) 都该挂上。
+
+    算法事实 (乘加数、必搬字节) 只由形状决定; 速率取硬件规格。所以同一形状换任何
+    编排, 下界都不变 —— 它是用来**检查**编排结果的尺子, 不是预测。
+    """
+    link = None
+    opts = getattr(shape, "options", None)
+    if opts is not None:
+        try:
+            link = opts.link("activation", "gmm2")
+        except Exception:
+            link = None
+    if active_cores is None:
+        active_cores = int(getattr(shape, "aic_num", 0) or 0)
+    if kernel is None:
+        kernel = getattr(shape, "kernel", None)
+    facts = workload_facts(
+        shape, kernel=kernel,
+        gmm2_a_from_gm=True if link is None else bool(link.materialised))
+    cube = _cube_rate_of(costs)
+    bw = _load_bw_of(costs)
+    agg = getattr(platform, "hbm_bytes_per_us", None) if platform is not None else None
+    bw_us, rate, who = bandwidth_bound_us(
+        facts, bw_per_core_bytes_per_us=bw, active_cores=active_cores,
+        aggregate_bytes_per_us=agg)
+    b = Bounds(
+        compute_us=compute_bound_us(facts, cube_mac_per_us=cube,
+                                    active_cores=active_cores),
+        bandwidth_us=bw_us,
+        dependency_us=_dependency_bound_of(rank_result),
+        facts=facts, bandwidth_rate=rate, bandwidth_limited_by=who)
+    out = b.as_dict()
+    out["violation"] = None
+    if check:
+        try:
+            check_wall_clock(b, float(rank_result["total_us"]),
+                             where=f"rank{getattr(shape, 'rank_id', '?')} 墙钟")
+        except BoundViolation as exc:
+            # 记进结果再抛: 调用方给 check_bounds=False 时能拿到同一条诊断
+            out["violation"] = str(exc)
+            raise
+    else:
+        low = b.lower_us
+        wall = float(rank_result["total_us"])
+        if low > 0 and wall < low * (1.0 - 1e-6):
+            out["violation"] = (
+                f"墙钟 {wall:.3f}us 低于 {b.binding} 下界 {low:.3f}us "
+                f"({(low - wall) / low * 100:.1f}%)")
+    out["idle_split_us"] = idle_split_us(
+        (rank_result.get("idle_decomposition") or {}).get(
+            f"R{getattr(shape, 'rank_id', 0)}.AIC"), active_cores)
+    return out
+
+
+def _cube_rate_of(costs) -> float:
+    """从代价对象上取每核 Cube 速率 (MAC/us); 自定义 callable 取不到则返回 0."""
+    owner = getattr(getattr(costs, "gmm1_tile", None), "__self__", None)
+    return float(getattr(owner, "cube_rate", 0.0) or 0.0)
+
+
+def _load_bw_of(costs) -> float:
+    """从代价对象上取每核 GM->L1 载入带宽 (B/us)."""
+    owner = getattr(getattr(costs, "gmm1_tile", None), "__self__", None)
+    return float(getattr(owner, "bw", 0.0) or 0.0)
+
+
+def _dependency_bound_of(rank_result) -> float:
+    """一个 token 必经链 dispatch->GMM1->ACT->GMM2->COMBINE 上各 stage 的最小一份.
+
+    从已排出的事件里取每个 stage 的最短事件时长 —— 那就是"这个 stage 最小一份工作"
+    的时长。链上的事不能并行, 所以它们的和是硬下界 (弱, 但不会错)。
+    """
+    CHAIN = ("dispatch", "gmm1", "activation", "gmm2", "combine")
+    best = {}
+    for e in rank_result.get("events", ()):
+        st = (e.meta or {}).get("stage")
+        if st in CHAIN:
+            d = e.end_us - e.start_us
+            if d > 0 and (st not in best or d < best[st]):
+                best[st] = d
+    return dependency_bound_us(best)

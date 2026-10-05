@@ -47,15 +47,28 @@ def uniform_routing(world: int, local: int, per_src: int):
     return [[[per_src] * world for _ in range(local)] for _ in range(world)]
 
 
-def manual_costs(cube_rate=CUBE_RATE):
+def manual_costs(cube_rate=CUBE_RATE, kernel=None):
+    """手工拼 PrimitiveCosts (证明不经 build_analytical_costs 也能跑).
+
+    **combine 的公式必须按 shape 声明的那个 kernel 建**: run_api 传的是
+    P.shape_kw() (profile 的 KernelConfig(combine_meta_bytes_per_row=32)), 而这里原先
+    裸构造 AnalyticalCombineCosts() —— meta 用缺省 16。于是同一个 case 里"形状说每行
+    搬 32B、公式按 16B 算", 两条入口 (场景 vs API) 对同一个形状给出不同的 combine 字节
+    与时长。2026-10-05 扩充 golden 指纹 (加 traffic_bytes) 才把它照出来 —— 原指纹只锁
+    时长, 而夹具内部是自洽的 (时长也按 16 算), 所以这个不一致藏了很久。
+    """
+    km = kernel if kernel is not None else P.kernel
+    comb = m.AnalyticalCombineCosts(
+        meta_bytes_per_row=km.combine_meta_bytes_per_row)
     return m.PrimitiveCosts(
         dispatch_mechanistic=m.DispatchMechanisticLatency(),
         gmm1_tile=m.AnalyticalGmmCosts(cube_mac_per_us=cube_rate).gmm1_tile,
         gmm2_tile=m.AnalyticalGmmCosts(cube_mac_per_us=cube_rate).gmm2_tile,
         activation_tile=m.AnalyticalActCosts().tile,
         activation_store_bytes=m.AnalyticalActCosts().store_bytes,
-        combine_tile=m.AnalyticalCombineCosts().tile,
-        combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
+        combine_tile=comb.tile,
+        combine_write_bytes_per_row=comb.write_bytes_per_row,
+        combine_read_bytes=comb.read_bytes,
         count_table_prepare_us=m.T_COUNT_GATE,
     )
 
@@ -99,7 +112,10 @@ def run_shapes(routing, token_num, *, costs=None, aic_num=AIC, p1=2, p2=1,
                    **shape_kw)))
     ranks = model.simulate_multi(shapes, restructure=restructure)
     slowest = max(ranks, key=lambda r: float(ranks[r]["total_us"]))
-    return {"kernel_total_us": float(ranks[slowest]["total_us"]),
+    # 出处报告走和 api 同一个函数 (config.provenance.run_provenance) —— 这个低层入口
+    # 原先不给出处, 于是 test_scenario_matches_golden 比的两份指纹天生不等。
+    return {"provenance": m.run_provenance(costs, kernel),
+            "kernel_total_us": float(ranks[slowest]["total_us"]),
             "kernel_dag_end_us": max(float(r["dag_end_us"]) for r in ranks.values()),
             "slowest_rank": slowest, "rank_results": ranks}
 

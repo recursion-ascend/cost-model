@@ -33,6 +33,7 @@ def _run(options=None, kernel=None, policy=None):
         activation_store_bytes=m.AnalyticalActCosts().store_bytes,
         combine_tile=m.AnalyticalCombineCosts().tile,
         combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
+        combine_read_bytes=m.AnalyticalCombineCosts().read_bytes,
         count_table_prepare_us=m.T_COUNT_GATE,
     )
     return m.simulate_routing_counts(
@@ -139,6 +140,7 @@ def test_gmm2_lag_waves_override():
         activation_store_bytes=m.AnalyticalActCosts().store_bytes,
         combine_tile=m.AnalyticalCombineCosts().tile,
         combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
+        combine_read_bytes=m.AnalyticalCombineCosts().read_bytes,
         count_table_prepare_us=m.T_COUNT_GATE,
     )
 
@@ -240,6 +242,7 @@ def _run_costs():
         activation_store_bytes=m.AnalyticalActCosts().store_bytes,
         combine_tile=m.AnalyticalCombineCosts().tile,
         combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
+        combine_read_bytes=m.AnalyticalCombineCosts().read_bytes,
         count_table_prepare_us=m.T_COUNT_GATE,
     )
 

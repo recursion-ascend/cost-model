@@ -111,3 +111,23 @@ def unknown_categories(entries: Dict[str, Tuple[float, str]]) -> Dict[str, str]:
         if cat not in CATEGORIES:
             bad[path] = src
     return bad
+
+
+def run_provenance(costs, kernel=None):
+    """一次运行用到的全部常数出处报告.
+
+    提到这一层 (原先内联在 api.simulate_routing_counts 里) 是为了让**每条入口都给出
+    同一份报告**: 2026-10-05 发现 tests/golden_cases.run_shapes 直达
+    A8W8WaveCostModel.simulate_multi 并手工拼结果, 于是那几个 case 的出处报告是空的 ——
+    而 test_scenario_matches_golden 的前提正是"场景路径与 API 路径给出同一份指纹"。
+    内联的组装逻辑一旦被第二个入口复制, 两边就会漂。
+    """
+    from . import hardware as _hw, policy as _pol
+    prov = collect_provenance(vars(_hw))
+    prov.update(collect_provenance(vars(_pol)))
+    prov.update({f"costs.{k}": (float(v), 'user-supplied')
+                 for k, v in vars(costs).items() if isinstance(v, (int, float))})
+    prov.update({f"kernel.{k}": (float(v), 'user-supplied')
+                 for k, v in (vars(kernel) if kernel else {}).items()
+                 if isinstance(v, (int, float)) and not isinstance(v, bool)})
+    return provenance_report(prov)

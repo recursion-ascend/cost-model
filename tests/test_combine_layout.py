@@ -23,7 +23,8 @@ def _costs(scatter=0.0, exponent=0.0):
         return base
     c = m.AnalyticalCombineCosts(scatter_us_per_row=scatter, scatter_exponent=exponent)
     return dataclasses.replace(base, combine_tile=c.tile,
-                               combine_write_bytes_per_row=c.write_bytes_per_row)
+                               combine_write_bytes_per_row=c.write_bytes_per_row,
+                               combine_read_bytes=c.read_bytes)
 
 
 def _run(layout="token_scatter", scatter=0.0, exponent=0.0, **kw):

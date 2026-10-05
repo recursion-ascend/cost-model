@@ -29,6 +29,7 @@ def _costs():
         activation_store_bytes=m.AnalyticalActCosts().store_bytes,
         combine_tile=m.AnalyticalCombineCosts().tile,
         combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
+        combine_read_bytes=m.AnalyticalCombineCosts().read_bytes,
         count_table_prepare_us=m.T_COUNT_GATE,
     )
 

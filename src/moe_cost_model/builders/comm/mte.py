@@ -330,8 +330,9 @@ class MteCombine(CombineTransport):
         # 用的还是标着"旧口径, 已不用"的常数, 而且只在开了相位流水时才出现
         # (换一个编排旋钮不该改变搬了多少字节)。现在按字节直接申报。
         local_rows = rows - remote_rows
-        read_bytes_fn = getattr(c, "combine_read_bytes", None)
-        read_back = float(read_bytes_fn(rows, cols)) if read_bytes_fn else 0.0
+        # combine_read_bytes 是 PrimitiveCosts 的必填字段, 所以这里直接调 ——
+        # 原先有个 getattr 兜底, 那正是让两条入口静默分叉的东西。
+        read_back = float(c.combine_read_bytes(rows, cols))
         local_write = float(local_rows * row_bytes)
         # 读与写分开申报, 且读走自己的通路名 —— 混进 hbm_write 会让
         # "不物化就不写 GM" (test_onchip_declares_no_act_gm_write) 这类断言失去意义:

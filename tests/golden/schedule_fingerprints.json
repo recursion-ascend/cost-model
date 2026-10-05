@@ -4,8 +4,16 @@
   "core_contiguous_block": {
    "kernel_total_us": 257.7996804485168,
    "slowest_rank": 1,
-   "provenance_summary": {},
-   "provenance_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -26,6 +34,7 @@
      },
      "critical_path_len": 16,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 250970112.0,
@@ -40,13 +49,13 @@
       "fab_src:3": 696960.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088639,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
       "violation": null
      },
      "schedule_sha256": "d45dcd11141a76febbb6eee9006b575fda98d0737bbeef5c04774925761b7fc2"
@@ -70,6 +79,7 @@
      },
      "critical_path_len": 16,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 250970112.0,
@@ -84,13 +94,13 @@
       "fab_src:3": 696960.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.88765985366229,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
       "violation": null
      },
      "schedule_sha256": "1ba926bc9d854e27d7433947081c4b528f7cd1c459c538f69233113f8c9debdc"
@@ -114,6 +124,7 @@
      },
      "critical_path_len": 16,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 250970112.0,
@@ -128,13 +139,13 @@
       "fab_src:3": 696960.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088639,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
       "violation": null
      },
      "schedule_sha256": "25acf86723941bea6345b6fa515d03520e03b2fd247e7b19038f31783e00f2fb"
@@ -158,6 +169,7 @@
      },
      "critical_path_len": 16,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 250970112.0,
@@ -172,13 +184,13 @@
       "fab_src:3": 6426624.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.58970577278536,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
       "violation": null
      },
      "schedule_sha256": "414f1066bca54f3f72211b5da2766d8b47a2a558a850919b11e5619276a7cb4e"
@@ -188,8 +200,16 @@
   "core_greedy_least_busy": {
    "kernel_total_us": 257.7996804485168,
    "slowest_rank": 1,
-   "provenance_summary": {},
-   "provenance_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -210,6 +230,7 @@
      },
      "critical_path_len": 16,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 250970112.0,
@@ -224,13 +245,13 @@
       "fab_src:3": 696960.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088639,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
       "violation": null
      },
      "schedule_sha256": "fbf48e55b42b58bbc299420adc0a6315ca0c3c095180204f28958feeebdb1b3d"
@@ -254,6 +275,7 @@
      },
      "critical_path_len": 16,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 250970112.0,
@@ -268,13 +290,13 @@
       "fab_src:3": 696960.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.88765985366229,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
       "violation": null
      },
      "schedule_sha256": "6e9e7446d0b6087e5f3459269c4b07dbd9239f9ad030ade36eb015d227848ebe"
@@ -298,6 +320,7 @@
      },
      "critical_path_len": 16,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 250970112.0,
@@ -312,13 +335,13 @@
       "fab_src:3": 696960.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088639,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
       "violation": null
      },
      "schedule_sha256": "7ea88b6e72cadefc1159824fc0680ac61c6335170c753be484aaad58048a0927"
@@ -342,6 +365,7 @@
      },
      "critical_path_len": 16,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 250970112.0,
@@ -356,13 +380,13 @@
       "fab_src:3": 6426624.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.58970577278536,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
       "violation": null
      },
      "schedule_sha256": "3623376e0d5ad0f349870283e55028ccef81b91f7de28b2f79b3ea3e0dad659d"
@@ -886,6 +910,7 @@
      },
      "critical_path_len": 29,
      "traffic_bytes": {
+      "R0.combine_read": 40108032.0,
       "R0.dispatch_read": 19464192.0,
       "R0.dispatch_write": 19562496.0,
       "R0.gm_to_l1": 754974720.0,
@@ -926,6 +951,7 @@
      },
      "critical_path_len": 30,
      "traffic_bytes": {
+      "R1.combine_read": 40108032.0,
       "R1.dispatch_read": 19464192.0,
       "R1.dispatch_write": 19562496.0,
       "R1.gm_to_l1": 754974720.0,
@@ -982,6 +1008,7 @@
      },
      "critical_path_len": 28,
      "traffic_bytes": {
+      "R0.combine_read": 40108032.0,
       "R0.dispatch_read": 19464192.0,
       "R0.dispatch_write": 19562496.0,
       "R0.gm_to_l1": 754974720.0,
@@ -1022,6 +1049,7 @@
      },
      "critical_path_len": 28,
      "traffic_bytes": {
+      "R1.combine_read": 40108032.0,
       "R1.dispatch_read": 19464192.0,
       "R1.dispatch_write": 19562496.0,
       "R1.gm_to_l1": 754974720.0,
@@ -1078,6 +1106,7 @@
      },
      "critical_path_len": 28,
      "traffic_bytes": {
+      "R0.combine_read": 40108032.0,
       "R0.dispatch_read": 19464192.0,
       "R0.dispatch_write": 19562496.0,
       "R0.gm_to_l1": 754974720.0,
@@ -1118,6 +1147,7 @@
      },
      "critical_path_len": 28,
      "traffic_bytes": {
+      "R1.combine_read": 40108032.0,
       "R1.dispatch_read": 19464192.0,
       "R1.dispatch_write": 19562496.0,
       "R1.gm_to_l1": 754974720.0,
@@ -1174,6 +1204,7 @@
      },
      "critical_path_len": 28,
      "traffic_bytes": {
+      "R0.combine_read": 40108032.0,
       "R0.dispatch_read": 19464192.0,
       "R0.dispatch_write": 19562496.0,
       "R0.gm_to_l1": 754974720.0,
@@ -1214,6 +1245,7 @@
      },
      "critical_path_len": 28,
      "traffic_bytes": {
+      "R1.combine_read": 40108032.0,
       "R1.dispatch_read": 19464192.0,
       "R1.dispatch_write": 19562496.0,
       "R1.gm_to_l1": 754974720.0,
@@ -1270,6 +1302,7 @@
      },
      "critical_path_len": 28,
      "traffic_bytes": {
+      "R0.combine_read": 40108032.0,
       "R0.dispatch_read": 19464192.0,
       "R0.dispatch_write": 19562496.0,
       "R0.gm_to_l1": 754974720.0,
@@ -1310,6 +1343,7 @@
      },
      "critical_path_len": 29,
      "traffic_bytes": {
+      "R1.combine_read": 40108032.0,
       "R1.dispatch_read": 19464192.0,
       "R1.dispatch_write": 19562496.0,
       "R1.gm_to_l1": 754974720.0,
@@ -1366,6 +1400,7 @@
      },
      "critical_path_len": 30,
      "traffic_bytes": {
+      "R0.combine_read": 40108032.0,
       "R0.dispatch_read": 19464192.0,
       "R0.dispatch_write": 19562496.0,
       "R0.gm_to_l1": 754974720.0,
@@ -1406,6 +1441,7 @@
      },
      "critical_path_len": 30,
      "traffic_bytes": {
+      "R1.combine_read": 40108032.0,
       "R1.dispatch_read": 19464192.0,
       "R1.dispatch_write": 19562496.0,
       "R1.gm_to_l1": 754974720.0,
@@ -1462,6 +1498,7 @@
      },
      "critical_path_len": 52,
      "traffic_bytes": {
+      "R0.combine_read": 40108032.0,
       "R0.dispatch_read": 19464192.0,
       "R0.dispatch_write": 19562496.0,
       "R0.gm_to_l1": 754974720.0,
@@ -1502,6 +1539,7 @@
      },
      "critical_path_len": 52,
      "traffic_bytes": {
+      "R1.combine_read": 40108032.0,
       "R1.dispatch_read": 19464192.0,
       "R1.dispatch_write": 19562496.0,
       "R1.gm_to_l1": 754974720.0,
@@ -1558,6 +1596,7 @@
      },
      "critical_path_len": 29,
      "traffic_bytes": {
+      "R0.combine_read": 40108032.0,
       "R0.dispatch_read": 19464192.0,
       "R0.dispatch_write": 19562496.0,
       "R0.gm_to_l1": 684007096.3199998,
@@ -1598,6 +1637,7 @@
      },
      "critical_path_len": 29,
      "traffic_bytes": {
+      "R1.combine_read": 40108032.0,
       "R1.dispatch_read": 19464192.0,
       "R1.dispatch_write": 19562496.0,
       "R1.gm_to_l1": 684007096.3199998,
@@ -1654,6 +1694,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 250970112.0,
@@ -1698,6 +1739,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 250970112.0,
@@ -1742,6 +1784,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 250970112.0,
@@ -1786,6 +1829,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 250970112.0,
@@ -1846,6 +1890,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 250970112.0,
@@ -1890,6 +1935,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 250970112.0,
@@ -1934,6 +1980,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 250970112.0,
@@ -1978,6 +2025,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 250970112.0,
@@ -2234,6 +2282,7 @@
      },
      "critical_path_len": 261,
      "traffic_bytes": {
+      "R0.combine_read": 427819008.0,
       "R0.dispatch_read": 207618048.0,
       "R0.dispatch_write": 208666624.0,
       "R0.gm_to_l1": 8053063680.0,
@@ -2274,6 +2323,7 @@
      },
      "critical_path_len": 261,
      "traffic_bytes": {
+      "R1.combine_read": 427819008.0,
       "R1.dispatch_read": 207618048.0,
       "R1.dispatch_write": 208666624.0,
       "R1.gm_to_l1": 8053063680.0,
@@ -2334,6 +2384,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 250970112.0,
@@ -2382,6 +2433,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 250970112.0,
@@ -2430,6 +2482,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 250970112.0,
@@ -2478,6 +2531,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 250970112.0,
@@ -2538,6 +2592,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 250970112.0,
@@ -2582,6 +2637,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 250970112.0,
@@ -2626,6 +2682,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 250970112.0,
@@ -2670,6 +2727,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 250970112.0,
@@ -2730,6 +2788,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 250970112.0,
@@ -2774,6 +2833,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 250970112.0,
@@ -2818,6 +2878,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 250970112.0,
@@ -2862,6 +2923,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 250970112.0,
@@ -2922,6 +2984,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 326467584.0,
@@ -2966,6 +3029,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 326467584.0,
@@ -3010,6 +3074,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 326467584.0,
@@ -3054,6 +3119,7 @@
      },
      "critical_path_len": 18,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 326467584.0,
@@ -3114,6 +3180,7 @@
      },
      "critical_path_len": 24,
      "traffic_bytes": {
+      "R0.combine_read": 8750592.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 313196544.0,
@@ -3158,6 +3225,7 @@
      },
      "critical_path_len": 24,
      "traffic_bytes": {
+      "R1.combine_read": 8750592.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 313196544.0,
@@ -3202,6 +3270,7 @@
      },
      "critical_path_len": 24,
      "traffic_bytes": {
+      "R2.combine_read": 8750592.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 313196544.0,
@@ -3246,6 +3315,7 @@
      },
      "critical_path_len": 26,
      "traffic_bytes": {
+      "R3.combine_read": 8750592.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 313196544.0,
@@ -3472,8 +3542,16 @@
   "packing_balanced": {
    "kernel_total_us": 237.73299194287912,
    "slowest_rank": 3,
-   "provenance_summary": {},
-   "provenance_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -3494,6 +3572,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 250970112.0,
@@ -3508,13 +3587,13 @@
       "fab_src:3": 696960.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.9439335908864,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
       "violation": null
      },
      "schedule_sha256": "a70aa79b866005daec87c7f07d3179ea9825129b97384790401d634e768df3c0"
@@ -3538,6 +3617,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 250970112.0,
@@ -3552,13 +3632,13 @@
       "fab_src:3": 696960.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.8876598536623,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
       "violation": null
      },
      "schedule_sha256": "0d030ea89aaf7c9562f3ce93b192abdcd1cd88e5852bd4300f00264f5af45214"
@@ -3582,6 +3662,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 250970112.0,
@@ -3596,13 +3677,13 @@
       "fab_src:3": 696960.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.9439335908864,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
       "violation": null
      },
      "schedule_sha256": "5a9aeee2d51d3ea5ba72e95a341c315f2b5cbfa201402002ebb1bbbcbbd3365d"
@@ -3626,6 +3707,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 250970112.0,
@@ -3640,13 +3722,13 @@
       "fab_src:3": 6426624.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.58970577278538,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
       "violation": null
      },
      "schedule_sha256": "c3cf0517f9c2849ad928bda5fe1fbc9d7f944e359e47db00121fc879c63e0b2b"
@@ -3656,8 +3738,16 @@
   "packing_longest_first": {
    "kernel_total_us": 237.48149913256083,
    "slowest_rank": 2,
-   "provenance_summary": {},
-   "provenance_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -3678,6 +3768,7 @@
      },
      "critical_path_len": 16,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 250970112.0,
@@ -3692,13 +3783,13 @@
       "fab_src:3": 696960.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088639,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
       "violation": null
      },
      "schedule_sha256": "3276be6b045d91e606b15d93ed4ae026aba9060c48d82aa2fa60a2aeadccf53f"
@@ -3722,6 +3813,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 250970112.0,
@@ -3736,13 +3828,13 @@
       "fab_src:3": 696960.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.88765985366229,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
       "violation": null
      },
      "schedule_sha256": "99e70f651c57efcfdabc15587a836a41cba0a6bab87ffd3044e11cf56586d952"
@@ -3766,6 +3858,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 250970112.0,
@@ -3780,13 +3873,13 @@
       "fab_src:3": 696960.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088639,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
       "violation": null
      },
      "schedule_sha256": "12c028836b32a66c8620244c82a4717a11382e8339d39ccc199c5134870f2db6"
@@ -3810,6 +3903,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 250970112.0,
@@ -3824,13 +3918,13 @@
       "fab_src:3": 6426624.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.58970577278536,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
       "violation": null
      },
      "schedule_sha256": "070d6c4147010336a00147f9328e25ac4c7293e609199fe0b64979cacefe1646"
@@ -3870,6 +3964,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 250970112.0,
@@ -3914,6 +4009,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 250970112.0,
@@ -3958,6 +4054,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 250970112.0,
@@ -4002,6 +4099,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 250970112.0,
@@ -4062,6 +4160,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 250970112.0,
@@ -4106,6 +4205,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 250970112.0,
@@ -4150,6 +4250,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 250970112.0,
@@ -4194,6 +4295,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 250970112.0,
@@ -4254,6 +4356,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 250970112.0,
@@ -4298,6 +4401,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 250970112.0,
@@ -4342,6 +4446,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 250970112.0,
@@ -4386,6 +4491,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 250970112.0,
@@ -4446,6 +4552,7 @@
      },
      "critical_path_len": 191,
      "traffic_bytes": {
+      "R0.combine_read": 26738688.0,
       "R0.dispatch_read": 12976128.0,
       "R0.dispatch_write": 13041664.0,
       "R0.gm_to_l1": 2617245696.0,
@@ -4490,6 +4597,7 @@
      },
      "critical_path_len": 191,
      "traffic_bytes": {
+      "R1.combine_read": 26738688.0,
       "R1.dispatch_read": 12976128.0,
       "R1.dispatch_write": 13041664.0,
       "R1.gm_to_l1": 2617245696.0,
@@ -4534,6 +4642,7 @@
      },
      "critical_path_len": 199,
      "traffic_bytes": {
+      "R2.combine_read": 26738688.0,
       "R2.dispatch_read": 12976128.0,
       "R2.dispatch_write": 13041664.0,
       "R2.gm_to_l1": 2617245696.0,
@@ -4578,6 +4687,7 @@
      },
      "critical_path_len": 191,
      "traffic_bytes": {
+      "R3.combine_read": 26738688.0,
       "R3.dispatch_read": 12976128.0,
       "R3.dispatch_write": 13041664.0,
       "R3.gm_to_l1": 2617245696.0,
@@ -4794,6 +4904,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 250970112.0,
@@ -4838,6 +4949,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 250970112.0,
@@ -4882,6 +4994,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 250970112.0,
@@ -4926,6 +5039,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 250970112.0,
@@ -4986,6 +5100,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 250970112.0,
@@ -5030,6 +5145,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 250970112.0,
@@ -5074,6 +5190,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 250970112.0,
@@ -5118,6 +5235,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 250970112.0,
@@ -5178,6 +5296,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 250970112.0,
@@ -5222,6 +5341,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 250970112.0,
@@ -5266,6 +5386,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 250970112.0,
@@ -5310,6 +5431,7 @@
      },
      "critical_path_len": 17,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 250970112.0,
@@ -5370,6 +5492,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 250970112.0,
@@ -5414,6 +5537,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 250970112.0,
@@ -5458,6 +5582,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 250970112.0,
@@ -5502,6 +5627,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 250970112.0,
@@ -5532,8 +5658,16 @@
   "policy_critical_path_first": {
    "kernel_total_us": 625.5120631425301,
    "slowest_rank": 1,
-   "provenance_summary": {},
-   "provenance_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -5554,6 +5688,7 @@
      },
      "critical_path_len": 29,
      "traffic_bytes": {
+      "R0.combine_read": 40108032.0,
       "R0.dispatch_read": 19464192.0,
       "R0.dispatch_write": 19562496.0,
       "R0.gm_to_l1": 754974720.0,
@@ -5564,13 +5699,13 @@
       "fab_src:1": 9732096.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 106.37411507248873,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
       "violation": null
      },
      "schedule_sha256": "bea770cb2ecc92112c546dbdc8708efea93852d9e3607414a709e1ba874dff53"
@@ -5594,6 +5729,7 @@
      },
      "critical_path_len": 30,
      "traffic_bytes": {
+      "R1.combine_read": 40108032.0,
       "R1.dispatch_read": 19464192.0,
       "R1.dispatch_write": 19562496.0,
       "R1.gm_to_l1": 754974720.0,
@@ -5604,13 +5740,13 @@
       "fab_src:1": 18874368.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 106.37411507248873,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
       "violation": null
      },
      "schedule_sha256": "ccd486a73fac6dea4f2287d5e5f70324adc3ea6b63f1496f6de7c682f5c22df0"
@@ -5620,8 +5756,16 @@
   "policy_priority_by_stage": {
    "kernel_total_us": 603.7242880974285,
    "slowest_rank": 0,
-   "provenance_summary": {},
-   "provenance_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -5642,6 +5786,7 @@
      },
      "critical_path_len": 29,
      "traffic_bytes": {
+      "R0.combine_read": 40108032.0,
       "R0.dispatch_read": 19464192.0,
       "R0.dispatch_write": 19562496.0,
       "R0.gm_to_l1": 754974720.0,
@@ -5652,13 +5797,13 @@
       "fab_src:1": 9732096.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 106.37411507248876,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
       "violation": null
      },
      "schedule_sha256": "d50022322747490783daa28e5e03105119fbcc12e694c6279b980aecbd8c578b"
@@ -5682,6 +5827,7 @@
      },
      "critical_path_len": 29,
      "traffic_bytes": {
+      "R1.combine_read": 40108032.0,
       "R1.dispatch_read": 19464192.0,
       "R1.dispatch_write": 19562496.0,
       "R1.gm_to_l1": 754974720.0,
@@ -5692,13 +5838,13 @@
       "fab_src:1": 18874368.0
      },
      "bounds": {
-      "compute_us": null,
-      "bandwidth_us": null,
-      "dependency_us": null,
-      "lower_us": null,
-      "binding": null,
-      "total_mac": null,
-      "gm_to_l1_bytes": null,
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 106.37411507248873,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
       "violation": null
      },
      "schedule_sha256": "01f9584f4c1b683b65ff227ee5991953e9a761ecb38762ad0f4df0372ed2196c"
@@ -5738,6 +5884,7 @@
      },
      "critical_path_len": 40,
      "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
       "R0.dispatch_read": 4010688.0,
       "R0.dispatch_write": 4030944.0,
       "R0.gm_to_l1": 250970112.0,
@@ -5782,6 +5929,7 @@
      },
      "critical_path_len": 44,
      "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
       "R1.dispatch_read": 4010688.0,
       "R1.dispatch_write": 4030944.0,
       "R1.gm_to_l1": 250970112.0,
@@ -5826,6 +5974,7 @@
      },
      "critical_path_len": 43,
      "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
       "R2.dispatch_read": 4010688.0,
       "R2.dispatch_write": 4030944.0,
       "R2.gm_to_l1": 250970112.0,
@@ -5870,6 +6019,7 @@
      },
      "critical_path_len": 43,
      "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
       "R3.dispatch_read": 4010688.0,
       "R3.dispatch_write": 4030944.0,
       "R3.gm_to_l1": 250970112.0,
@@ -5930,6 +6080,7 @@
      },
      "critical_path_len": 21,
      "traffic_bytes": {
+      "R0.combine_read": 26738688.0,
       "R0.dispatch_read": 12976128.0,
       "R0.dispatch_write": 13041664.0,
       "R0.gm_to_l1": 503316480.0,
@@ -5970,6 +6121,7 @@
      },
      "critical_path_len": 22,
      "traffic_bytes": {
+      "R1.combine_read": 26738688.0,
       "R1.dispatch_read": 12976128.0,
       "R1.dispatch_write": 13041664.0,
       "R1.gm_to_l1": 503316480.0,
@@ -6026,6 +6178,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R0.combine_read": 26738688.0,
       "R0.dispatch_read": 12976128.0,
       "R0.dispatch_write": 13041664.0,
       "R0.gm_to_l1": 503316480.0,
@@ -6066,6 +6219,7 @@
      },
      "critical_path_len": 15,
      "traffic_bytes": {
+      "R1.combine_read": 26738688.0,
       "R1.dispatch_read": 12976128.0,
       "R1.dispatch_write": 13041664.0,
       "R1.gm_to_l1": 503316480.0,

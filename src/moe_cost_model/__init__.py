@@ -48,6 +48,7 @@ from .config.pipeline import (
 )
 from .config.provenance import (
     SourcedInt, SourcedValue, collect_provenance, provenance_report,
+    run_provenance,
 )
 from .scheduler.events import (
     Event, RestructureAction, RestructureContext, ScheduledEvent,

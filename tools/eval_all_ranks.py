@@ -112,6 +112,7 @@ def mk_costs(h):
         activation_store_bytes=act.store_bytes,
         combine_tile=comb.tile,
         combine_write_bytes_per_row=comb.write_bytes_per_row,
+        combine_read_bytes=comb.read_bytes,
         count_table_prepare_us=T_COUNT_GATE,
     )
 

@@ -209,11 +209,13 @@ class PrimitiveCosts:
     # 必填 (不给零值缺省): 缺省 0 会让 COMBINE 的跨卡写悄悄不占片间资源 ——
     # 手工构造 PrimitiveCosts 的调用点会与 build_analytical_costs 静默分叉。
     combine_write_bytes_per_row: Callable[[float], float]
-    # 读回一个 GMM2 tile + 路由元数据的本卡 HBM 字节, 供 builder 申报本卡写/读流量。
-    # 缺省 None = 不申报 (手工构造 PrimitiveCosts 的旧调用点不必改); 给了就申报,
-    # build_analytical_costs 一律接上 —— 申报量不该少于算法必搬的字节
-    # (见 analysis/bounds.py)。
-    combine_read_bytes: Optional[Callable[[int, int], float]] = None
+    # 读回一个 GMM2 tile + 路由元数据的本卡字节 (GM→UB), 供 builder 申报 combine_read 通路。
+    # **必填**, 与 combine_write_bytes_per_row 同一个原则: 做成可选 (缺省 None = 不申报)
+    # 会让手工构造 PrimitiveCosts 的调用点与 build_analytical_costs **静默分叉** ——
+    # 2026-10-05 就是这么踩的: 扩充 golden 指纹后发现场景路径申报 combine_read
+    # 8264448 字节而手工路径一个字节都不申报, 两条入口对同一个形状给出不同的访存量。
+    # 申报量不该少于算法必搬的字节 (见 analysis/bounds.py)。
+    combine_read_bytes: Callable[[int, int], float]
 
     # One-time per physical AIV1 before MoE waves.  Optional because profiler may
     # already fold it into another stage fit.

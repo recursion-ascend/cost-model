@@ -16,6 +16,7 @@ from .scheduler.policies import (CriticalPathFirst, EarliestStart, PriorityBySta
 from .builders.barriers import apply_barriers
 from .builders.pipeline_expand import CH_HBM_WRITE, apply_pipeline
 from .costs import PrimitiveCosts
+from .analysis.bounds import attach_bounds
 from .shape import (
     CursorTrace, EngineQueueDepths, MegaMoeShape, ModelOptions,
 )
@@ -436,6 +437,13 @@ class A8W8WaveCostModel:
             evs = [e for e in scheduled if e.meta.get("rank") == rank]
             results[rank] = self._postprocess(shape, evs, all_caps)
             results[rank]["traffic_bytes"] = dict(sorted(traffic[rank].items()))
+            # 下界挂在**这一层**, 不是 api 层 —— 护栏不能被绕过。2026-10-05 发现
+            # tests/golden_cases.run_shapes 直达本函数并手工拼结果, 于是四个 golden
+            # case 完全没跑下界断言。platform 只有 api 层知道, 所以这里按 platform=None
+            # 挂 (带宽下界只用每核带宽 x 核数), api 收到 platform 时会重算一遍。
+            results[rank]["bounds"] = attach_bounds(
+                shape, results[rank], costs=self.costs,
+                kernel=shape.kernel, active_cores=shape.aic_num)
         return results
 
     def _ranks_independent(self, shapes: Sequence[MegaMoeShape], restructure,
