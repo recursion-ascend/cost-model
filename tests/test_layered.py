@@ -156,10 +156,12 @@ def test_layered_program_order_recv_before_combine():
 def test_layered_put_batch_lambda_attribution():
     # rank0 专家从 rank1 收 300 行: combine PUT 批数 = ceil(300/256) = 2
     # (conservation: 每 src 总路由 = token_num×topk = 2048)
-    C = [[[0, 300]], [[2048 - 0, 0]]]
-    # src=0 路由 2048 全给 rank1; src=1 给 rank0 300 + rank1 1748
-    C[1][0] = [0, 1748]
-    C[1][0][0] = 2048 - 1748  # src0 剩余给 rank1
+    # 守恒: 每个源 rank 发出 256 x top-8 = 2048 行。
+    #   src0: 全部 2048 行给 rank1 的那个专家
+    #   src1: 300 行给 rank0 (这是本测试要的 PUT 批数), 余 1748 给 rank1
+    # 原先 C[1][0][0] 写成 2048-1748 = 300, 于是 src0 只发 300 行 —— 注释声称守恒,
+    # 实际不守恒 (守恒检查 2026-10-05 起拒绝)。
+    C = [[[0, 300]], [[2048, 1748]]]
     res = _run(C, 256, topk=8)
     r0 = res["rank_results"][0]
     put_batches = [e.meta.get("put_batches", 0) for e in r0["events"]
@@ -169,9 +171,10 @@ def test_layered_put_batch_lambda_attribution():
 
 def test_layered_put_batch_lambda_exact_multiple():
     # 512 行 = 2 个满批, 无尾 flush → λ 总数 = 2
-    C = [[[0, 512]], [[1536, 512]]]
-    # src0: 512 给 rank1 (2048-512-512=1024? conservation: src0 总 2048)
-    C[1][0] = [1024, 1024]
+    # 守恒: 每源 256 x top-8 = 2048 行。src0 全给 rank1; src1 给 rank0 512 (本测试要的
+    # 两个满批), 余 1536 给 rank1。原先 src0 只发 1024、src1 只发 1536, 注释里那句
+    # "conservation: src0 总 2048" 当时并不成立。
+    C = [[[0, 512]], [[2048, 1536]]]
     res = _run(C, 256, topk=8)
     r0 = res["rank_results"][0]
     put_batches = [e.meta.get("put_batches", 0) for e in r0["events"]
@@ -204,7 +207,8 @@ def test_layered_empty_expert_survives():
     counts[0] = [16, 16, 16, 16]
     counts[63] = [16, 16, 16, 16]
     C = [counts] * 4
-    res = _run(C, 64)
+    # 守恒: 每源 4 卡 x (16+16) = 128 行 = 16 x top-8 (原先写 64 token, 要 512 行)
+    res = _run(C, 16)
     assert res["kernel_total_us"] > 0
     stages = {e.meta.get("stage") for e in res["rank_results"][0]["events"]}
     assert "gmm1" in stages

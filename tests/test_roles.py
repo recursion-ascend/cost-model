@@ -9,16 +9,19 @@
 import pytest
 
 import moe_cost_model as m
+from routing import conserving_tokens
 
 R = m.RoleAssignment
 
 
-def _run(opts, W=5, LOCAL=3, PER=64, hd=9216, h=5120, aic=28):
+def _run(opts, W=5, LOCAL=3, PER=64, hd=9216, h=5120, aic=28, topk=6):
     rc = [[[0 if s == d else PER for s in range(W)] for _ in range(LOCAL)] for d in range(W)]
-    tok = sum(rc[d][e][1] for d in range(W) for e in range(LOCAL)) // 6
+    # token 数由路由矩阵定 (守恒): 原先写死 "// 6" 与 topk=6 配对, 在 LOCAL=8/PER=256 这组
+    # 参数下每源 8192 行不是 6 的整数倍 —— 整除丢掉的 2 行让输入不守恒。
+    tok = conserving_tokens(rc, topk)
     return m.simulate_routing_counts(
         routing_counts=rc, token_num_per_rank=tok, h=h, hidden_dim=hd, aic_num=aic,
-        topk=6, p1_override=1, p2_override=1,
+        topk=topk, p1_override=1, p2_override=1,
         costs=m.build_analytical_costs(
             h=h, dispatch_mechanistic=m.DispatchMechanisticLatency(),
             cube_mac_per_us=m.cube_mac_per_us("fp8")),
@@ -129,7 +132,8 @@ def test_collapsing_two_vector_roles_into_one_does_cost():
     实测 2048/8专家/2核: 3861.56 -> 3924.70 (+1.6%)。两个向量角色对称
     (挤到 AIV0 与挤到 AIV1 同值), 这也是个合理性校验。
     """
-    kw = dict(LOCAL=8, PER=256, hd=2048, h=2048, aic=2)
+    # topk=8: 每源 4 卡 x 8 专家 x 256 = 8192 行 = 1024 x top-8 (top-6 不整除)
+    kw = dict(LOCAL=8, PER=256, hd=2048, h=2048, aic=2, topk=8)
     base = _run(m.ModelOptions(), **kw)["total_us"]
     on0 = _run(m.ModelOptions(roles=R({"combine": "AIV0", "dispatch": "AIV0",
                                        "dispatch_call": "AIV0"})), **kw)["total_us"]

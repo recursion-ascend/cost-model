@@ -113,7 +113,6 @@ def mk_costs(h):
         combine_tile=comb.tile,
         combine_write_bytes_per_row=comb.write_bytes_per_row,
         combine_read_bytes=comb.read_bytes,
-        count_table_prepare_us=T_COUNT_GATE,
     )
 
 
@@ -144,13 +143,12 @@ def auto_config(run):
         for s in range(world):
             for row in csv.DictReader(open(run / f"raw/routing_rank{s}.csv")):
                 C[int(row["dst_rank"])][s][int(row["local_expert_id"])] += int(row["token_count"])
-        # 校验: 每 src 总行数应 = bs × topk
+        # 校验: 每个 src 发出的总行数 = Σ_{dst,e} C[dst][src][e] = bs × topk (逐 src 查,
+        # 原先只查 src 0)。不一致说明 CSV 与 kernel bs 对不上 → 按配置重建。
         expect = t["bs"] * t["topk"]
-        got = sum(sum(x) for x in C[0])  # dst0 收到的来自 src0 的行数 = bs×topk/world×... 不对
-        # 每 src 发出的总 slot 数 = sum over dst,e of C[dst][s][e] = bs × topk
-        got_src0 = sum(C[d][0][e] for d in range(world) for e in range(local))
-        if got_src0 != expect:
-            C = None  # CSV 与 kernel bs 不一致 → 重建
+        if any(sum(C[d][s][e] for d in range(world) for e in range(local)) != expect
+               for s in range(world)):
+            C = None
     if C is None:
         case = dict(tokens=t["bs"], experts=local * world, topk=t["topk"],
                     ep=world, seed=seed, routing=routing_mode)

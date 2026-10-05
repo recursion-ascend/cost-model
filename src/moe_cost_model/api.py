@@ -100,9 +100,10 @@ def simulate_routing_counts(
     latency is the max-rank completion time, measured to the end of the last
     COMBINE (kernel_total_us); kernel_dag_end_us additionally covers the
     epilogue.  Cross-rank fabric contention is
-    not invented here: the rate-server mechanism exists but is a placeholder
-    (ModelOptions.fabric_channels, default off) until an ablation benchmark
-    justifies enabling it (see README 信道占位状态).
+    not modelled: the rate-server channel model was retired on 2026-10-03
+    (its two fabric constants are on different scales and stacking them would
+    double-count contention; see model.simulate_multi). Events still declare
+    channel_bytes, which are only summed into rank_results["traffic_bytes"].
 
     wave_packing / core_assignment / scheduling_policy / tile_grid: 策略对象,
     对全部 rank 生效; None = 模型缺省 (SequentialGreedy / StaticRoundRobin /
@@ -125,11 +126,8 @@ def simulate_routing_counts(
                 )
             if any(int(x) < 0 for x in src_counts):
                 raise ValueError("routing counts must be non-negative")
-    # TODO(输入校验缺失): 逐 src 总量守恒未校验 —
-    #   Σ_{dst,e} routing_counts[dst][e][src] == token_num_per_rank * topk
-    # C 与 token_num_per_rank 不自洽时静默产生分裂预测: MoE 主 stage 按 C 推导的
-    # M_e 计, 而 GMM2 lag 阈值 (model.py gmm2_lag_threshold 判断) / 共享专家规模
-    # (m_tot_s) / 尾段 unpermute 字节却按 token_num_per_rank 计, 无任何报错.
+    # 逐 src 守恒 (每源 rank 发出 token_num_per_rank x topk 行) 在 model.simulate_multi
+    # 里查 —— 唯一的地方, 所有入口都经过它 (原先这里是个只记了 TODO 的空白)。
 
     costs = _rebind_costs_to_kernel(costs, kernel)
     model = A8W8WaveCostModel(costs, options)

@@ -115,3 +115,37 @@ def check_routing_conservation(routing_counts, tokens: int, topk: int) -> List[s
                 f"源 rank {src} 发出 {sent[src]} 行 != tokens x topk = {tokens} x {topk} "
                 f"= {want}")
     return bad
+
+
+def check_shape_conservation(shapes) -> List[str]:
+    """按 rank 给出的形状 (每个带 expert_source_tokens) 的逐源守恒. 返回不守恒项.
+
+    源 rank s 发出的行数 = Σ_{目的 rank d} Σ_e shapes[d].expert_source_tokens[e][s],
+    必须 = rank s 自己的 token_num x topk (每个 token 恰好选 topk 个路由专家)。
+
+    只给了部分 rank (单 rank 仿真) 时等式不可判, 退而查**必要条件**: 一个目的 rank
+    从源 s 收到的行数不能超过源 s 发出的总行数 —— 超过了就是不可能的输入。
+    没有逐源行数 (expert_source_tokens 为空) 的形状无从核对, 跳过。
+    """
+    bad: List[str] = []
+    rows = [sh for sh in shapes if sh.expert_source_tokens]
+    if not rows:
+        return bad
+    world = len(rows[0].expert_source_tokens[0]) if rows[0].expert_source_tokens else 0
+    by_rank = {sh.rank_id: sh for sh in rows}
+    complete = set(by_rank) == set(range(world))
+    for src in range(world):
+        sent = sum(int(r[src]) for sh in rows for r in sh.expert_source_tokens)
+        owner = by_rank.get(src, rows[0])
+        cap = int(owner.token_num) * int(owner.topk)
+        if complete and sent != cap:
+            bad.append(f"源 rank {src} 发出 {sent} 行 != tokens x topk = "
+                       f"{owner.token_num} x {owner.topk} = {cap}")
+        elif not complete:
+            for sh in rows:
+                got = sum(int(r[src]) for r in sh.expert_source_tokens)
+                if got > cap:
+                    bad.append(f"目的 rank {sh.rank_id} 从源 rank {src} 收到 {got} 行 > "
+                               f"tokens x topk = {cap} (源 rank 最多发这么多)")
+    return bad
+

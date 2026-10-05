@@ -72,9 +72,20 @@ class WorkConservingCriticalPath(SchedulingPolicy):
 
 
 class PriorityByStage(SchedulingPolicy):
-    """按阶段优先级: 指定 stage 排序, 同级按最早启动."""
+    """按阶段优先级: 指定 stage 排序, 同级按最早启动.
 
-    def __init__(self, stage_order: Sequence[str] = ("dispatch", "gmm1", "act", "gmm2", "combine")):
+    名字必须与建图器真正发出的 stage 对齐。2026-10-05 之前缺省写的是 "act", 而没有任何
+    建图器发这个名字 (发的是 "activation", builders/activation.py) —— 于是 ACT 瓦片全部
+    落到兜底优先级 99, **排在 combine 之后**, 与这个策略声称的顺序相反, 而且一声不响。
+
+    这一层不该知道 MegaMoE 的 stage 词表 (调度器要与 kernel 无关), 所以这里不校验名字;
+    缺省列表与建图器的对齐由 tests/test_scheduler.py 守 —— 它从一次真实建图里取出实际
+    发出的 stage 集合, 断言缺省列表是它的子集。未列出的 stage 仍按兜底排在后面, 那是
+    **有意**的: stage_order 只排它关心的那几个。
+    """
+
+    def __init__(self, stage_order: Sequence[str] = ("dispatch", "gmm1", "activation",
+                                                     "gmm2", "combine")):
         self.prio = {s: i for i, s in enumerate(stage_order)}
 
     def event_key(self, ev, start, tbase, end_by_name):

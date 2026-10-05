@@ -25,7 +25,6 @@ def _costs():
         combine_tile=m.AnalyticalCombineCosts().tile,
         combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
         combine_read_bytes=m.AnalyticalCombineCosts().read_bytes,
-        count_table_prepare_us=m.T_COUNT_GATE,
     )
 
 
@@ -194,7 +193,9 @@ def test_dispatch_segment_splits_by_route_batch():
     """
     # aic=1 让单核吃下整波; mgw=3 -> 768 行; 两个源卡各 400 行 -> 段 400/368 行
     res = m.simulate_routing_counts(
-        routing_counts=[[[400, 400]], [[400, 400]]], token_num_per_rank=800,
+        # 守恒: 每源 2 卡 x 1 专家 x 400 = 800 行 = 400 x top-2 (原先写 800 token,
+        # 那要 1600 行)。
+        routing_counts=[[[400, 400]], [[400, 400]]], token_num_per_rank=400,
         h=6144, hidden_dim=4096, aic_num=1, topk=2,
         costs=m.build_analytical_costs(
             h=6144, dispatch_mechanistic=m.DispatchMechanisticLatency()),

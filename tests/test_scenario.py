@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 import moe_cost_model as m
-from golden_cases import CUBE_RATE, P, fingerprint, skewed_routing
+from golden_cases import CUBE_RATE, P, SK_TOKENS, fingerprint, skewed_routing
 
 STORED = json.loads((Path(__file__).parent / "golden" / "schedule_fingerprints.json")
                     .read_text(encoding="utf-8"))["cases"]
@@ -19,7 +19,7 @@ def _skewed(**kw):
     # golden 固定的是"复现那份实现"的那组取值, 所以场景也从 profile 起步
     # (缺省是最少假设, 跟那份实现不是一个点)。
     return m.Scenario(
-        workload=m.Workload(tokens=64, routing="explicit", counts=skewed_routing()),
+        workload=m.Workload(tokens=SK_TOKENS, routing="explicit", counts=skewed_routing()),
         p1_override=2, p2_override=1, calibration=CAL,
         **{**{'profile': P.name_key}, **P.scenario_fields(), **kw})
 
@@ -27,7 +27,8 @@ def _skewed(**kw):
 def _w3(**kw):
     counts = [[[256] * 2 for _ in range(6)] for _ in range(2)]     # 与 golden 3 波用例同
     return m.Scenario(
-        workload=m.Workload(tokens=512, routing="explicit", counts=counts),
+        # 与 golden 的 W3_TOKENS 同: 每源 2 卡 x 6 专家 x 256 = 3072 行 = 384 x top-8
+        workload=m.Workload(tokens=384, routing="explicit", counts=counts),
         p1_override=2, p2_override=1, calibration=CAL,
         **{**{'profile': P.name_key}, **P.scenario_fields(), **kw})
 
@@ -158,7 +159,7 @@ p2_override = 1
 core_assignment = "contiguous_block"
 
 [workload]
-tokens = 64
+tokens = 79
 routing = "file"
 file = "routing.json"
 
@@ -174,7 +175,7 @@ gmm2 = 0
 
 [scheduling_policy]
 name = "priority_by_stage"
-stage_order = ["dispatch", "gmm1", "act", "gmm2", "combine"]
+stage_order = ["dispatch", "gmm1", "activation", "gmm2", "combine"]
 """
 
 
@@ -232,7 +233,7 @@ def test_with_overrides():
     # 这个测试断言 to_dict(defaults=False) 只剩"改过的字段", 所以基线必须是**缺省**
     # 场景, 不能从 profile 起步 (那样 profile 与缺省的差异也会出现在里面)。
     base = m.Scenario(
-        workload=m.Workload(tokens=64, routing="explicit", counts=skewed_routing()),
+        workload=m.Workload(tokens=SK_TOKENS, routing="explicit", counts=skewed_routing()),
         p1_override=2, p2_override=1, calibration=CAL)
     sc = base.with_overrides({
         "policy.gmm2_lag_waves": 1,

@@ -5,6 +5,7 @@
 from pathlib import Path
 
 import moe_cost_model as m
+from routing import conserving_tokens
 from linkutil import links
 from moe_cost_model.scheduler import Event, MultiResourceScheduler
 
@@ -17,12 +18,20 @@ CUBE_RATE = 2.7e7
 def _deterministic_case():
     WORLD, LOCAL = 4, 64
     counts = [[[0] * WORLD for _ in range(LOCAL)] for _ in range(WORLD)]
+    heavy = [200, 20, 20, 16]
     for dst in range(WORLD):
         counts[dst][0] = [75, 75, 75, 75]
         counts[dst][1] = [16, 16, 16, 16]
-        counts[dst][2] = [3, 4, 3, 3]
-        counts[dst][63] = [200, 20, 20, 16]
+        counts[dst][2] = [3, 3, 3, 3]
+        # 重专家的重源按目的卡轮转: 保住"一个重专家、每卡一个重源"的偏斜, 同时让每个源
+        # rank 发出同样的行数。原先四张目的卡都用 [200,20,20,16], 于是源 0 发出 1176 行,
+        # 而 token x topk 最多 512 —— 物理上不可能的输入 (守恒检查 2026-10-05 起拒绝它)。
+        counts[dst][63] = heavy[-dst:] + heavy[:-dst] if dst else list(heavy)
     return tuple(tuple(tuple(r) for r in c) for c in counts)
+
+
+#: _deterministic_case() 守恒所需的每 rank token 数: 每源发出 632 行 = 79 x top-8。
+DET_TOKENS = 79
 
 
 def _run(options=None, policy=None, cube_rate=CUBE_RATE, kernel=None):
@@ -35,10 +44,9 @@ def _run(options=None, policy=None, cube_rate=CUBE_RATE, kernel=None):
         combine_tile=m.AnalyticalCombineCosts().tile,
         combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
         combine_read_bytes=m.AnalyticalCombineCosts().read_bytes,
-        count_table_prepare_us=m.T_COUNT_GATE,
     )
     return m.simulate_routing_counts(
-        routing_counts=_deterministic_case(), token_num_per_rank=64, h=6144,
+        routing_counts=_deterministic_case(), token_num_per_rank=DET_TOKENS, h=6144,
         hidden_dim=4096, aic_num=28, costs=costs, options=options or m.ModelOptions(),
         p1_override=2, p2_override=1,   # kernel 默认策略 @bs64 (tiling 真值)
         policy=policy, kernel=kernel,
@@ -160,10 +168,11 @@ def test_split_no_deadlock_large_dag():
         combine_tile=m.AnalyticalCombineCosts().tile,
         combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
         combine_read_bytes=m.AnalyticalCombineCosts().read_bytes,
-        count_table_prepare_us=m.T_COUNT_GATE,
     )
     res = m.simulate_routing_counts(
-        routing_counts=rc, token_num_per_rank=1024, h=6144,
+        # 守恒: 每源 4 卡 x 64 专家 x 8 = 2048 行 = 256 x top-8 (原先写 1024 token,
+        # 那要 8192 行)。
+        routing_counts=rc, token_num_per_rank=conserving_tokens(rc, 8), h=6144,
         hidden_dim=4096, aic_num=28, costs=costs,
         options=m.ModelOptions(pipeline=m.PipelineConstraints(
             queues=m.QueueDepths(mte_aic=2, cube=2, fix=2)),
@@ -251,9 +260,8 @@ def test_custom_gmm1_callable_cannot_be_split():
         activation_store_bytes=m.AnalyticalActCosts().store_bytes,
         combine_tile=m.AnalyticalCombineCosts().tile,
         combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
-        combine_read_bytes=m.AnalyticalCombineCosts().read_bytes,
-        count_table_prepare_us=m.T_COUNT_GATE)
-    kw = dict(routing_counts=_deterministic_case(), token_num_per_rank=64, h=6144,
+        combine_read_bytes=m.AnalyticalCombineCosts().read_bytes)
+    kw = dict(routing_counts=_deterministic_case(), token_num_per_rank=DET_TOKENS, h=6144,
               hidden_dim=4096, aic_num=28, costs=costs, p1_override=2, p2_override=1)
     assert m.simulate_routing_counts(options=m.ModelOptions(pipeline=P()), **kw)
     with pytest.raises(ValueError, match="自定义 callable"):
@@ -276,10 +284,9 @@ def test_custom_gmm1_callable_takes_three_args():
         activation_store_bytes=m.AnalyticalActCosts().store_bytes,
         combine_tile=m.AnalyticalCombineCosts().tile,
         combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
-        combine_read_bytes=m.AnalyticalCombineCosts().read_bytes,
-        count_table_prepare_us=m.T_COUNT_GATE)
+        combine_read_bytes=m.AnalyticalCombineCosts().read_bytes)
     res = m.simulate_routing_counts(
-        routing_counts=_deterministic_case(), token_num_per_rank=64, h=6144,
+        routing_counts=_deterministic_case(), token_num_per_rank=DET_TOKENS, h=6144,
         hidden_dim=4096, aic_num=28, costs=costs, p1_override=2, p2_override=1)
     assert calls and res["kernel_total_us"] > 0
 
@@ -335,3 +342,25 @@ def test_restructure_idle_core_stealing():
     assert {e.name for e in sched_steal} == {e.name for e in evs}
     stolen = [e for e in sched_steal if e.meta.get("stolen_from")]
     assert len(stolen) >= 1 and stolen[0].resources[0] == "AIC:1"
+
+
+def test_priority_by_stage_default_names_match_what_builders_emit():
+    """PriorityByStage 的缺省 stage 名必须是建图器真发出的那些.
+
+    2026-10-05 之前缺省列表里写的是 "act", 而建图器发的是 "activation" —— 于是 ACT 瓦片
+    全部掉到兜底优先级 99, 排在 combine 之后, 与策略声称的顺序**相反**, 而且一声不响:
+    策略照样跑, 结果照样出, 只是它宣称的优先级没有一条生效在 ACT 上。
+
+    调度器不该内置 MegaMoE 的 stage 词表 (它要与 kernel 无关), 所以校验放在这里: 从一次
+    真实建图里取实际发出的集合, 断言缺省列表是它的子集。建图器改名时这里会红。
+    """
+    import moe_cost_model as m
+    from golden_cases import SK_TOKENS, run_api, skewed_routing
+
+    res = run_api(skewed_routing(), SK_TOKENS)
+    emitted = {str(e.meta.get("stage", "")) for e in res["rank_results"][0]["events"]}
+    default_order = tuple(m.PriorityByStage().prio)
+    missing = [s for s in default_order if s not in emitted]
+    assert not missing, (
+        f"PriorityByStage 缺省列出的 stage 没有被发出: {missing}; "
+        f"实际发出的是 {sorted(emitted)}")

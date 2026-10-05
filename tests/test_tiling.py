@@ -9,14 +9,14 @@ import pytest
 
 import moe_cost_model as m
 from linkutil import links
-from golden_cases import CUBE_RATE, run_api, skewed_routing, uniform_routing
+from golden_cases import CUBE_RATE, SK_TOKENS, run_api, skewed_routing, uniform_routing
 
 CAL = m.Calibration(cube_mac_per_us=CUBE_RATE)
 
 
 def _scenario(**kw):
     return m.Scenario(
-        workload=m.Workload(tokens=64, routing="explicit", counts=skewed_routing()),
+        workload=m.Workload(tokens=SK_TOKENS, routing="explicit", counts=skewed_routing()),
         p1_override=2, p2_override=1, calibration=CAL, **kw)
 
 
@@ -246,7 +246,9 @@ def test_strategy_fields_round_trip():
 
 def _seg_run(segments):
     """固定形状跑一次, 只变 GMM2 的 K 分段数."""
-    return run_api(uniform_routing(2, 4, 128), 128, topk=6, aic_num=28,
+    # 守恒: 每源 2 卡 x 4 专家 x 128 = 1024 行 = 128 x top-8。原先给 topk=6 配 128 token
+    # (要 768 行), 不守恒; 本测试讲的是 GMM2 沿 K 的分段, 与 topk 无关, 故取 8。
+    return run_api(uniform_routing(2, 4, 128), 128, topk=8, aic_num=28,
                    options=m.ModelOptions(links=links(readiness=segments)))
 
 

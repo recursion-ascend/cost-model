@@ -16,6 +16,7 @@ from moe_cost_model.config.granularity import (DEFAULT_GRANULARITY, STAGES,
                                                resolve_granularity)
 from moe_cost_model.planning.tile_grid import Tile
 from linkutil import links
+from routing import conserving_tokens
 
 CUBE_RATE = 2.7e7
 
@@ -30,7 +31,6 @@ def _costs():
         combine_tile=m.AnalyticalCombineCosts().tile,
         combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
         combine_read_bytes=m.AnalyticalCombineCosts().read_bytes,
-        count_table_prepare_us=m.T_COUNT_GATE,
     )
 
 
@@ -42,8 +42,11 @@ def _run(granularity=None, depth=2, aic_num=4, core_assignment=None):
     if core_assignment is not None:
         kw["core_assignment"] = core_assignment
     rc = tuple(tuple(tuple([8] * 2) for _ in range(2)) for _ in range(2))
+    # token 数由路由矩阵定 (守恒: 每源 2 卡 x 2 专家 x 8 = 32 行 = 4 x top-8)。
+    # 原先写死 16 —— 16 x 8 = 128 行, 路由只发 32 行, 物理上不可能。
     return m.simulate_routing_counts(
-        routing_counts=rc, token_num_per_rank=16, h=6144, hidden_dim=4096,
+        routing_counts=rc, token_num_per_rank=conserving_tokens(rc, 8),
+        h=6144, hidden_dim=4096,
         aic_num=aic_num, costs=_costs(), **kw)
 
 

@@ -17,6 +17,7 @@ from .builders.barriers import apply_barriers
 from .builders.pipeline_expand import CH_HBM_WRITE, apply_pipeline
 from .costs import PrimitiveCosts
 from .analysis.bounds import attach_bounds
+from .guardrails import check_shape_conservation
 from .shape import (
     CursorTrace, MegaMoeShape, ModelOptions,
 )
@@ -262,8 +263,10 @@ def completion_event(scheduled: Sequence[ScheduledEvent]) -> Optional[ScheduledE
 
 class A8W8WaveCostModel:
     def __init__(self, costs: PrimitiveCosts, options: ModelOptions = ModelOptions()):
-        if not options.combine_no_quant:
-            raise NotImplementedError("v3 models A8W8 COMBINE_NO_QUANT only")
+        # COMBINE 的量化 (CombineQuantMode) 由 KernelConfig.combine_quant_mode 表达, 已建模
+        # (写侧每元素字节随之变)。这里原有一道 ModelOptions.combine_no_quant 的门, 拒绝
+        # "量化 combine" —— 与 combine_quant_mode=1 能跑互相矛盾, 同一个事实两个说法。
+        # 2026-10-05 删掉那个字段与门, 只留 combine_quant_mode 一个真相。
         if options.topk_weights_prefetch:
             raise NotImplementedError("v3 models TopkWeightsPrefetch=false only")
         # 编排与公式必须同口径: activation->gmm2 这条边落片上时 GMM2 的 A 不付 GM
@@ -332,6 +335,13 @@ class A8W8WaveCostModel:
         各 rank 之间无共享资源时逐 rank 独立调度 (结果与合并调度逐位一致,
         见 _ranks_independent); 否则全部事件进同一个调度器.
         """
+        # 路由守恒是算法事实, 在**这里**查而不是只在 api 里查: run_shapes 这类直达
+        # simulate_multi 的入口原先绕过了它 (golden 有两个 case 一直在给不可能的输入建图)。
+        # 与 attach_bounds 放在这里是同一个理由 —— 没有入口能绕过护栏。
+        bad = check_shape_conservation(shapes)
+        if bad:
+            raise ValueError("routing 不守恒 (每个源 rank 应发出 token_num x topk 行):\n  "
+                             + "\n  ".join(bad))
         per: List[Tuple[MegaMoeShape, List[Event], Dict, List[CursorTrace]]] = []
         self._sched_policy = getattr(shapes[0], 'scheduling_policy', None) if shapes else None
         if shapes:

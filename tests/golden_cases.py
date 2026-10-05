@@ -31,15 +31,28 @@ P = m.MEGAMOE_A8W8
 CUBE_RATE = 2.7e7
 
 
+#: skewed_routing() 守恒所需的每 rank token 数: 每源 rank 发出 632 行 = 79 x topk 8。
+SK_TOKENS = 79
+
+
 def skewed_routing():
-    """4 rank × 64 专家, 4 个非空专家 (300/64/13/256 行). 与 test_api_smoke 锚点同源."""
+    """4 rank × 64 专家, 4 个非空专家 (每目的卡 300/64/12/256 行). 与 test_api_smoke 锚点同源.
+
+    **守恒** (每源 rank 发出 SK_TOKENS x 8 = 632 行)。2026-10-05 之前这里是
+    counts[dst][63] = [200, 20, 20, 16] 对全部目的卡相同, 于是源 rank 0 发出 1176 行、
+    其余 440-460 行 —— 而 64 token x top-8 最多 512 行: 一组**物理上不可能**的输入,
+    golden 一直在给它建图。现在专家 63 的重源按目的卡**轮转** (目的卡 d 的重源是
+    src d), 专家 2 由 13 行改 12 行 (凑 8 的倍数): 保留"一个重专家、每卡一个重源"的
+    偏斜, 而每个源 rank 发出的总行数相同。
+    """
     world, local = 4, 64
     counts = [[[0] * world for _ in range(local)] for _ in range(world)]
+    heavy = [200, 20, 20, 16]
     for dst in range(world):
         counts[dst][0] = [75, 75, 75, 75]
         counts[dst][1] = [16, 16, 16, 16]
-        counts[dst][2] = [3, 4, 3, 3]
-        counts[dst][63] = [200, 20, 20, 16]
+        counts[dst][2] = [3, 3, 3, 3]
+        counts[dst][63] = heavy[-dst:] + heavy[:-dst] if dst else list(heavy)
     return counts
 
 
@@ -69,7 +82,6 @@ def manual_costs(cube_rate=CUBE_RATE, kernel=None):
         combine_tile=comb.tile,
         combine_write_bytes_per_row=comb.write_bytes_per_row,
         combine_read_bytes=comb.read_bytes,
-        count_table_prepare_us=m.T_COUNT_GATE,
     )
 
 
@@ -130,7 +142,10 @@ def _pipeline(**kw):
 
 def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
     sk = skewed_routing
-    w3 = lambda: uniform_routing(2, 6, 256)          # 3 波: 6 专家 × 512 行
+    # 3 波: 6 专家 × 512 行。每源 rank 发出 2 卡 x 6 专家 x 256 = 3072 行 = 384 x top-8。
+    # 2026-10-05 之前配的是 512 token (应发 4096 行) —— 不守恒, 现改为守恒的 384。
+    w3 = lambda: uniform_routing(2, 6, 256)
+    W3_TOKENS = 384
     steal = lambda: uniform_routing(2, 4, 256)       # 4 专家 × 512 行, 转移生效的最小规模
     off = m.StageWaveOffsets
     pol = P.with_policy          # 以 profile 的策略为底, 只改指定项
@@ -140,53 +155,53 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
     c: Dict[str, Callable[[], Dict[str, object]]] = {}
 
     # ---- MTE 路径: 默认与波偏移 ----
-    c["mte_skewed_default"] = lambda: run_api(sk(), 64)
-    c["mte_skewed_lag1"] = lambda: run_api(sk(), 64, policy=pol(gmm2_lag_waves=1))
+    c["mte_skewed_default"] = lambda: run_api(sk(), SK_TOKENS)
+    c["mte_skewed_lag1"] = lambda: run_api(sk(), SK_TOKENS, policy=pol(gmm2_lag_waves=1))
     c["mte_uniform_bs64"] = lambda: run_api(
         uniform_routing(4, 64, 2), 64, topk=8, kernel=kc(),
         costs=analytical_costs(kc()), policy=pol())
-    c["mte_3wave_lag0"] = lambda: run_api(w3(), 512, policy=pol(gmm2_lag_waves=0))
-    c["mte_3wave_lag2"] = lambda: run_api(w3(), 512, policy=pol(gmm2_lag_waves=2))
-    c["mte_3wave_lookahead3"] = lambda: run_api(w3(), 512, policy=pol(dispatch_lookahead=3))
+    c["mte_3wave_lag0"] = lambda: run_api(w3(), W3_TOKENS, policy=pol(gmm2_lag_waves=0))
+    c["mte_3wave_lag2"] = lambda: run_api(w3(), W3_TOKENS, policy=pol(gmm2_lag_waves=2))
+    c["mte_3wave_lookahead3"] = lambda: run_api(w3(), W3_TOKENS, policy=pol(dispatch_lookahead=3))
     c["mte_3wave_offsets_2_m2"] = lambda: run_api(
-        w3(), 512, policy=pol(wave_offsets=off(dispatch=2, gmm2=-2)))
-    c["mte_3wave_p1_4"] = lambda: run_api(w3(), 512, p1=4)
+        w3(), W3_TOKENS, policy=pol(wave_offsets=off(dispatch=2, gmm2=-2)))
+    c["mte_3wave_p1_4"] = lambda: run_api(w3(), W3_TOKENS, p1=4)
     c["mte_lag_by_threshold"] = lambda: run_api(uniform_routing(2, 4, 4096), 4096)
-    c["mte_shared_expert"] = lambda: run_api(sk(), 64, shared_expert_num=1)
-    c["mte_aic16"] = lambda: run_api(w3(), 512, aic_num=16)
+    c["mte_shared_expert"] = lambda: run_api(sk(), SK_TOKENS, shared_expert_num=1)
+    c["mte_aic16"] = lambda: run_api(w3(), W3_TOKENS, aic_num=16)
 
     # ---- MTE 路径: 流控与编译期旋钮 ----
     c["mte_act_depth2_credit2"] = lambda: run_api(
-        w3(), 512, policy=pol(gmm2_combine_credit=2),
+        w3(), W3_TOKENS, policy=pol(gmm2_combine_credit=2),
         options=P.with_options(links=(
             m.StageLink("gmm1", "activation", location="onchip", depth=2,
                         colocated_by_hardware=True),
             m.StageLink("activation", "gmm2", readiness=2))))
-    c["mte_tile_m128"] = lambda: run_api(sk(), 64, kernel=kc(tile_m=128))
-    c["mte_tile_n128"] = lambda: run_api(sk(), 64, kernel=kc(tile_n=128))
+    c["mte_tile_m128"] = lambda: run_api(sk(), SK_TOKENS, kernel=kc(tile_m=128))
+    c["mte_tile_n128"] = lambda: run_api(sk(), SK_TOKENS, kernel=kc(tile_n=128))
     c["mte_l1buf1_quant1"] = lambda: run_api(
-        sk(), 64, kernel=kc(l1_buf_num=1, combine_quant_mode=1),
+        sk(), SK_TOKENS, kernel=kc(l1_buf_num=1, combine_quant_mode=1),
         costs=analytical_costs(kc(l1_buf_num=1, combine_quant_mode=1)))
-    c["mte_l1_tile_k512"] = lambda: run_api(sk(), 64, kernel=kc(l1_tile_k=512))
+    c["mte_l1_tile_k512"] = lambda: run_api(sk(), SK_TOKENS, kernel=kc(l1_tile_k=512))
     # B 复用比例 0.53: 由 bs128 (1 组) 与 bs8192 (12 组) 反解的那一个实测点
-    c["mte_b_reuse"] = lambda: run_api(w3(), 512, kernel=kc(gmm1_b_reuse_frac=0.53))
-    c["mte_gmm2_kl1_256"] = lambda: run_api(sk(), 64, options=P.with_options(gmm2_kl1=256))
+    c["mte_b_reuse"] = lambda: run_api(w3(), W3_TOKENS, kernel=kc(gmm1_b_reuse_frac=0.53))
+    c["mte_gmm2_kl1_256"] = lambda: run_api(sk(), SK_TOKENS, options=P.with_options(gmm2_kl1=256))
 
     # ---- 策略旋钮 (经 MegaMoeShape) ----
     c["policy_priority_by_stage"] = lambda: run_shapes(
-        w3(), 512, scheduling_policy=m.PriorityByStage())
+        w3(), W3_TOKENS, scheduling_policy=m.PriorityByStage())
     c["policy_critical_path_first"] = lambda: run_shapes(
-        w3(), 512, scheduling_policy=m.CriticalPathFirst())
+        w3(), W3_TOKENS, scheduling_policy=m.CriticalPathFirst())
     c["core_greedy_least_busy"] = lambda: run_shapes(
-        sk(), 64, core_assignment=m.GreedyLeastBusy())
+        sk(), SK_TOKENS, core_assignment=m.GreedyLeastBusy())
     c["core_contiguous_block"] = lambda: run_shapes(
-        sk(), 64, core_assignment=m.ContiguousBlock())
-    c["packing_balanced"] = lambda: run_shapes(sk(), 64, wave_packing=m.BalancedWaves())
+        sk(), SK_TOKENS, core_assignment=m.ContiguousBlock())
+    c["packing_balanced"] = lambda: run_shapes(sk(), SK_TOKENS, wave_packing=m.BalancedWaves())
     c["packing_longest_first"] = lambda: run_shapes(
-        sk(), 64, wave_packing=m.LongestExpertFirst())
+        sk(), SK_TOKENS, wave_packing=m.LongestExpertFirst())
 
     # ---- Layered 路径 ----
-    c["layered_skewed"] = lambda: run_api(sk(), 64, kernel=kc(topo_urma=True))
+    c["layered_skewed"] = lambda: run_api(sk(), SK_TOKENS, kernel=kc(topo_urma=True))
     c["layered_2wave"] = lambda: run_api(
         uniform_routing(2, 16, 64), 256, kernel=kc(topo_urma=True),
         costs=analytical_costs(kc(topo_urma=True)))
@@ -198,15 +213,15 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
         policy=pol(gmm2_combine_credit=1))
 
     # ---- 相位流水 / 容量 / 信道 ----
-    c["pipeline_neutral"] = lambda: run_api(sk(), 64, options=_pipeline())
+    c["pipeline_neutral"] = lambda: run_api(sk(), SK_TOKENS, options=_pipeline())
     c["pipeline_queue_depth2"] = lambda: run_api(
-        sk(), 64, options=_pipeline(queues=m.QueueDepths(mte_aic=2)))
+        sk(), SK_TOKENS, options=_pipeline(queues=m.QueueDepths(mte_aic=2)))
     c["pipeline_sync_latency"] = lambda: run_api(
-        sk(), 64, options=_pipeline(sync=m.SyncLatency(
+        sk(), SK_TOKENS, options=_pipeline(sync=m.SyncLatency(
             gmm1_act_handshake_us=0.5, act_gmm2_ready_us=0.3, gmm2_combine_ack_us=0.2)))
-    c["pipeline_split"] = lambda: run_api(sk(), 64, options=_pipeline(**split))
+    c["pipeline_split"] = lambda: run_api(sk(), SK_TOKENS, options=_pipeline(**split))
     c["pipeline_compute_bound"] = lambda: run_api(
-        sk(), 64, costs=manual_costs(cube_rate=6.75e6),
+        sk(), SK_TOKENS, costs=manual_costs(cube_rate=6.75e6),
         options=_pipeline(queues=m.QueueDepths(mte_aic=2)))
     # 2026-10-05 审计: 这个 case 原先给 phases=PhaseRates(fix_bw_bytes_per_us=2.0e5),
     # 但那个参数**没有任何读者** (fix 相位时长恒为 0, 口径是"结果写出/数据释放事件忽略
@@ -215,18 +230,21 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
     # case 保留: fix 相位的事件结构 (占 QUEUE:fix 与 FIXPIPE 单元) 仍被它覆盖, 而且
     # 哪天 fix 口径改成计时长, 差异会在这里显形。
     c["pipeline_fix_phase"] = lambda: run_api(
-        sk(), 64, options=_pipeline(queues=m.QueueDepths(mte_aic=2)))
+        sk(), SK_TOKENS, options=_pipeline(queues=m.QueueDepths(mte_aic=2)))
     # 2026-10-05 审计: 这里原有 pipeline_engine_queue2 = pipeline_split +
     # engine_queue_depths(aic/vec0/aiv1=2)。两者指纹**逐位相同** —— 每核引擎队列在
     # 持核事件独占该核时恒不起约束, 相位拆分又刻意不继承 Q:*, 所以那个旋钮任何取值
     # 都无后果。旋钮已删 (model.py 把容量写死 1), case 一并去掉: 留着也只是第二份
     # pipeline_split。
+    # 1024 token x top-8 = 每源 rank 8192 行 = 4 卡 x 64 专家 x 32。2026-10-05 之前
+    # 路由给的是 x 8 (2048 行) 配 1024 token —— 不守恒。p1=0 由 token 数自动取档,
+    # 所以保 token 数、改路由 (真实 bs1024 每专家正是 4 x 32 = 128 行)。
     c["pipeline_large_split"] = lambda: run_api(
-        uniform_routing(4, 64, 8), 1024, p1=0, p2=0, options=_pipeline(**split))
+        uniform_routing(4, 64, 32), 1024, p1=0, p2=0, options=_pipeline(**split))
     c["pipeline_layered_split"] = lambda: run_api(
-        sk(), 64, kernel=kc(topo_urma=True), options=_pipeline(**split))
+        sk(), SK_TOKENS, kernel=kc(topo_urma=True), options=_pipeline(**split))
     c["serialize_dispatch_comm"] = lambda: run_api(
-        sk(), 64, options=P.with_options(serialize_dispatch_comm=True))
+        sk(), SK_TOKENS, options=P.with_options(serialize_dispatch_comm=True))
 
     # ---- 运行时图重构 (钩子每次提交扫描全部未提交事件, 规模取小) ----
     c["stealing_gmm1"] = lambda: run_api(steal(), 256, restructure=m.idle_core_stealing())

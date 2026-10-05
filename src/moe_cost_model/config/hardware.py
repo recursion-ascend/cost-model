@@ -322,19 +322,30 @@ class KernelConfig:
     模板参数. 修改后模型的 wave 规划/tile 网格/分核轮转随之改变.
     """
 
-    weight_nz: bool = False           # 权重 GM 布局: Z(线性) / NZ(分形). 不影响时长:
-                                      #   B 流 (权重载入) 不进 GMM tile 公式
+    # 权重 GM 布局: Z(线性) / NZ(分形)。**影响时长**: NZ 时 GMM 的 B 流 (权重载入) 改用
+    # NZ 路径的 GM->L1 带宽 (Calibration.bw_l1_gm_b_nz, 必须实测给出, 不给直接报错 ——
+    # 不声称 NZ 与 Z 同速)。2026-10-05 之前这里写"不影响时长: B 流不进 GMM tile 公式",
+    # 那是 B 流还没进公式时的旧话; 现在 b_load = k·cols / bw_b, bw_b 由本字段选。
+    weight_nz: bool = False
     tile_m: int = 256                 # MEGAMOE_TILE_M: 每个 m-group 的行数
     tile_n: int = 256                 # MEGAMOE_TILE_N: scheduler N tile
     l1_buf_num: int = 2               # MEGAMOE_L1_BUF_NUM: L1 ping-pong (1=禁用)
     topo_urma: bool = False           # MEGAMOE_TOPO_URMA: True → URMA Layered 路径
                                       #   (MegaMoeLayered); 建模见
                                       #   layered.py — 单 Server 假设, PUT 复用 GET 常数
-    # Blaze BlockSchedulerSwizzle<Offset, Direction>; kernel 实例化为 <3, 1>
-    # (common/mega_moe_gmm_common.h: using BlockScheduler = BlockSchedulerSwizzle<3, 1>),
-    # GMM1 与 GMM2 都用它。Direction=1 = N 维在外层, 连续 tile 共享同一 A 行块。
+    # Blaze BlockSchedulerSwizzle<Offset, Direction>; 仓内 kernel 实例化为 **<3, 0>**
+    # (common/mega_moe_gmm_common.h:33: using BlockScheduler = BlockSchedulerSwizzle<3, 0>),
+    # GMM1 与 GMM2 共用这一个别名 (stage/mega_moe_gmm1_activation.h:878,951 与
+    # stage/mega_moe_gmm2_combine.h:510,892,980 都取 GmmKernel::BlockScheduler)。
+    # Direction=0 = "m first": loopFirst = ceil(M/tileM) = m 组数, loopSecond = n-tile 数
+    # (block_scheduler_swizzle.h:41-47 构造函数, :85-93 GetBlockCoord 的返回分支)。
+    #
+    # 2026-10-05 之前这里缺省 1, 注释也声称 kernel 用 <3, 1> —— 与仓内源码相反。
+    # 它**影响时长**: tile->核 的轮转顺序变了 (planning/tile_grid.py:96 ->
+    # planning/waves.py:154)。planning/waves.py:155 的函数缺省一直是 0 (与源码一致),
+    # 所以两个 Python 缺省自己也不一致。
     swizzle_offset: int = 3
-    swizzle_direction: int = 1
+    swizzle_direction: int = 0
     activation_n_half: int = ACTIVATION_N_HALF   # SwiGLU 双投影
     # MegaMoeA8W8Wave 的 IsGmm1Interleaved 模板参数 (kernel 两条路径都已实现):
     #   False (缺省, 非交织): 调度宽度 = hidden_dim/activation_n_half -> 18 个 n-tile,

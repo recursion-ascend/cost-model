@@ -146,7 +146,6 @@ EXPECTED = {
     "options.barriers": "生效",
     "options.combine_granularity": "生效*",
     "options.combine_layout": "动不了",
-    "options.combine_no_quant": "被拒",
     "options.dispatch_pacing": "生效*",
     "options.dispatch_partition": "生效*",
     "options.dispatch_rows_per_item": "生效*",

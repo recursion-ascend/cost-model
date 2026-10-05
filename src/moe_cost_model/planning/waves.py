@@ -155,9 +155,10 @@ def swizzle_coord(tile_idx: int, m_groups: int, n_tiles: int, swizzle_offset: in
                   swizzle_direction: int = 0):
     """Blaze BlockSchedulerSwizzle 移植 (block_scheduler_swizzle.h:26-97).
 
-    Direction=1 (kernel 实际使用, 见 KernelConfig.swizzle_direction): loopFirst=N 列,
-    loopSecond=M 组; 3 个 first 维为块, 块内 first 变化最快 (连续 tile 共享同一 A
-    行块), 奇数块 second 方向蛇形反转。Direction=0: M/N 角色互换 (构造函数镜像)。
+    Direction=0 (仓内 kernel 实例化 <3, 0>, 见 KernelConfig.swizzle_direction):
+    loopFirst=M 组, loopSecond=N 列; 3 个 first 维为块, 块内 first 变化最快,
+    奇数块 second 方向蛇形反转。Direction=1: M/N 角色互换 (构造函数镜像), 此时
+    连续 tile 共享同一 A 行块。
     m_groups==1 时两个方向同为 (0, tile_idx)。
     """
     if swizzle_direction == 0:

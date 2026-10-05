@@ -4,6 +4,7 @@
 任何默认行为的改动都会在这里被抓住.
 """
 import moe_cost_model as m
+from routing import conserving_tokens
 from linkutil import links
 
 # 测试夹具值, 非标定常数: Cube 速率没有缺省, 测试统一取此值
@@ -13,12 +14,20 @@ CUBE_RATE = 2.7e7
 def _deterministic_case():
     WORLD, LOCAL = 4, 64
     counts = [[[0] * WORLD for _ in range(LOCAL)] for _ in range(WORLD)]
+    heavy = [200, 20, 20, 16]
     for dst in range(WORLD):
         counts[dst][0] = [75, 75, 75, 75]
         counts[dst][1] = [16, 16, 16, 16]
-        counts[dst][2] = [3, 4, 3, 3]
-        counts[dst][63] = [200, 20, 20, 16]
+        counts[dst][2] = [3, 3, 3, 3]
+        # 重专家的重源按目的卡轮转: 保住"一个重专家、每卡一个重源"的偏斜, 同时让每个源
+        # rank 发出同样的行数。原先四张目的卡都用 [200,20,20,16], 于是源 0 发出 1176 行,
+        # 而 token x topk 最多 512 —— 物理上不可能的输入 (守恒检查 2026-10-05 起拒绝它)。
+        counts[dst][63] = heavy[-dst:] + heavy[:-dst] if dst else list(heavy)
     return tuple(tuple(tuple(r) for r in c) for c in counts)
+
+
+#: _deterministic_case() 守恒所需的每 rank token 数: 每源发出 632 行 = 79 x top-8。
+DET_TOKENS = 79
 
 
 def _run(options=None, kernel=None, policy=None):
@@ -34,10 +43,9 @@ def _run(options=None, kernel=None, policy=None):
         combine_tile=m.AnalyticalCombineCosts().tile,
         combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
         combine_read_bytes=m.AnalyticalCombineCosts().read_bytes,
-        count_table_prepare_us=m.T_COUNT_GATE,
     )
     return m.simulate_routing_counts(
-        routing_counts=_deterministic_case(), token_num_per_rank=64, h=6144,
+        routing_counts=_deterministic_case(), token_num_per_rank=DET_TOKENS, h=6144,
         hidden_dim=4096, aic_num=28, costs=costs,
         p1_override=2, p2_override=1,   # kernel 默认策略 @bs64 (tiling 真值)
         **P.shape_kw(options=options or P.options,
@@ -114,10 +122,20 @@ def test_default_pin():
     #   (算法下界 12B / 缺省 16B / MEGAMOE_A8W8 声明 32B, 与同仓 dispatch 侧一致):
     #   235.775 -> 235.814
     # 2026-10-04 BW_REMOTE_WRITE 31000 -> 8600 (对标最快 COMBINE tile 反扣) → 245.967
-    assert abs(res["kernel_total_us"] - 245.967) < 0.01
-    assert abs(res["kernel_dag_end_us"] - 260.617) < 0.01
-    # C3: 逐核排空节点 (28 核 x 3 引擎 = 84 个) 换成一个全核排空栅栏 -> 659 - 83 = 576
-    assert len(res["rank_results"][0]["events"]) == 576
+    # 2026-10-05 两处, 效果已分离测过:
+    #   1) 夹具路由改成**守恒**的 (每源 rank 发出 token x topk 行)。原夹具四张目的卡
+    #      都用 [200,20,20,16] 做重专家, 于是源 0 发出 1176 行, 而 64 token x top-8
+    #      最多 512 —— 物理上不可能的输入, 模型却一直在给它建图。现在重源按目的卡轮转,
+    #      token 数 64 -> 79 (= 632/8)。事件 576 -> 577, 245.967 -> 235.607
+    #   2) KernelConfig.swizzle_direction 1 -> 0, 跟上仓内 kernel 的实例化
+    #      (common/mega_moe_gmm_common.h:33 是 BlockSchedulerSwizzle<3, 0>; 原先缺省 1
+    #      且注释声称 <3,1>, 于是 m 组 > 1 时模型的 GMM tile 遍历顺序相对 kernel 是
+    #      M/N 转置的)。只改这一项: 235.607 -> 247.466 (+5.0%)
+    assert abs(res["kernel_total_us"] - 247.466) < 0.01
+    assert abs(res["kernel_dag_end_us"] - 263.863) < 0.01
+    # C3: 逐核排空节点 (28 核 x 3 引擎 = 84 个) 换成一个全核排空栅栏 -> 659 - 83 = 576;
+    # 2026-10-05 守恒路由下重专家的行分布变了 -> 577
+    assert len(res["rank_results"][0]["events"]) == 577
     # 排队模型生效标志: 资源争用出现 (旧模型恒为 0)
     rq = sum(1 for e in res["rank_results"][0]["events"] if e.resource_queue_us > 0)
     assert rq > 100, f"resource_queue>0 仅 {rq} 次, 排队模型未生效"
@@ -141,7 +159,6 @@ def test_gmm2_lag_waves_override():
         combine_tile=m.AnalyticalCombineCosts().tile,
         combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
         combine_read_bytes=m.AnalyticalCombineCosts().read_bytes,
-        count_table_prepare_us=m.T_COUNT_GATE,
     )
 
     def stage_counts(res):
@@ -161,8 +178,10 @@ def test_gmm2_lag_waves_override():
     assert lag1["rank_results"][0]["gmm2_lag_active"] is True
 
     # 3 波用例: 6 专家 × 512 行 = 12 组, mgw=4 → 3 波
-    world, local, token = 2, 6, 512
+    # 守恒: 每源 2 卡 x 6 专家 x 256 = 3072 行 = 384 x top-8 (原先写 512 token)
+    world, local = 2, 6
     C = [[[256] * world for _ in range(local)] for _ in range(world)]
+    token = conserving_tokens(C, 8)
 
     def run3(lag_waves):
         return m.simulate_routing_counts(
@@ -243,14 +262,13 @@ def _run_costs():
         combine_tile=m.AnalyticalCombineCosts().tile,
         combine_write_bytes_per_row=m.AnalyticalCombineCosts().write_bytes_per_row,
         combine_read_bytes=m.AnalyticalCombineCosts().read_bytes,
-        count_table_prepare_us=m.T_COUNT_GATE,
     )
 
 
 def test_kl1_override_restores_legacy():
     """kL1=256 显式覆盖应恢复与 auto 相同值 (结构等价性自检)."""
     res = _run(options=m.MEGAMOE_A8W8.with_options(gmm2_kl1=256))
-    assert abs(res["kernel_total_us"] - 245.967) < 0.5
+    assert abs(res["kernel_total_us"] - 247.466) < 0.5
 
 
 def test_primitive_costs_requires_all():

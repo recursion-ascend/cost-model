@@ -98,8 +98,7 @@ def make_simulator(t, C):
             activation_store_bytes=_act.store_bytes,
             combine_tile=_comb.tile,
             combine_write_bytes_per_row=_comb.write_bytes_per_row,
-            combine_read_bytes=_comb.read_bytes,
-            count_table_prepare_us=T_COUNT_GATE)
+            combine_read_bytes=_comb.read_bytes)
         res = simulate_routing_counts(
             routing_counts=rc, token_num_per_rank=t["bs"], h=t["h"],
             hidden_dim=t["hidden"], aic_num=t["aic"], costs=costs,

@@ -101,7 +101,6 @@ _ZERO_OVERHEADS = EpilogueOverheads(literal=True)
 
 @dataclass(frozen=True)
 class ModelOptions:
-    combine_no_quant: bool = True
     topk_weights_prefetch: bool = False
     serialize_dispatch_comm: bool = False
     # C3 全核栅栏 (编排选择): () = 不加 (缺省, 逐核推进 = 融合算子);

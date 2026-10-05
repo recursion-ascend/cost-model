@@ -217,9 +217,11 @@ class PrimitiveCosts:
     # 申报量不该少于算法必搬的字节 (见 analysis/bounds.py)。
     combine_read_bytes: Callable[[int, int], float]
 
-    # One-time per physical AIV1 before MoE waves.  Optional because profiler may
-    # already fold it into another stage fit.
-    count_table_prepare_us: float = T_COUNT_GATE
+    # COUNTS_EXPORT -> 首个 dispatch 的门 (T_COUNT_GATE = 53.9 µs) **没有建模**:
+    # 2026-10-05 之前这里有个 count_table_prepare_us 字段承接它, 但 builders/ 与
+    # model.py 里**没有任何读者** —— 53.9 µs 被存进来又丢掉, 而 Calibration 还给它开了
+    # 一个旋钮 (改了什么都不会发生)。字段与旋钮都已删, 常数留在 config/hardware.py
+    # 作复现记录 (provenance 的 measured 桶里)。要建模这道门, 应当在尾段发一个真实事件。
 
     # 晚绑定 (ModelOptions.late_bind_pools 非空) 下每取一次活的开销: 真实 kernel 要做
     # 一次原子加 / 核间同步标志的读改写, 静态分核不需要 (编译期算好)。
@@ -675,7 +677,6 @@ def build_analytical_costs(
     t_startup_us: Optional[float] = None,
     bw_combine_local: Optional[float] = None,
     bw_combine_remote: Optional[float] = None,
-    count_table_prepare_us: float = T_COUNT_GATE,
     gmm2_a_from_gm: bool = True,
     load_overlap: str = "sum",
     platform=None,
@@ -742,7 +743,6 @@ def build_analytical_costs(
         combine_tile=comb.tile,
         combine_write_bytes_per_row=comb.write_bytes_per_row,
         combine_read_bytes=comb.read_bytes,
-        count_table_prepare_us=count_table_prepare_us,
         gmm1_fill_us=gmm1_fill_us,
         late_bind_fetch_us=late_bind_fetch_us,
     )

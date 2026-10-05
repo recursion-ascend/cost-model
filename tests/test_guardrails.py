@@ -120,17 +120,21 @@ def test_routing_conservation():
     assert any("< 0" in msg for msg in check_routing_conservation(neg, 36, 6))
 
 
-def test_routing_conservation_is_warning_only():
-    """tokens 与 counts 在本模型里是两个独立输入 (tokens 只喂 p1 档位与 UNPERMUTE
-    字节), 测试夹具故意让它们不一致 —— 所以只警告, 不拦。"""
+def test_routing_conservation_is_an_error():
+    """不守恒是硬错: 每个 token 恰好选 topk 个路由专家 (算法事实).
+
+    2026-10-05 之前这里断言"只警告, 照跑", 理由是 tokens 与 counts 是两个独立输入、
+    夹具故意让它们不一致。那是夹具的方便: 不守恒时主 stage 按 counts 计, 而 lag 阈值 /
+    共享专家规模 / UNPERMUTE 字节按 tokens 计, 于是产出一张看似有效的 DAG。
+    """
     sc = m.Scenario(
         workload=m.Workload(tokens=64, topk=8, routing="explicit",
                             counts=[[[256] * 2 for _ in range(4)] for _ in range(2)]),
         p1_override=2, p2_override=1)
-    errors, warnings = sc.check()
-    assert errors == []
-    assert any("!= tokens x topk" in w for w in warnings)
-    assert m.simulate(sc)["kernel_total_us"] > 0     # 照跑
+    errors, _ = sc.check()
+    assert any("!= tokens x topk" in e for e in errors)
+    with pytest.raises(ValueError, match="不守恒"):
+        m.simulate(sc)
 
 
 # ------------------------------------------------- tiling 旁置文件 (不需实测数据)

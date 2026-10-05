@@ -160,9 +160,6 @@ class Calibration:
     # COMBINE: 读回 + 本卡行写走 bw_combine_local, 跨卡行写走 bw_combine_remote
     bw_combine_local: Optional[float] = None
     bw_combine_remote: Optional[float] = None
-    # hbm_write 信道的每核应得速率 (速率服务器用, 不进 COMBINE 公式)
-    bw_scatter: Optional[float] = None
-    count_table_prepare_us: Optional[float] = None
     # 晚绑定下每取一次活的开销 (原子加/核间同步标志的读改写)。缺省 0 不表示没有代价,
     # 表示本模型没有声称它是多少 —— 见 PrimitiveCosts.late_bind_fetch_us 与 R7。
     late_bind_fetch_us: float = 0.0
@@ -294,19 +291,18 @@ class Scenario:
     def check(self) -> Tuple[List[str], List[str]]:
         """全部护栏, 返回 (硬错, 警告).
 
-        硬错只有一类 —— **与显式给出的 tiling 真值矛盾**。它无歧义 (场景声称的形状
-        与跑出数据的 kernel 配置不符), 而且只在调用方主动给了 [tiling] 时才可能出现,
-        所以 strict 缺省 True 直接报错。
-
-        其余都是警告, 不拦:
-          - 路由不守恒: 每源 rank 发出行数 != tokens x topk。对手写 counts 有用,
-            但 tokens 与 counts 在本模型里是**两个独立输入** (tokens 只喂 p1 档位
-            判定与 UNPERMUTE 字节), 测试夹具就故意让它们不一致, 故只警告。
+        硬错两类, 都无歧义:
+          - 与显式给出的 tiling 真值矛盾 (场景声称的形状与跑出数据的 kernel 配置不符)。
+          - 路由不守恒: 每源 rank 发出行数 != tokens x topk。这是算法事实 (每个 token
+            恰好选 topk 个路由专家)。2026-10-05 之前它只是警告, 理由是"tokens 与 counts
+            在本模型里是两个独立输入, 测试夹具就故意让它们不一致" —— 那是夹具的方便,
+            不是事实: 不守恒时主 stage 按 counts 计、lag 阈值/共享专家/UNPERMUTE 按
+            tokens 计, 产出一张看似有效的 DAG。
         """
         errors: List[str] = []
         warnings: List[str] = []
         wl = self.workload
-        warnings += guardrails.check_routing_conservation(
+        errors += guardrails.check_routing_conservation(
             wl.routing_counts(), wl.tokens, wl.topk)
         til = self.tiling_truth()
         if til:
@@ -336,8 +332,6 @@ class Scenario:
             return self.costs
         cal = self.calibration
         extra = {}
-        if cal.count_table_prepare_us is not None:
-            extra["count_table_prepare_us"] = cal.count_table_prepare_us
         if cal.late_bind_fetch_us:
             extra["late_bind_fetch_us"] = cal.late_bind_fetch_us
         # 行级软流水槽数的真值来源, 依次: [tiling] path > pipeline.buffers > 缺省常数
@@ -376,11 +370,18 @@ def simulate(scenario: Scenario, *, platform=None,
     下界取 min(每核x核数, 聚合)), 后者决定穿透物理下界时抛异常还是只记录
     (见 analysis/bounds.py 与 api.simulate_routing_counts 的说明)。
 
-    先跑护栏 (guardrails): 给了 [tiling] 时逐字段核对 kernel 真值 (含用 p1/p2 重算
-    mGroupsPerWave), 矛盾即报错 (tiling.strict=false 可降级); 路由守恒与信道尺度
-    只警告。全部说明都放进结果的 "warnings"。
+    先跑护栏 (guardrails):
+      - 路由不守恒: 硬错, 不可降级 (算法事实, 见 Scenario.check)。
+      - 给了 [tiling] 时逐字段核对 kernel 真值 (含用 p1/p2 重算 mGroupsPerWave),
+        矛盾即报错, tiling.strict=false 可降级为警告。
+    全部说明都放进结果的 "warnings"。
     """
     wl = scenario.workload
+    conservation = guardrails.check_routing_conservation(
+        wl.routing_counts(), wl.tokens, wl.topk)
+    if conservation:
+        raise ValueError("routing 不守恒 (每个源 rank 应发出 tokens x topk 行):\n  - "
+                         + "\n  - ".join(conservation))
     errors, warnings = scenario.check()
     strict = scenario.tiling is None or scenario.tiling.strict
     if errors and strict:
