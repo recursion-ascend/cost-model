@@ -47,7 +47,7 @@ BW_WINDOW = SourcedValue(33000.0, 'measured:跨卡读数据的片间带宽, disp
 # hbm_write 字节 —— 方向反了, 而且那股字节只在开相位流水时出现 (换编排旋钮不该改变
 # 搬了多少字节)。现在 COMBINE 的本卡读回与本卡行写由 builders/comm/mte.py 按字节直接
 # 申报, 这个常数只作为旧标定的复现记录保留, 不进任何公式、不进任何申报。
-BW_SCATTER = SourcedValue(139500.0, 'measured:COMBINE 散射写带宽 (B=64 随机路由标定的旧口径); 已退役, 不进任何公式, 仅留复现记录')
+BW_SCATTER = SourcedValue(139500.0, 'measured:COMBINE 散射写带宽 (旧口径); 域受限 (B=64 随机路由标定); 已退役, 不进任何公式, 仅留复现记录')
 # COMBINE 的跨卡行写 (CombineTokens 每行一次 DataCopyPad 直写目的卡窗口) 没有直测,
 # 只能从 COMBINE 事件的总时长里反扣。2026-10-04 之前这里取的是"与读侧对称"的假设值
 # 31000 —— 现已被现有 trace 排除, 见下。

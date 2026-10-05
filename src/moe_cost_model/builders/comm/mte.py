@@ -11,8 +11,8 @@ from ...costs import DispatchDataLayout
 from ..base import build_dispatch_expert_ir, rows_by_source_rank
 from ..context import BuildContext
 from ...config.hardware import BW_LOCAL_GM
-from ..pipeline_expand import (CH_DISPATCH_READ, CH_DISPATCH_WRITE,
-                               CH_HBM_WRITE)
+from ..pipeline_expand import (CH_COMBINE_READ, CH_DISPATCH_READ,
+                               CH_DISPATCH_WRITE, CH_HBM_WRITE)
 from .base import CombineTransport, DispatchTransport
 
 
@@ -331,10 +331,16 @@ class MteCombine(CombineTransport):
         # (换一个编排旋钮不该改变搬了多少字节)。现在按字节直接申报。
         local_rows = rows - remote_rows
         read_bytes_fn = getattr(c, "combine_read_bytes", None)
-        local_bytes = (read_bytes_fn(rows, cols) if read_bytes_fn else 0.0)
-        local_bytes += local_rows * row_bytes
-        if local_bytes:
-            ch_bytes = ch_bytes + ((CH_HBM_WRITE, float(local_bytes),
+        read_back = float(read_bytes_fn(rows, cols)) if read_bytes_fn else 0.0
+        local_write = float(local_rows * row_bytes)
+        # 读与写分开申报, 且读走自己的通路名 —— 混进 hbm_write 会让
+        # "不物化就不写 GM" (test_onchip_declares_no_act_gm_write) 这类断言失去意义:
+        # 那条断言问的是 ACT 写没写, 不是 COMBINE 读没读。
+        if read_back:
+            ch_bytes = ch_bytes + ((CH_COMBINE_READ, read_back,
+                                    float(BW_LOCAL_GM)),)
+        if local_write:
+            ch_bytes = ch_bytes + ((CH_HBM_WRITE, local_write,
                                     float(BW_LOCAL_GM)),)
         spread = _spread_slots(builder.options, shape, rows)
         builder._event(cname, (builder.options.role_resource("combine", core),),

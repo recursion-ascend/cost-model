@@ -41,6 +41,10 @@ from ..config.pipeline import PipelineConstraints
 
 CH_GM_TO_L1 = "gm_to_l1"
 CH_HBM_WRITE = "hbm_write"
+#: COMBINE 把 GMM2 tile + 路由元数据从 GM 读回 UB。单独一条通路名: 它既不是
+#: gm_to_l1 (目的地是 UB 不是 L1, 且 bounds 的算法字节只数 GMM 的 A/B 流), 也不是
+#: hbm_write (那是写)。混进任何一条都会让别处的断言失去意义。
+CH_COMBINE_READ = "combine_read"
 # dispatch 的访存: 读源卡窗口 → UB, 写本卡 workspace。
 # 这些名字现在只是**访存量的分类标签** (信道模型已停用), 按通路汇总在
 # rank_results["traffic_bytes"] 里。要重建争用模型, 得先有**整卡访存带宽**的实测。
