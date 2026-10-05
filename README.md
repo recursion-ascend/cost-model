@@ -414,6 +414,134 @@ bs36→bs128 只有 m 变 (同样 28 核并发), 实测涨了 34%。bs8192 之�
 
 要突破这些需要改 `builders/` 或 `scheduler/` 的结构，改完重新对实测校准。
 
+## 四层架构: 实现 / 编译点 / 运行期 / 事件图 (2026-10-05)
+
+这个项目原先只能表达"某一份 A8W8 Wave 实现": 换 kernel 变体是翻一个布尔
+(`KernelConfig.topo_urma`), 标定常数是一套覆盖所有编排的全局量, 编译参数在 C++ 与 Python
+里各写一份而没有机制对上。现在分成四层, 每层有自己的入口与护栏。
+
+```
+Workload (token/专家/路由)
+   -> Runtime  (拓扑 + 波推进策略)        implementations/runtime.py
+   -> Compile  (编译轴 + 编译指纹)        implementations/compile.py
+   -> Lowering (每份实现一个适配器)        implementations/megamoe.py
+   -> DAG      (类型化事件图)              ir/
+   -> Scheduler/Timing (与 kernel 无关)    scheduler/
+```
+
+### 实现身份: 换 kernel 是换适配器, 不是翻布尔
+
+```python
+>>> m.MEGAMOE_A8W8.implementation          # ascend950.megamoe.a8w8_wave.v1
+>>> m.MEGAMOE_A8W8.compile_config.describe()
+'66f41072c6312c23 (combine_meta_bytes_per_row=32)'
+```
+
+仓内两份实现各有身份与**源码依据** (`source_refs` 指向真实文件, 有测试核对路径存在):
+
+| 实现 id | 源码 | 建图器 |
+| --- | --- | --- |
+| `ascend950.megamoe.a8w8_wave.v1` | `mega_moe_wave_a8w8.h` | `builders/mte.py` |
+| `ascend950.megamoe.layered.v1` | `mega_moe_layered.h` | `builders/layered.py` |
+
+场景文件里 `orchestration = "ascend950.megamoe.layered.v1"` 或旧名 `"layered"` 都可以, 两种
+拼法现在**同值** —— 之前 `"layered"` 只换建图器而波计划仍按 `topo_urma` 分支, 得到"Layered
+建图器 + m-group 波宽"这种错配组合。
+
+**每条结果自带身份**: `rank_results[i]["implementation"]` 给出实现 id、源码依据、编译指纹、
+编译点的一行描述、执行时间记到哪个 stage、以及运行拓扑。一个时长数字不再能脱离"哪份 kernel、
+哪个编译点、几张卡几个核"而存在 —— 这是把标定值按域分开的前提。
+
+### 编译指纹: 为什么不能只靠 tiling key
+
+kernel 自己的 tiling key 只编码 5 个轴 (`mega_moe_tiling_key.h`), 而 `TILE_M`/`TILE_N`/
+`L1_BUF_NUM`/`IsGmm1Interleaved`/`TOPK_PREFETCH` 都在 key 之外 —— **同一个 key 可以对应多个
+二进制**。所以编译点用 17 个轴的指纹表达, 形状与拓扑**不进**指纹 (它们每次运行都变, 混进来
+指纹就失去"同一个二进制"的含义; 形状域与拓扑另有 `ShapeDomain` / `RuntimeTopology`)。
+
+有测试逐轴扫: 任何一个声明的轴不进指纹就红。
+
+### 编译清单: 与 C++ 源码对账
+
+```bash
+python tools/compile_manifest.py --check     # 失配则退出码 1
+```
+
+从 `mega_moe/include/CMakeLists.txt` 的 `MEGAMOE_*` cache 变量、两行 `#ifndef/#define` 宏缺省、
+白名单 `constexpr` 常数、以及 `BlockSchedulerSwizzle<Offset, Direction>` 的模板实参抽出 25 项,
+再与 Python 侧逐项对账 (18 项)。**只报告, 不改常数。**
+
+为什么需要它: 这个 bug 类已经真实发生过 —— `KernelConfig.swizzle_direction` 缺省 1、注释声称
+kernel 用 `<3, 1>`, 而 `common/mega_moe_gmm_common.h:33` 写的是 `<3, 0>`; m 组 > 1 时模型的
+GMM tile 遍历顺序相对 kernel 是 M/N 转置的, 实测墙钟差 **+5.0%**。注释不会报错, 对账会。
+测试里有一条把源码树复制出去只改那一个模板实参, 断言对账能抓到 —— 那是真实会发生的方向。
+
+派生关系不丢: `L1_TILE_M_256 = MEGAMOE_TILE_M` 解到 256, `248U * 1024U` 折成 253952。
+Python 把 `URMA_FLAG_WINDOW_TOKENS` 抄成字面量 256 而 kernel 从 `tile_m` 派生, 这种脱钩因此
+查得出来。
+
+清单还记下**标定语料那份实例化**: `include/kernel.cpp` 写死 `CombineQuantMode=COMBINE_NO_QUANT`
+与 `IsGmm1Interleaved=false`, 所以全部实测常数来自**一个**编译点 —— 这就是标定要按指纹分域的
+具体理由。
+
+### 类型化事件图 (IR)
+
+`Event` 能表达依赖/资源/信号量/字节, 但表达方式是**字符串约定**: `"MTE2:c7"` 是执行单元,
+`"QUEUE:mte_aic:c7"` 是 L1 缓冲槽, 方向藏在 `"gm_to_l1"` 这个名字里, 而数据依赖与程序序边
+在 `deps` 里长得一模一样。约定能跑但不可查询, 换 kernel 时不会报错, 只会悄悄对不上。
+
+`ir/` 把约定提升为类型 (`Engine` / `Pipe` / `MemorySpace` / `TokenKind` / `DependencyKind` /
+`TransferDirection`), 并且是**只读视图** —— 不改 `Event`, 不改调度, 所以 39 个 golden 指纹
+逐位不变。关键的区分: 执行单元 (容量恒 1 的硬件事实) 与缓冲槽 (容量是编排选择) 用的是同一个
+`acquires/releases` 机制, 不分型就没法说"这个容量能不能调" —— 那正是 `EngineQueueDepths` 当初
+被当成旋钮的根因。
+
+**表达不了的东西写成明文** (`ir.UNREPRESENTABLE`, 有测试要求每条都讲清为什么):
+
+| 缺口 | 现状 |
+| --- | --- |
+| 异步发射 vs 完成 | 只有一个 `duration_us`; 用拆相位近似重叠, 真的 issue 开销没有标定 |
+| 硬件 flag 身份 | flag 只是某条边上的延迟; 没有身份, 没有 set/wait 配对; kernel 侧 20 多个 flag 与三个 `SyncLatency` 字段的对应关系无记载 |
+| 带宽域争用 | 只有标签, 没有共享速率的后果 (信道模型 2026-10-03 停用) |
+| 跨核 flag 等待 | 只以依赖边出现; `avoidable_idle_us` 因此只是上界 |
+
+留白会被当成"已经建模了", 所以宁可写出来。
+
+### 结构校验与实测对账
+
+```bash
+python tools/compare_trace_structure.py --run bs128
+```
+
+`validation/invariants.py` 用 IR 的词表写了 7 条结构不变量 (缓冲槽取还配对且同核、执行单元
+容量为 1、共位同核、名字唯一/边存在/无自环、搬运两端已知、零时长不占执行单元), 每条都带
+**反例会怎样** —— 因为这些失效是静默的: 取还不配对会让台账漂, 约束悄悄失效, 表现是更快的
+排程而不是报错。每条都有反例测试, 两份实现的真实图都过。
+
+`validation/trace.py` + `compare.py` 读实测 trace 并做**结构**对账。先说清能比什么:
+
+| 维度 | 能否比 |
+| --- | --- |
+| 波数 / 逐专家分布形状 / 核覆盖 / 条数比是否逐专家一致 | 能 |
+| 搬运字节 | **不能** —— trace 的 args 只有 rank/local_id/payload/cycles/wave/expert |
+| buffer 生命周期 | **不能** —— 只有等待事件这个影子, 没有槽位取/还 |
+
+两个数据事实必须知道:
+
+* **8 个 trace 文件被截断** (两个 bs8192 run 的全部 rank, 都在 7602176 字节处断在记录中间 ——
+  同一个字节数, 是采集侧写入上限)。读取器按记录边界救回前面的完整记录并**标记**截断,
+  否则"事件数比模型少"会被当成模型的问题。
+* **实测 tile 数是模型的 4 倍 (GMM1/ACT) 与 2 倍 (GMM2/COMBINE)**, 逐专家一致, 波数两边都对。
+  两边都按 tile 计数 (kernel 的 `MOE_PROFILE_BEGIN` 带 `ProfileTile(mLoc,nLoc)`), 而模型的
+  每 m-group tile 数与 kernel 自己的公式**完全一致** (hidden=4608 时 GMM1 是 9, h=5120 时
+  GMM2 是 20), 所以差在"每专家几个 m-group"。候选: 采集含多轮 (`config.json5` 里 warmup: 3,
+  且 gmm2/combine 恰好分成 3 段各 40 条), 或每专家行数真的更多 (但 `run.log` 的
+  `ROUTING_SLICE sent_total=768` 支持模型的 256)。**没解释清之前, 拿这些 trace 对时长没有意义。**
+
+对账工具报的是事实与"需要解释", 不是"口径不同所以没事"。时间段数只作证据不做归一化 ——
+同一个 run 的不同 stage 用间隔启发式切出来是 7/10/3/5/14 段, 彼此矛盾; 一个看着精确的错数
+比不给数更糟。
+
 ## 输出解读
 
 每次仿真返回以下可分析字段：
