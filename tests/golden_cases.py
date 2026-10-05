@@ -238,6 +238,20 @@ def _event_line(e) -> str:
     ))
 
 
+def _provenance_digest(prov: Dict[str, object]) -> str:
+    """全部常数的 (名字, 取值, 完整出处文本) 的 sha256.
+
+    entries 是 名字 -> (取值, 出处) 的全集; 逐名排序后入摘要, 所以任何一处数值或标签
+    文本的改动都会改哈希。只锁类别计数抓不到同类别内的文本改动 (实测踩过)。
+    """
+    entries = prov.get("entries") or {}
+    d = hashlib.sha256()
+    for name in sorted(entries):
+        val = entries[name]
+        d.update(f"{name}|{val!r}\n".encode("utf-8"))
+    return d.hexdigest()
+
+
 def fingerprint(result: Dict[str, object]) -> Dict[str, object]:
     ranks = result["rank_results"]
     per_rank: List[Dict[str, object]] = []
@@ -247,6 +261,7 @@ def fingerprint(result: Dict[str, object]) -> Dict[str, object]:
         for e in rr["events"]:
             digest.update(_event_line(e).encode("utf-8"))
             digest.update(b"\n")
+        bounds = rr.get("bounds") or {}
         per_rank.append({
             "rank": r,
             "total_us": rr["total_us"],
@@ -255,10 +270,31 @@ def fingerprint(result: Dict[str, object]) -> Dict[str, object]:
             "wave_count": rr["wave_count"],
             "stage_busy_us": {k: rr["stage_busy_us"][k] for k in sorted(rr["stage_busy_us"])},
             "critical_path_len": len(rr["critical_path"]),
+            # 2026-10-05 加入: 访存量与下界。
+            # 为什么: 原指纹只锁**时长**, 不含字节申报, 也不含下界 —— 于是 2026-10-05
+            # 连着两次拿 "40 个 golden 零 diff" 当提交依据, 却都漏掉了同样两条失败
+            # (test_onchip_declares_no_act_gm_write 查的是 traffic_bytes,
+            #  test_provenance_report 查的是出处标签)。字节口径的改动必须在 30 秒的
+            # golden 里显形, 而不是等 18 分钟的全套。
+            "traffic_bytes": {k: rr["traffic_bytes"][k]
+                              for k in sorted(rr.get("traffic_bytes") or {})},
+            "bounds": {k: bounds.get(k) for k in
+                       ("compute_us", "bandwidth_us", "dependency_us", "lower_us",
+                        "binding", "total_mac", "gm_to_l1_bytes", "violation")},
             "schedule_sha256": digest.hexdigest(),
         })
     return {
         "kernel_total_us": result["kernel_total_us"],
         "slowest_rank": result["slowest_rank"],
+        # 出处也锁。两层:
+        #   summary  每个类别的常数个数 —— 改分类 (spec/algo/impl/measured/...) 会变。
+        #   sha256   **全部常数的 (名字, 取值, 完整出处文本)** 的哈希 —— 改标签文本也会变。
+        # 为什么要第二层: 2026-10-05 我改 BW_SCATTER 的出处时丢了"域受限"三个字,
+        # 被 test_provenance_report 抓住, 而当时的 golden 零 diff —— 只锁类别计数抓不到
+        # 同类别内的文本改动。标签文本是承诺 (域限制、待重标), 和数值一样该被保护。
+        "provenance_summary": {k: v for k, v in
+                              sorted((result.get("provenance") or {})
+                                     .get("summary", {}).items())},
+        "provenance_sha256": _provenance_digest(result.get("provenance") or {}),
         "ranks": per_rank,
     }

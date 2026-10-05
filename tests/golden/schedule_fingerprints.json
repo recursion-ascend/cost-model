@@ -4,6 +4,8 @@
   "core_contiguous_block": {
    "kernel_total_us": 257.7996804485168,
    "slowest_rank": 1,
+   "provenance_summary": {},
+   "provenance_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
    "ranks": [
     {
      "rank": 0,
@@ -23,6 +25,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "d45dcd11141a76febbb6eee9006b575fda98d0737bbeef5c04774925761b7fc2"
     },
     {
@@ -43,6 +69,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "1ba926bc9d854e27d7433947081c4b528f7cd1c459c538f69233113f8c9debdc"
     },
     {
@@ -63,6 +113,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "25acf86723941bea6345b6fa515d03520e03b2fd247e7b19038f31783e00f2fb"
     },
     {
@@ -83,6 +157,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "414f1066bca54f3f72211b5da2766d8b47a2a558a850919b11e5619276a7cb4e"
     }
    ]
@@ -90,6 +188,8 @@
   "core_greedy_least_busy": {
    "kernel_total_us": 257.7996804485168,
    "slowest_rank": 1,
+   "provenance_summary": {},
+   "provenance_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
    "ranks": [
     {
      "rank": 0,
@@ -109,6 +209,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "fbf48e55b42b58bbc299420adc0a6315ca0c3c095180204f28958feeebdb1b3d"
     },
     {
@@ -129,6 +253,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "6e9e7446d0b6087e5f3459269c4b07dbd9239f9ad030ade36eb015d227848ebe"
     },
     {
@@ -149,6 +297,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "7ea88b6e72cadefc1159824fc0680ac61c6335170c753be484aaad58048a0927"
     },
     {
@@ -169,6 +341,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "3623376e0d5ad0f349870283e55028ccef81b91f7de28b2f79b3ea3e0dad659d"
     }
    ]
@@ -176,6 +372,16 @@
   "layered_2wave": {
    "kernel_total_us": 8570.83805883168,
    "slowest_rank": 0,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -196,6 +402,20 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 36,
+     "traffic_bytes": {
+      "R0.gm_to_l1": 805306368.0,
+      "R0.hbm_write": 4325376.0
+     },
+     "bounds": {
+      "compute_us": 102.2611260952381,
+      "bandwidth_us": 427.1655601431324,
+      "dependency_us": 95.03853828683032,
+      "lower_us": 427.1655601431324,
+      "binding": "bandwidth",
+      "total_mac": 77309411328,
+      "gm_to_l1_bytes": 620756992,
+      "violation": null
+     },
      "schedule_sha256": "a16a777f47d67fd9f1313011968228532ad2c331e4a938c28ff1a9b05a7281c6"
     },
     {
@@ -217,6 +437,20 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 36,
+     "traffic_bytes": {
+      "R1.gm_to_l1": 805306368.0,
+      "R1.hbm_write": 4325376.0
+     },
+     "bounds": {
+      "compute_us": 102.2611260952381,
+      "bandwidth_us": 427.1655601431324,
+      "dependency_us": 95.03853828683032,
+      "lower_us": 427.1655601431324,
+      "binding": "bandwidth",
+      "total_mac": 77309411328,
+      "gm_to_l1_bytes": 620756992,
+      "violation": null
+     },
      "schedule_sha256": "2be08f927a47edc800aedc6ff3733c902cb8af7e395000063dec5d9779392385"
     }
    ]
@@ -224,6 +458,16 @@
   "layered_credit1": {
    "kernel_total_us": 8570.83805883168,
    "slowest_rank": 0,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -244,6 +488,20 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 36,
+     "traffic_bytes": {
+      "R0.gm_to_l1": 805306368.0,
+      "R0.hbm_write": 4325376.0
+     },
+     "bounds": {
+      "compute_us": 102.2611260952381,
+      "bandwidth_us": 427.1655601431324,
+      "dependency_us": 95.03853828683032,
+      "lower_us": 427.1655601431324,
+      "binding": "bandwidth",
+      "total_mac": 77309411328,
+      "gm_to_l1_bytes": 620756992,
+      "violation": null
+     },
      "schedule_sha256": "a16a777f47d67fd9f1313011968228532ad2c331e4a938c28ff1a9b05a7281c6"
     },
     {
@@ -265,6 +523,20 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 36,
+     "traffic_bytes": {
+      "R1.gm_to_l1": 805306368.0,
+      "R1.hbm_write": 4325376.0
+     },
+     "bounds": {
+      "compute_us": 102.2611260952381,
+      "bandwidth_us": 427.1655601431324,
+      "dependency_us": 95.03853828683032,
+      "lower_us": 427.1655601431324,
+      "binding": "bandwidth",
+      "total_mac": 77309411328,
+      "gm_to_l1_bytes": 620756992,
+      "violation": null
+     },
      "schedule_sha256": "2be08f927a47edc800aedc6ff3733c902cb8af7e395000063dec5d9779392385"
     }
    ]
@@ -272,6 +544,16 @@
   "layered_skewed": {
    "kernel_total_us": 2541.167518945464,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -292,6 +574,20 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
+     "traffic_bytes": {
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 1336896.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 65.98397328870897,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "3250e868713603772309a5a162f5bed5e41eab73ca61ed01431884f2689eba81"
     },
     {
@@ -313,6 +609,20 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 1336896.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 66.14071214221218,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "10933709c594de20f3780307772329543cb5ef1e0c5e359ed9b596017cdfd0fd"
     },
     {
@@ -334,6 +644,20 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 1336896.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 65.98397328870902,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "642edd612bd8c36c38248d39eb8a86a2e7c4fb96fefb270464af90b8c3d01c3b"
     },
     {
@@ -355,6 +679,20 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 1336896.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 65.98397328870901,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "4c73490d17d3b29deb552ba292b97c49bdb0f3c03f161122cda40162e958ae20"
     }
    ]
@@ -362,6 +700,16 @@
   "layered_uniform_bs64": {
    "kernel_total_us": 2240.61177720446,
    "slowest_rank": 0,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -382,6 +730,20 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 157,
+     "traffic_bytes": {
+      "R0.gm_to_l1": 2466250752.0,
+      "R0.hbm_write": 1081344.0
+     },
+     "bounds": {
+      "compute_us": 25.565281523809524,
+      "bandwidth_us": 1665.368433801266,
+      "dependency_us": 66.20468238100705,
+      "lower_us": 1665.368433801266,
+      "binding": "bandwidth",
+      "total_mac": 19327352832,
+      "gm_to_l1_bytes": 2420113408,
+      "violation": null
+     },
      "schedule_sha256": "1edb89bce2c69a19e3c063926d44e7f0d6081827bc324f80a0601ebbf58ca39b"
     },
     {
@@ -403,6 +765,20 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 157,
+     "traffic_bytes": {
+      "R1.gm_to_l1": 2466250752.0,
+      "R1.hbm_write": 1081344.0
+     },
+     "bounds": {
+      "compute_us": 25.565281523809524,
+      "bandwidth_us": 1665.368433801266,
+      "dependency_us": 66.20468238100705,
+      "lower_us": 1665.368433801266,
+      "binding": "bandwidth",
+      "total_mac": 19327352832,
+      "gm_to_l1_bytes": 2420113408,
+      "violation": null
+     },
      "schedule_sha256": "4f85b9531d222d335a172491e8a870b9c703c9642c072295f22c52325a4197cf"
     },
     {
@@ -424,6 +800,20 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 157,
+     "traffic_bytes": {
+      "R2.gm_to_l1": 2466250752.0,
+      "R2.hbm_write": 1081344.0
+     },
+     "bounds": {
+      "compute_us": 25.565281523809524,
+      "bandwidth_us": 1665.368433801266,
+      "dependency_us": 66.20468238100705,
+      "lower_us": 1665.368433801266,
+      "binding": "bandwidth",
+      "total_mac": 19327352832,
+      "gm_to_l1_bytes": 2420113408,
+      "violation": null
+     },
      "schedule_sha256": "2c04d12f1a8186279aaa8aa6bb66f2010cc2b1d606059812c8b7aab1b7719f8b"
     },
     {
@@ -445,6 +835,20 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 157,
+     "traffic_bytes": {
+      "R3.gm_to_l1": 2466250752.0,
+      "R3.hbm_write": 1081344.0
+     },
+     "bounds": {
+      "compute_us": 25.565281523809524,
+      "bandwidth_us": 1665.368433801266,
+      "dependency_us": 66.20468238100705,
+      "lower_us": 1665.368433801266,
+      "binding": "bandwidth",
+      "total_mac": 19327352832,
+      "gm_to_l1_bytes": 2420113408,
+      "violation": null
+     },
      "schedule_sha256": "e1da9f740d79b3ae605340f6c5afb38822b92c55b594175b00d48810ee9ffe5d"
     }
    ]
@@ -452,6 +856,16 @@
   "mte_3wave_lag0": {
    "kernel_total_us": 625.5120631425301,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -471,6 +885,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 29,
+     "traffic_bytes": {
+      "R0.dispatch_read": 19464192.0,
+      "R0.dispatch_write": 19562496.0,
+      "R0.gm_to_l1": 754974720.0,
+      "R0.hbm_write": 25362432.0,
+      "fab_dst:0": 9732096.0,
+      "fab_dst:1": 18874368.0,
+      "fab_src:0": 18874368.0,
+      "fab_src:1": 9732096.0
+     },
+     "bounds": {
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 106.37411507248873,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
      "schedule_sha256": "bea770cb2ecc92112c546dbdc8708efea93852d9e3607414a709e1ba874dff53"
     },
     {
@@ -491,6 +925,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 30,
+     "traffic_bytes": {
+      "R1.dispatch_read": 19464192.0,
+      "R1.dispatch_write": 19562496.0,
+      "R1.gm_to_l1": 754974720.0,
+      "R1.hbm_write": 25362432.0,
+      "fab_dst:0": 18874368.0,
+      "fab_dst:1": 9732096.0,
+      "fab_src:0": 9732096.0,
+      "fab_src:1": 18874368.0
+     },
+     "bounds": {
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 106.37411507248873,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
      "schedule_sha256": "ccd486a73fac6dea4f2287d5e5f70324adc3ea6b63f1496f6de7c682f5c22df0"
     }
    ]
@@ -498,6 +952,16 @@
   "mte_3wave_lag2": {
    "kernel_total_us": 601.1988160357714,
    "slowest_rank": 0,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -517,6 +981,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 28,
+     "traffic_bytes": {
+      "R0.dispatch_read": 19464192.0,
+      "R0.dispatch_write": 19562496.0,
+      "R0.gm_to_l1": 754974720.0,
+      "R0.hbm_write": 25362432.0,
+      "fab_dst:0": 9732096.0,
+      "fab_dst:1": 18874368.0,
+      "fab_src:0": 18874368.0,
+      "fab_src:1": 9732096.0
+     },
+     "bounds": {
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 106.37411507248879,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
      "schedule_sha256": "e0e490d8d70b617e6ad414f6b5b2e702583ca681d5cfa1079ec7d0d6882fb863"
     },
     {
@@ -537,6 +1021,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 28,
+     "traffic_bytes": {
+      "R1.dispatch_read": 19464192.0,
+      "R1.dispatch_write": 19562496.0,
+      "R1.gm_to_l1": 754974720.0,
+      "R1.hbm_write": 25362432.0,
+      "fab_dst:0": 18874368.0,
+      "fab_dst:1": 9732096.0,
+      "fab_src:0": 9732096.0,
+      "fab_src:1": 18874368.0
+     },
+     "bounds": {
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 106.37411507248879,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
      "schedule_sha256": "df4da3f0a4fa1daf4b83e7fba9a6bc49de33b593d33d3baafb8b0b324f806c2e"
     }
    ]
@@ -544,6 +1048,16 @@
   "mte_3wave_lookahead3": {
    "kernel_total_us": 607.8337587109309,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -563,6 +1077,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 28,
+     "traffic_bytes": {
+      "R0.dispatch_read": 19464192.0,
+      "R0.dispatch_write": 19562496.0,
+      "R0.gm_to_l1": 754974720.0,
+      "R0.hbm_write": 25362432.0,
+      "fab_dst:0": 9732096.0,
+      "fab_dst:1": 18874368.0,
+      "fab_src:0": 18874368.0,
+      "fab_src:1": 9732096.0
+     },
+     "bounds": {
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 106.37411507248876,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
      "schedule_sha256": "53ca074d637fabeb28f4f5bd1dc6d6ae3257a9f02583a3b9f0f3a58371646388"
     },
     {
@@ -583,6 +1117,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 28,
+     "traffic_bytes": {
+      "R1.dispatch_read": 19464192.0,
+      "R1.dispatch_write": 19562496.0,
+      "R1.gm_to_l1": 754974720.0,
+      "R1.hbm_write": 25362432.0,
+      "fab_dst:0": 18874368.0,
+      "fab_dst:1": 9732096.0,
+      "fab_src:0": 9732096.0,
+      "fab_src:1": 18874368.0
+     },
+     "bounds": {
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 106.37411507248876,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
      "schedule_sha256": "84efed66c47eb34dab3c31d4cbf3f42bcbe8803825a8ff8897d64732cfe1bc45"
     }
    ]
@@ -590,6 +1144,16 @@
   "mte_3wave_offsets_2_m2": {
    "kernel_total_us": 601.1988160357714,
    "slowest_rank": 0,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -609,6 +1173,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 28,
+     "traffic_bytes": {
+      "R0.dispatch_read": 19464192.0,
+      "R0.dispatch_write": 19562496.0,
+      "R0.gm_to_l1": 754974720.0,
+      "R0.hbm_write": 25362432.0,
+      "fab_dst:0": 9732096.0,
+      "fab_dst:1": 18874368.0,
+      "fab_src:0": 18874368.0,
+      "fab_src:1": 9732096.0
+     },
+     "bounds": {
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 106.37411507248879,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
      "schedule_sha256": "bd415358f2530394aea68ca9242ffd9d17ee7706b00cb182615abc57202675a1"
     },
     {
@@ -629,6 +1213,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 28,
+     "traffic_bytes": {
+      "R1.dispatch_read": 19464192.0,
+      "R1.dispatch_write": 19562496.0,
+      "R1.gm_to_l1": 754974720.0,
+      "R1.hbm_write": 25362432.0,
+      "fab_dst:0": 18874368.0,
+      "fab_dst:1": 9732096.0,
+      "fab_src:0": 9732096.0,
+      "fab_src:1": 18874368.0
+     },
+     "bounds": {
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 106.37411507248879,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
      "schedule_sha256": "8b1e6a0daaddf8bb82cce158132c132c7414bc13446c696326a844a7906952e2"
     }
    ]
@@ -636,6 +1240,16 @@
   "mte_3wave_p1_4": {
    "kernel_total_us": 604.8139186706769,
    "slowest_rank": 0,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -655,6 +1269,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 28,
+     "traffic_bytes": {
+      "R0.dispatch_read": 19464192.0,
+      "R0.dispatch_write": 19562496.0,
+      "R0.gm_to_l1": 754974720.0,
+      "R0.hbm_write": 25362432.0,
+      "fab_dst:0": 9732096.0,
+      "fab_dst:1": 18874368.0,
+      "fab_src:0": 18874368.0,
+      "fab_src:1": 9732096.0
+     },
+     "bounds": {
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 106.37411507248876,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
      "schedule_sha256": "a703dda259a098f767b83e01af673eb08d65e1690bd846bbadf4ccee31ea8f80"
     },
     {
@@ -675,6 +1309,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 29,
+     "traffic_bytes": {
+      "R1.dispatch_read": 19464192.0,
+      "R1.dispatch_write": 19562496.0,
+      "R1.gm_to_l1": 754974720.0,
+      "R1.hbm_write": 25362432.0,
+      "fab_dst:0": 18874368.0,
+      "fab_dst:1": 9732096.0,
+      "fab_src:0": 9732096.0,
+      "fab_src:1": 18874368.0
+     },
+     "bounds": {
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 107.18124883045058,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
      "schedule_sha256": "31f62f2bcaafd39a18425dba06794316c4a2cdbdc4b40e71ecfe0e92a4f3441d"
     }
    ]
@@ -682,6 +1336,16 @@
   "mte_act_depth2_credit2": {
    "kernel_total_us": 614.833155516172,
    "slowest_rank": 0,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -701,6 +1365,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 30,
+     "traffic_bytes": {
+      "R0.dispatch_read": 19464192.0,
+      "R0.dispatch_write": 19562496.0,
+      "R0.gm_to_l1": 754974720.0,
+      "R0.hbm_write": 25362432.0,
+      "fab_dst:0": 9732096.0,
+      "fab_dst:1": 18874368.0,
+      "fab_src:0": 18874368.0,
+      "fab_src:1": 9732096.0
+     },
+     "bounds": {
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 106.37411507248873,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
      "schedule_sha256": "66b166ff5d763b160d26d6c1072dfb2b0be96877aa74372026c57305cd8d31fc"
     },
     {
@@ -721,6 +1405,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 30,
+     "traffic_bytes": {
+      "R1.dispatch_read": 19464192.0,
+      "R1.dispatch_write": 19562496.0,
+      "R1.gm_to_l1": 754974720.0,
+      "R1.hbm_write": 25362432.0,
+      "fab_dst:0": 18874368.0,
+      "fab_dst:1": 9732096.0,
+      "fab_src:0": 9732096.0,
+      "fab_src:1": 18874368.0
+     },
+     "bounds": {
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 106.37411507248873,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
      "schedule_sha256": "710b5a9960de370bc56c17e2a12cfd9132f41b429197225e5740b6cb22fb1c08"
     }
    ]
@@ -728,6 +1432,16 @@
   "mte_aic16": {
    "kernel_total_us": 984.7057588067356,
    "slowest_rank": 0,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -747,6 +1461,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 52,
+     "traffic_bytes": {
+      "R0.dispatch_read": 19464192.0,
+      "R0.dispatch_write": 19562496.0,
+      "R0.gm_to_l1": 754974720.0,
+      "R0.hbm_write": 25362432.0,
+      "fab_dst:0": 9732096.0,
+      "fab_dst:1": 18874368.0,
+      "fab_src:0": 18874368.0,
+      "fab_src:1": 9732096.0
+     },
+     "bounds": {
+      "compute_us": 268.435456,
+      "bandwidth_us": 303.05664739884395,
+      "dependency_us": 107.42338895783905,
+      "lower_us": 303.05664739884395,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
      "schedule_sha256": "f53d0343cd4e7d2971ace8aa6c5c14e22239a87777f4cb607c07ee1749da8fc1"
     },
     {
@@ -767,6 +1501,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 52,
+     "traffic_bytes": {
+      "R1.dispatch_read": 19464192.0,
+      "R1.dispatch_write": 19562496.0,
+      "R1.gm_to_l1": 754974720.0,
+      "R1.hbm_write": 25362432.0,
+      "fab_dst:0": 18874368.0,
+      "fab_dst:1": 9732096.0,
+      "fab_src:0": 9732096.0,
+      "fab_src:1": 18874368.0
+     },
+     "bounds": {
+      "compute_us": 268.435456,
+      "bandwidth_us": 303.05664739884395,
+      "dependency_us": 107.42338895783905,
+      "lower_us": 303.05664739884395,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
      "schedule_sha256": "dc4d21318375b53526587bc38b756fa2a98b714f45bf0aa397f38e47ab0f35b3"
     }
    ]
@@ -774,6 +1528,16 @@
   "mte_b_reuse": {
    "kernel_total_us": 600.9294673317274,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "5e70089d4f6111743af8631a8d39e51b9c53ce8dec272ad7a52d27f0b56be565",
    "ranks": [
     {
      "rank": 0,
@@ -793,6 +1557,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 29,
+     "traffic_bytes": {
+      "R0.dispatch_read": 19464192.0,
+      "R0.dispatch_write": 19562496.0,
+      "R0.gm_to_l1": 684007096.3199998,
+      "R0.hbm_write": 25362432.0,
+      "fab_dst:0": 9732096.0,
+      "fab_dst:1": 18874368.0,
+      "fab_src:0": 18874368.0,
+      "fab_src:1": 9732096.0
+     },
+     "bounds": {
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 77.88679021699744,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
      "schedule_sha256": "3122b90c11a9166307a60229892ef24b0558ce2c9d7bc45ed3af6765e9dde9e6"
     },
     {
@@ -813,6 +1597,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 29,
+     "traffic_bytes": {
+      "R1.dispatch_read": 19464192.0,
+      "R1.dispatch_write": 19562496.0,
+      "R1.gm_to_l1": 684007096.3199998,
+      "R1.hbm_write": 25362432.0,
+      "fab_dst:0": 18874368.0,
+      "fab_dst:1": 9732096.0,
+      "fab_src:0": 9732096.0,
+      "fab_src:1": 18874368.0
+     },
+     "bounds": {
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 77.88679021699744,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
      "schedule_sha256": "630fb83fb3fcc70e074d8568790b161095aa78305af937ce62b471098f790d76"
     }
    ]
@@ -820,6 +1624,16 @@
   "mte_gmm2_kl1_256": {
    "kernel_total_us": 245.96661338406287,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -839,6 +1653,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.79102414965323,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "ad0129aeafbf3061b4a0fbda340b71f2aa70dd5faf8211b70c71d937a4c508cd"
     },
     {
@@ -859,6 +1697,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.73475041242914,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "6a1de92ece7999fe45d39a0d84b572d181f19df699964a0d0b831565981d7183"
     },
     {
@@ -879,6 +1741,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.79102414965324,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "65a726fce871561662c769e109715c92d5290ebec1c9f58bb4eae0ce9920adce"
     },
     {
@@ -899,6 +1785,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.4367963315522,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "fb4b9cc1c4a175e0ca77df2e0e89ea2a2ac0ed47c94f8486dc0f71cea15b5332"
     }
    ]
@@ -906,6 +1816,16 @@
   "mte_l1_tile_k512": {
    "kernel_total_us": 245.96661338406278,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "c107e32c8c8ae827831628f0584f64088faea155e02e6a1719eccfbd924e400c",
    "ranks": [
     {
      "rank": 0,
@@ -925,6 +1845,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 69.11788349454727,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "147b1f078c116de474fa8b5523d0dcb1b569c092e5ec1ab47710b7b1c83202c0"
     },
     {
@@ -945,6 +1889,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 69.06160975732317,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "0940b5247d9d1839bfd09971637ecc58517ae886af74490164d6eef94b03dd43"
     },
     {
@@ -965,6 +1933,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 69.11788349454727,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "fc9e6fe7991826089597d7c500c0387901b3baf3d3b73eab81cc6aa4b82988e2"
     },
     {
@@ -985,6 +1977,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 68.76365567644625,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "c07c1e4fae5e7464bb010e3b53bc5f9e7433242b6f57f9699e704aa44c8436b7"
     }
    ]
@@ -992,6 +2008,16 @@
   "mte_l1buf1_quant1": {
    "kernel_total_us": 288.4513477801743,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "0029a3c1394656d2edd0539c0177c56c55eae9b6f8552784f8ad4af58982e128",
    "ranks": [
     {
      "rank": 0,
@@ -1011,6 +2037,31 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R0.combine_read": 8264448.0,
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 3199680.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 728640.0,
+      "fab_dst:2": 722304.0,
+      "fab_dst:3": 696960.0,
+      "fab_src:0": 2147904.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 69.27223182954513,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "9bb912df71c8884846c5f82147a830b6b2735bb52974db653c475b5a6223b00b"
     },
     {
@@ -1031,6 +2082,31 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R1.combine_read": 8264448.0,
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2065536.0,
+      "fab_dst:0": 1862784.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 722304.0,
+      "fab_dst:3": 696960.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 3282048.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 69.24321568378896,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "41bd3a4d3d2f31f7ee104a86e2ce528f65d84344864751fd4d4a248078d3cd28"
     },
     {
@@ -1051,6 +2127,31 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R2.combine_read": 8264448.0,
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2059200.0,
+      "fab_dst:0": 1862784.0,
+      "fab_dst:1": 728640.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 696960.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 3288384.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 69.27223182954513,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "84c744292adc3791a1043f55b89b0e602d224ddd46976b08dbfa0e9372e2064c"
     },
     {
@@ -1071,6 +2172,31 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R3.combine_read": 8264448.0,
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2033856.0,
+      "fab_dst:0": 1862784.0,
+      "fab_dst:1": 728640.0,
+      "fab_dst:2": 722304.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 3313728.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 69.14161177325717,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "5f8565feb8720508adbd4449138000ac4c4b30de620484c878338f9d90a3921a"
     }
    ]
@@ -1078,6 +2204,16 @@
   "mte_lag_by_threshold": {
    "kernel_total_us": 5621.796917922041,
    "slowest_rank": 0,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -1097,6 +2233,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 261,
+     "traffic_bytes": {
+      "R0.dispatch_read": 207618048.0,
+      "R0.dispatch_write": 208666624.0,
+      "R0.gm_to_l1": 8053063680.0,
+      "R0.hbm_write": 270532608.0,
+      "fab_dst:0": 103809024.0,
+      "fab_dst:1": 201326592.0,
+      "fab_src:0": 201326592.0,
+      "fab_src:1": 103809024.0
+     },
+     "bounds": {
+      "compute_us": 1636.1780175238096,
+      "bandwidth_us": 288.62537847508946,
+      "dependency_us": 107.58481570943081,
+      "lower_us": 1636.1780175238096,
+      "binding": "compute",
+      "total_mac": 1236950581248,
+      "gm_to_l1_bytes": 419430400,
+      "violation": null
+     },
      "schedule_sha256": "89cd68a23234413f11aa3d755afd217685cfe1bafa902e3f0874b03dc4e1c3c5"
     },
     {
@@ -1117,6 +2273,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 261,
+     "traffic_bytes": {
+      "R1.dispatch_read": 207618048.0,
+      "R1.dispatch_write": 208666624.0,
+      "R1.gm_to_l1": 8053063680.0,
+      "R1.hbm_write": 270532608.0,
+      "fab_dst:0": 201326592.0,
+      "fab_dst:1": 103809024.0,
+      "fab_src:0": 103809024.0,
+      "fab_src:1": 201326592.0
+     },
+     "bounds": {
+      "compute_us": 1636.1780175238096,
+      "bandwidth_us": 288.62537847508946,
+      "dependency_us": 107.58481570943081,
+      "lower_us": 1636.1780175238096,
+      "binding": "compute",
+      "total_mac": 1236950581248,
+      "gm_to_l1_bytes": 419430400,
+      "violation": null
+     },
      "schedule_sha256": "a65aa994fa3196903e83116b3a909386a1d3adf2f5502546fc2877ec40d89e29"
     }
    ]
@@ -1124,6 +2300,16 @@
   "mte_shared_expert": {
    "kernel_total_us": 317.6217999090177,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -1147,6 +2333,30 @@
       "shared_head_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.9439335908864,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "3f2f9ae368c2a8f6e77ac9f75c39f293aea61989c78fbbaef5690b2aed8d0694"
     },
     {
@@ -1171,6 +2381,30 @@
       "shared_head_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.88765985366227,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "3ccc1c29862f58ba3b5655dc5efc0ba6fedd3295255df82d0d3a73832d237c6e"
     },
     {
@@ -1195,6 +2429,30 @@
       "shared_head_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.9439335908864,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "05f6d734b227af950b608e9949ac4909b9ce2c6dc6610f8f644db7b8c48ccac4"
     },
     {
@@ -1219,6 +2477,30 @@
       "shared_head_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.5897057727854,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "3ecdaab098ab4525d6da1b83f98ef546f738acbcdcca671169eccce6f341fd89"
     }
    ]
@@ -1226,6 +2508,16 @@
   "mte_skewed_default": {
    "kernel_total_us": 245.9666133840629,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -1245,6 +2537,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088639,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "b13021fb9ddf3e478da1fc6fd8f5c7e029255dbaf37e99b6cbcc8568be3341d1"
     },
     {
@@ -1265,6 +2581,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.88765985366229,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "9fc7cd52aa88e8100d3f2068c1c516adbbdbf25731753253462ae3cd0a6469e0"
     },
     {
@@ -1285,6 +2625,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088639,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "3516139362b218d317714e4db90f8a29c35e9595da0582a8445fff79dc073e29"
     },
     {
@@ -1305,6 +2669,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.58970577278536,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "e09477af7607ed52b2fc7ef3e429edceedc0383befe5da2920a1becfe179841f"
     }
    ]
@@ -1312,6 +2700,16 @@
   "mte_skewed_lag1": {
    "kernel_total_us": 267.2889071644591,
    "slowest_rank": 3,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -1331,6 +2729,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088639,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "82e8612fdba94f642e7217c55e6229c8afbadc3e64d4cb10b7adfae7e842dd3c"
     },
     {
@@ -1351,6 +2773,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.88765985366229,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "c8cebec67f61b9663f85c97aa79988a941c1fdbfad2d482126fdf8a5f5693345"
     },
     {
@@ -1371,6 +2817,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088639,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "4a1b92cce072c82c2db401296bc6a9f0efbff29992f0c19675d7a54310508e42"
     },
     {
@@ -1391,6 +2861,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.58970577278536,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "8f35237a573a8d212a8b4b9257c7cababcd0b67e75a03841620627a215ad1c1b"
     }
    ]
@@ -1398,6 +2892,16 @@
   "mte_tile_m128": {
    "kernel_total_us": 306.3288430865125,
    "slowest_rank": 3,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "0080d940353ef098265d2db31b605fd2ccd1bc263765e5754ef5a657d6c4b2cc",
    "ranks": [
     {
      "rank": 0,
@@ -1417,6 +2921,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 326467584.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088639,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "79dc1d6d25b2fa75729bd6b4af0db06124f36292a47ecc4e8e1040d07686428f"
     },
     {
@@ -1437,6 +2965,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 326467584.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.88765985366227,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "19750eba2f953210fc69967d0c88a009776cb3e5b7c92cf1d7816f6ba109e1ac"
     },
     {
@@ -1457,6 +3009,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 326467584.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088639,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "cf31825e44111e111168451cd1aa9bc882d688a899be2759f771e8ba9ef24320"
     },
     {
@@ -1477,6 +3053,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 18,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 326467584.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.58970577278536,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "026eb8471b323fa68684658d857a215fe5267c2d7de68034bffbc71a958ec90e"
     }
    ]
@@ -1484,6 +3084,16 @@
   "mte_tile_n128": {
    "kernel_total_us": 275.1030338592527,
    "slowest_rank": 2,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "d3d4d3b8620e8c3e3c8309d5e58cd5e42996aeabb4819fb2c982c52d2f518bd9",
    "ranks": [
     {
      "rank": 0,
@@ -1503,6 +3113,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 24,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 313196544.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 36.481287782642966,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "81f249974b5d8bf9c8f8d078aa9ceeb520749274cbe6d9a1b7b64e977d9c1ade"
     },
     {
@@ -1523,6 +3157,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 24,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 313196544.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 36.453150914030914,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "512b36cb4993380b1d9f1b4257bbe0f20db69a47cf81b1753168360eaec858a4"
     },
     {
@@ -1543,6 +3201,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 24,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 313196544.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 36.481287782642966,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "ea3f2d24658826c1825441a845bf309646a5f9889b199630092bd2b46c80a7e7"
     },
     {
@@ -1563,6 +3245,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 26,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 313196544.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 36.30733310926125,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "102943dd1c02108282f4ca208b29ac18c418eb14221fed24abf8df9f0ad7ac5a"
     }
    ]
@@ -1570,6 +3276,16 @@
   "mte_uniform_bs64": {
    "kernel_total_us": 1751.4824642064764,
    "slowest_rank": 0,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -1589,6 +3305,31 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 135,
+     "traffic_bytes": {
+      "R0.combine_read": 6684672.0,
+      "R0.dispatch_read": 3244032.0,
+      "R0.dispatch_write": 3260416.0,
+      "R0.gm_to_l1": 2466250752.0,
+      "R0.hbm_write": 2654208.0,
+      "fab_dst:0": 2433024.0,
+      "fab_dst:1": 1572864.0,
+      "fab_dst:2": 1572864.0,
+      "fab_dst:3": 1572864.0,
+      "fab_src:0": 4718592.0,
+      "fab_src:1": 811008.0,
+      "fab_src:2": 811008.0,
+      "fab_src:3": 811008.0
+     },
+     "bounds": {
+      "compute_us": 25.565281523809524,
+      "bandwidth_us": 1665.368433801266,
+      "dependency_us": 68.06265601454277,
+      "lower_us": 1665.368433801266,
+      "binding": "bandwidth",
+      "total_mac": 19327352832,
+      "gm_to_l1_bytes": 2420113408,
+      "violation": null
+     },
      "schedule_sha256": "5c95144bc1f1ca0fe05babffda102ee837a463881222967a1e11857f8dc00037"
     },
     {
@@ -1609,6 +3350,31 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 135,
+     "traffic_bytes": {
+      "R1.combine_read": 6684672.0,
+      "R1.dispatch_read": 3244032.0,
+      "R1.dispatch_write": 3260416.0,
+      "R1.gm_to_l1": 2466250752.0,
+      "R1.hbm_write": 2654208.0,
+      "fab_dst:0": 1572864.0,
+      "fab_dst:1": 2433024.0,
+      "fab_dst:2": 1572864.0,
+      "fab_dst:3": 1572864.0,
+      "fab_src:0": 811008.0,
+      "fab_src:1": 4718592.0,
+      "fab_src:2": 811008.0,
+      "fab_src:3": 811008.0
+     },
+     "bounds": {
+      "compute_us": 25.565281523809524,
+      "bandwidth_us": 1665.368433801266,
+      "dependency_us": 68.06265601454277,
+      "lower_us": 1665.368433801266,
+      "binding": "bandwidth",
+      "total_mac": 19327352832,
+      "gm_to_l1_bytes": 2420113408,
+      "violation": null
+     },
      "schedule_sha256": "9302552a872fdaa92c390ac451d76274960f76ea034e6ece3d1346f9ded47aec"
     },
     {
@@ -1629,6 +3395,31 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 135,
+     "traffic_bytes": {
+      "R2.combine_read": 6684672.0,
+      "R2.dispatch_read": 3244032.0,
+      "R2.dispatch_write": 3260416.0,
+      "R2.gm_to_l1": 2466250752.0,
+      "R2.hbm_write": 2654208.0,
+      "fab_dst:0": 1572864.0,
+      "fab_dst:1": 1572864.0,
+      "fab_dst:2": 2433024.0,
+      "fab_dst:3": 1572864.0,
+      "fab_src:0": 811008.0,
+      "fab_src:1": 811008.0,
+      "fab_src:2": 4718592.0,
+      "fab_src:3": 811008.0
+     },
+     "bounds": {
+      "compute_us": 25.565281523809524,
+      "bandwidth_us": 1665.368433801266,
+      "dependency_us": 68.06265601454277,
+      "lower_us": 1665.368433801266,
+      "binding": "bandwidth",
+      "total_mac": 19327352832,
+      "gm_to_l1_bytes": 2420113408,
+      "violation": null
+     },
      "schedule_sha256": "0292c9d487584d2306100fdf27d73ebf030052cce4a7ee00313381492f37ac0d"
     },
     {
@@ -1649,6 +3440,31 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 135,
+     "traffic_bytes": {
+      "R3.combine_read": 6684672.0,
+      "R3.dispatch_read": 3244032.0,
+      "R3.dispatch_write": 3260416.0,
+      "R3.gm_to_l1": 2466250752.0,
+      "R3.hbm_write": 2654208.0,
+      "fab_dst:0": 1572864.0,
+      "fab_dst:1": 1572864.0,
+      "fab_dst:2": 1572864.0,
+      "fab_dst:3": 2433024.0,
+      "fab_src:0": 811008.0,
+      "fab_src:1": 811008.0,
+      "fab_src:2": 811008.0,
+      "fab_src:3": 4718592.0
+     },
+     "bounds": {
+      "compute_us": 25.565281523809524,
+      "bandwidth_us": 1665.368433801266,
+      "dependency_us": 68.06265601454277,
+      "lower_us": 1665.368433801266,
+      "binding": "bandwidth",
+      "total_mac": 19327352832,
+      "gm_to_l1_bytes": 2420113408,
+      "violation": null
+     },
      "schedule_sha256": "36e0af43f52d4b8eced92103ecf2a4fee0a4e958779e41b5efbb0548c726e358"
     }
    ]
@@ -1656,6 +3472,8 @@
   "packing_balanced": {
    "kernel_total_us": 237.73299194287912,
    "slowest_rank": 3,
+   "provenance_summary": {},
+   "provenance_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
    "ranks": [
     {
      "rank": 0,
@@ -1675,6 +3493,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "a70aa79b866005daec87c7f07d3179ea9825129b97384790401d634e768df3c0"
     },
     {
@@ -1695,6 +3537,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "0d030ea89aaf7c9562f3ce93b192abdcd1cd88e5852bd4300f00264f5af45214"
     },
     {
@@ -1715,6 +3581,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "5a9aeee2d51d3ea5ba72e95a341c315f2b5cbfa201402002ebb1bbbcbbd3365d"
     },
     {
@@ -1735,6 +3625,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "c3cf0517f9c2849ad928bda5fe1fbc9d7f944e359e47db00121fc879c63e0b2b"
     }
    ]
@@ -1742,6 +3656,8 @@
   "packing_longest_first": {
    "kernel_total_us": 237.48149913256083,
    "slowest_rank": 2,
+   "provenance_summary": {},
+   "provenance_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
    "ranks": [
     {
      "rank": 0,
@@ -1761,6 +3677,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 16,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "3276be6b045d91e606b15d93ed4ae026aba9060c48d82aa2fa60a2aeadccf53f"
     },
     {
@@ -1781,6 +3721,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "99e70f651c57efcfdabc15587a836a41cba0a6bab87ffd3044e11cf56586d952"
     },
     {
@@ -1801,6 +3765,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "12c028836b32a66c8620244c82a4717a11382e8339d39ccc199c5134870f2db6"
     },
     {
@@ -1821,6 +3809,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "070d6c4147010336a00147f9328e25ac4c7293e609199fe0b64979cacefe1646"
     }
    ]
@@ -1828,6 +3840,16 @@
   "pipeline_compute_bound": {
    "kernel_total_us": 261.09929608674554,
    "slowest_rank": 3,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -1847,6 +3869,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 126.42830628571429,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 11.85208368465646,
+      "lower_us": 126.42830628571429,
+      "binding": "compute",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "ded3bdde5635e9262ab8abadb89ae1c68100c8e33a0840b935b710976158ee28"
     },
     {
@@ -1867,6 +3913,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 126.42830628571429,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 11.795809947432357,
+      "lower_us": 126.42830628571429,
+      "binding": "compute",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "223adfdacb39ea9a6e59164b3d68dc582330acf8e679ead80966abc622c7759f"
     },
     {
@@ -1887,6 +3957,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 126.42830628571429,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 11.85208368465646,
+      "lower_us": 126.42830628571429,
+      "binding": "compute",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "85fd9e3f8c331c559285c6de478a1a6f1c3829d24a3ca87da3d56218c4707af6"
     },
     {
@@ -1907,6 +4001,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": 126.42830628571429,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 11.497855866555438,
+      "lower_us": 126.42830628571429,
+      "binding": "compute",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "ffd5f92e545d8d129378f20bba2323fdb64700f871d6fc6bc46e28ead5536ce5"
     }
    ]
@@ -1914,6 +4032,16 @@
   "pipeline_engine_queue2": {
    "kernel_total_us": 245.96661338406287,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -1933,6 +4061,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 7.308254351323128,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "b0318b72d23bf1e35f6df65bc41d17fb79456d179c7270ae20b7fbe6696e1e5a"
     },
     {
@@ -1953,6 +4105,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 7.251980614099025,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "69147eaaea877bb402442232dc07c262b94545f06deeed1e535657962f08fe13"
     },
     {
@@ -1973,6 +4149,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 7.308254351323127,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "7fe45d208084ec9e4189ce6115f955f7105733b467601e31bbec3baebdc87d97"
     },
     {
@@ -1993,6 +4193,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 6.954026533222104,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "da2f1ffd3567f4763a9e19f585e4615ab667069b5c1883fdcecf7ae128e657cf"
     }
    ]
@@ -2000,6 +4224,16 @@
   "pipeline_fix_phase": {
    "kernel_total_us": 245.96661338406287,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -2019,6 +4253,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 7.308254351323128,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "b0318b72d23bf1e35f6df65bc41d17fb79456d179c7270ae20b7fbe6696e1e5a"
     },
     {
@@ -2039,6 +4297,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 7.251980614099025,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "69147eaaea877bb402442232dc07c262b94545f06deeed1e535657962f08fe13"
     },
     {
@@ -2059,6 +4341,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 7.308254351323127,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "7fe45d208084ec9e4189ce6115f955f7105733b467601e31bbec3baebdc87d97"
     },
     {
@@ -2079,6 +4385,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 6.954026533222104,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "da2f1ffd3567f4763a9e19f585e4615ab667069b5c1883fdcecf7ae128e657cf"
     }
    ]
@@ -2086,6 +4416,16 @@
   "pipeline_large_split": {
    "kernel_total_us": 2193.1910301628204,
    "slowest_rank": 0,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -2105,6 +4445,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 191,
+     "traffic_bytes": {
+      "R0.dispatch_read": 12976128.0,
+      "R0.dispatch_write": 13041664.0,
+      "R0.gm_to_l1": 2617245696.0,
+      "R0.hbm_write": 10616832.0,
+      "fab_dst:0": 9732096.0,
+      "fab_dst:1": 6291456.0,
+      "fab_dst:2": 6291456.0,
+      "fab_dst:3": 6291456.0,
+      "fab_src:0": 18874368.0,
+      "fab_src:1": 3244032.0,
+      "fab_src:2": 3244032.0,
+      "fab_src:3": 3244032.0
+     },
+     "bounds": {
+      "compute_us": 102.2611260952381,
+      "bandwidth_us": 1674.027195155519,
+      "dependency_us": 12.38895208386225,
+      "lower_us": 1674.027195155519,
+      "binding": "bandwidth",
+      "total_mac": 77309411328,
+      "gm_to_l1_bytes": 2432696320,
+      "violation": null
+     },
      "schedule_sha256": "a5ff5bcbf07eab150bb4c33c926630e8acb403a9afa5d75ca4c625a675b321b1"
     },
     {
@@ -2125,6 +4489,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 191,
+     "traffic_bytes": {
+      "R1.dispatch_read": 12976128.0,
+      "R1.dispatch_write": 13041664.0,
+      "R1.gm_to_l1": 2617245696.0,
+      "R1.hbm_write": 10616832.0,
+      "fab_dst:0": 6291456.0,
+      "fab_dst:1": 9732096.0,
+      "fab_dst:2": 6291456.0,
+      "fab_dst:3": 6291456.0,
+      "fab_src:0": 3244032.0,
+      "fab_src:1": 18874368.0,
+      "fab_src:2": 3244032.0,
+      "fab_src:3": 3244032.0
+     },
+     "bounds": {
+      "compute_us": 102.2611260952381,
+      "bandwidth_us": 1674.027195155519,
+      "dependency_us": 12.38895208386225,
+      "lower_us": 1674.027195155519,
+      "binding": "bandwidth",
+      "total_mac": 77309411328,
+      "gm_to_l1_bytes": 2432696320,
+      "violation": null
+     },
      "schedule_sha256": "801fd788ddb7a386589cd4fa4d34a1017f138012f24ab9487cc3ca5e72ca3f4f"
     },
     {
@@ -2145,6 +4533,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 199,
+     "traffic_bytes": {
+      "R2.dispatch_read": 12976128.0,
+      "R2.dispatch_write": 13041664.0,
+      "R2.gm_to_l1": 2617245696.0,
+      "R2.hbm_write": 10616832.0,
+      "fab_dst:0": 6291456.0,
+      "fab_dst:1": 6291456.0,
+      "fab_dst:2": 9732096.0,
+      "fab_dst:3": 6291456.0,
+      "fab_src:0": 3244032.0,
+      "fab_src:1": 3244032.0,
+      "fab_src:2": 18874368.0,
+      "fab_src:3": 3244032.0
+     },
+     "bounds": {
+      "compute_us": 102.2611260952381,
+      "bandwidth_us": 1674.027195155519,
+      "dependency_us": 12.38895208386225,
+      "lower_us": 1674.027195155519,
+      "binding": "bandwidth",
+      "total_mac": 77309411328,
+      "gm_to_l1_bytes": 2432696320,
+      "violation": null
+     },
      "schedule_sha256": "d862e35b4884bd228f5f88e0b99e59087f30999bdd56a005d7a18ae3cd647ee3"
     },
     {
@@ -2165,6 +4577,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 191,
+     "traffic_bytes": {
+      "R3.dispatch_read": 12976128.0,
+      "R3.dispatch_write": 13041664.0,
+      "R3.gm_to_l1": 2617245696.0,
+      "R3.hbm_write": 10616832.0,
+      "fab_dst:0": 6291456.0,
+      "fab_dst:1": 6291456.0,
+      "fab_dst:2": 6291456.0,
+      "fab_dst:3": 9732096.0,
+      "fab_src:0": 3244032.0,
+      "fab_src:1": 3244032.0,
+      "fab_src:2": 3244032.0,
+      "fab_src:3": 18874368.0
+     },
+     "bounds": {
+      "compute_us": 102.2611260952381,
+      "bandwidth_us": 1674.027195155519,
+      "dependency_us": 12.38895208386225,
+      "lower_us": 1674.027195155519,
+      "binding": "bandwidth",
+      "total_mac": 77309411328,
+      "gm_to_l1_bytes": 2432696320,
+      "violation": null
+     },
      "schedule_sha256": "ad7d564f4645b1643e13a0ac9681697301e35a010b1b91965e02f5dd9f491cb8"
     }
    ]
@@ -2172,6 +4608,16 @@
   "pipeline_layered_split": {
    "kernel_total_us": 2541.167518945464,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -2192,6 +4638,20 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 18,
+     "traffic_bytes": {
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 1336896.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 5.348294049145693,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "8435cf5017cdbbcaa2a3caacb8aad1bfcf647f93adac5e872150a8e0a6e4a8c3"
     },
     {
@@ -2213,6 +4673,20 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 18,
+     "traffic_bytes": {
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 1336896.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 5.505032902648907,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "3b1b6f47e2e00924629584778657b5d381da749795a0777970cb918e49d60b5e"
     },
     {
@@ -2234,6 +4708,20 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 18,
+     "traffic_bytes": {
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 1336896.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 5.34829404914575,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "acb9629ffb72d1847a89100be4b8fcd37a1a339b124fcd2714ad9db8c7591cad"
     },
     {
@@ -2255,6 +4743,20 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 18,
+     "traffic_bytes": {
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 1336896.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 5.348294049145736,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "da3bac73c3b9e414c596676da8d3e888fd4b99a7e7daf3c5411737af13206676"
     }
    ]
@@ -2262,6 +4764,16 @@
   "pipeline_neutral": {
    "kernel_total_us": 245.9666133840629,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -2281,6 +4793,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088639,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "b13021fb9ddf3e478da1fc6fd8f5c7e029255dbaf37e99b6cbcc8568be3341d1"
     },
     {
@@ -2301,6 +4837,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.88765985366229,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "9fc7cd52aa88e8100d3f2068c1c516adbbdbf25731753253462ae3cd0a6469e0"
     },
     {
@@ -2321,6 +4881,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088639,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "3516139362b218d317714e4db90f8a29c35e9595da0582a8445fff79dc073e29"
     },
     {
@@ -2341,6 +4925,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.58970577278536,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "e09477af7607ed52b2fc7ef3e429edceedc0383befe5da2920a1becfe179841f"
     }
    ]
@@ -2348,6 +4956,16 @@
   "pipeline_queue_depth2": {
    "kernel_total_us": 245.96661338406287,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -2367,6 +4985,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 7.308254351323128,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "b0318b72d23bf1e35f6df65bc41d17fb79456d179c7270ae20b7fbe6696e1e5a"
     },
     {
@@ -2387,6 +5029,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 7.251980614099025,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "69147eaaea877bb402442232dc07c262b94545f06deeed1e535657962f08fe13"
     },
     {
@@ -2407,6 +5073,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 7.308254351323127,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "7fe45d208084ec9e4189ce6115f955f7105733b467601e31bbec3baebdc87d97"
     },
     {
@@ -2427,6 +5117,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 6.954026533222104,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "da2f1ffd3567f4763a9e19f585e4615ab667069b5c1883fdcecf7ae128e657cf"
     }
    ]
@@ -2434,6 +5148,16 @@
   "pipeline_split": {
    "kernel_total_us": 245.96661338406287,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -2453,6 +5177,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 7.308254351323128,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "b0318b72d23bf1e35f6df65bc41d17fb79456d179c7270ae20b7fbe6696e1e5a"
     },
     {
@@ -2473,6 +5221,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 7.251980614099025,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "69147eaaea877bb402442232dc07c262b94545f06deeed1e535657962f08fe13"
     },
     {
@@ -2493,6 +5265,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 7.308254351323127,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "7fe45d208084ec9e4189ce6115f955f7105733b467601e31bbec3baebdc87d97"
     },
     {
@@ -2513,6 +5309,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 17,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 6.954026533222104,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "da2f1ffd3567f4763a9e19f585e4615ab667069b5c1883fdcecf7ae128e657cf"
     }
    ]
@@ -2520,6 +5340,16 @@
   "pipeline_sync_latency": {
    "kernel_total_us": 246.16661338406288,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -2539,6 +5369,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088639,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "f325d2cc99889cf057585097742ea359d7b3656af35330250cc708850776716e"
     },
     {
@@ -2559,6 +5413,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.88765985366229,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "20f5eaafdab5da133beb5fd872dc03cf8006e6bea6cb151c25e1fb82a194c975"
     },
     {
@@ -2579,6 +5457,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088639,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "70e63b5f3e8066c9bfc4ccbf261fc2e5dcaf4ed4b46cbe9a52f339eb1aacdffd"
     },
     {
@@ -2599,6 +5501,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.58970577278536,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "9b2974d9f8952d82f79d2995b0e0ce797f2f5f601b346cfb742cc0f80a1f0a27"
     }
    ]
@@ -2606,6 +5532,8 @@
   "policy_critical_path_first": {
    "kernel_total_us": 625.5120631425301,
    "slowest_rank": 1,
+   "provenance_summary": {},
+   "provenance_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
    "ranks": [
     {
      "rank": 0,
@@ -2625,6 +5553,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 29,
+     "traffic_bytes": {
+      "R0.dispatch_read": 19464192.0,
+      "R0.dispatch_write": 19562496.0,
+      "R0.gm_to_l1": 754974720.0,
+      "R0.hbm_write": 25362432.0,
+      "fab_dst:0": 9732096.0,
+      "fab_dst:1": 18874368.0,
+      "fab_src:0": 18874368.0,
+      "fab_src:1": 9732096.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "bea770cb2ecc92112c546dbdc8708efea93852d9e3607414a709e1ba874dff53"
     },
     {
@@ -2645,6 +5593,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 30,
+     "traffic_bytes": {
+      "R1.dispatch_read": 19464192.0,
+      "R1.dispatch_write": 19562496.0,
+      "R1.gm_to_l1": 754974720.0,
+      "R1.hbm_write": 25362432.0,
+      "fab_dst:0": 18874368.0,
+      "fab_dst:1": 9732096.0,
+      "fab_src:0": 9732096.0,
+      "fab_src:1": 18874368.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "ccd486a73fac6dea4f2287d5e5f70324adc3ea6b63f1496f6de7c682f5c22df0"
     }
    ]
@@ -2652,6 +5620,8 @@
   "policy_priority_by_stage": {
    "kernel_total_us": 603.7242880974285,
    "slowest_rank": 0,
+   "provenance_summary": {},
+   "provenance_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
    "ranks": [
     {
      "rank": 0,
@@ -2671,6 +5641,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 29,
+     "traffic_bytes": {
+      "R0.dispatch_read": 19464192.0,
+      "R0.dispatch_write": 19562496.0,
+      "R0.gm_to_l1": 754974720.0,
+      "R0.hbm_write": 25362432.0,
+      "fab_dst:0": 9732096.0,
+      "fab_dst:1": 18874368.0,
+      "fab_src:0": 18874368.0,
+      "fab_src:1": 9732096.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "d50022322747490783daa28e5e03105119fbcc12e694c6279b980aecbd8c578b"
     },
     {
@@ -2691,6 +5681,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 29,
+     "traffic_bytes": {
+      "R1.dispatch_read": 19464192.0,
+      "R1.dispatch_write": 19562496.0,
+      "R1.gm_to_l1": 754974720.0,
+      "R1.hbm_write": 25362432.0,
+      "fab_dst:0": 18874368.0,
+      "fab_dst:1": 9732096.0,
+      "fab_src:0": 9732096.0,
+      "fab_src:1": 18874368.0
+     },
+     "bounds": {
+      "compute_us": null,
+      "bandwidth_us": null,
+      "dependency_us": null,
+      "lower_us": null,
+      "binding": null,
+      "total_mac": null,
+      "gm_to_l1_bytes": null,
+      "violation": null
+     },
      "schedule_sha256": "01f9584f4c1b683b65ff227ee5991953e9a761ecb38762ad0f4df0372ed2196c"
     }
    ]
@@ -2698,6 +5708,16 @@
   "serialize_dispatch_comm": {
    "kernel_total_us": 372.69772244172935,
    "slowest_rank": 3,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -2717,6 +5737,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 40,
+     "traffic_bytes": {
+      "R0.dispatch_read": 4010688.0,
+      "R0.dispatch_write": 4030944.0,
+      "R0.gm_to_l1": 250970112.0,
+      "R0.hbm_write": 4949568.0,
+      "fab_dst:0": 2147904.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 4165632.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088642,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "1131e05f1b22034ce95fdd0da9bce9ff08333e59542541d7f6c3835def7b510a"
     },
     {
@@ -2737,6 +5781,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 44,
+     "traffic_bytes": {
+      "R1.dispatch_read": 4010688.0,
+      "R1.dispatch_write": 4030944.0,
+      "R1.gm_to_l1": 250970112.0,
+      "R1.hbm_write": 2750016.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 3282048.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 6365184.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.88765985366229,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "d82b31f3d1d6f48645f739dfdf25dab2525bae7ed0fe1701b9c0a4927e230061"
     },
     {
@@ -2757,6 +5825,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 43,
+     "traffic_bytes": {
+      "R2.dispatch_read": 4010688.0,
+      "R2.dispatch_write": 4030944.0,
+      "R2.gm_to_l1": 250970112.0,
+      "R2.hbm_write": 2737728.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 3288384.0,
+      "fab_dst:3": 1351680.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 6377472.0,
+      "fab_src:3": 696960.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.94393359088642,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "94f3de118c16e5b85350cd7ac1e838dd5462800265ddf9d887f815b78a02665a"
     },
     {
@@ -2777,6 +5869,30 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 43,
+     "traffic_bytes": {
+      "R3.dispatch_read": 4010688.0,
+      "R3.dispatch_write": 4030944.0,
+      "R3.gm_to_l1": 250970112.0,
+      "R3.hbm_write": 2688576.0,
+      "fab_dst:0": 3612672.0,
+      "fab_dst:1": 1413120.0,
+      "fab_dst:2": 1400832.0,
+      "fab_dst:3": 3313728.0,
+      "fab_src:0": 1862784.0,
+      "fab_src:1": 728640.0,
+      "fab_src:2": 722304.0,
+      "fab_src:3": 6426624.0
+     },
+     "bounds": {
+      "compute_us": 31.60707657142857,
+      "bandwidth_us": 107.47349298100742,
+      "dependency_us": 67.58970577278538,
+      "lower_us": 107.47349298100742,
+      "binding": "bandwidth",
+      "total_mac": 23894949888,
+      "gm_to_l1_bytes": 156180480,
+      "violation": null
+     },
      "schedule_sha256": "57655539e459dbcea3b920c554265fd8580a492fccd65e6a350cf8f18ed04f1e"
     }
    ]
@@ -2784,6 +5900,16 @@
   "stealing_gmm1": {
    "kernel_total_us": 449.4011436323053,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -2803,6 +5929,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 21,
+     "traffic_bytes": {
+      "R0.dispatch_read": 12976128.0,
+      "R0.dispatch_write": 13041664.0,
+      "R0.gm_to_l1": 503316480.0,
+      "R0.hbm_write": 16908288.0,
+      "fab_dst:0": 6488064.0,
+      "fab_dst:1": 12582912.0,
+      "fab_src:0": 12582912.0,
+      "fab_src:1": 6488064.0
+     },
+     "bounds": {
+      "compute_us": 102.2611260952381,
+      "bandwidth_us": 115.45015139003578,
+      "dependency_us": 106.37411507248882,
+      "lower_us": 115.45015139003578,
+      "binding": "bandwidth",
+      "total_mac": 77309411328,
+      "gm_to_l1_bytes": 167772160,
+      "violation": null
+     },
      "schedule_sha256": "95229b303924914e2a94d91798f3ae60a56343b8fb539c25d4f39bd69602c8cc"
     },
     {
@@ -2823,6 +5969,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 22,
+     "traffic_bytes": {
+      "R1.dispatch_read": 12976128.0,
+      "R1.dispatch_write": 13041664.0,
+      "R1.gm_to_l1": 503316480.0,
+      "R1.hbm_write": 16908288.0,
+      "fab_dst:0": 12582912.0,
+      "fab_dst:1": 6488064.0,
+      "fab_src:0": 6488064.0,
+      "fab_src:1": 12582912.0
+     },
+     "bounds": {
+      "compute_us": 102.2611260952381,
+      "bandwidth_us": 115.45015139003578,
+      "dependency_us": 106.37411507248885,
+      "lower_us": 115.45015139003578,
+      "binding": "bandwidth",
+      "total_mac": 77309411328,
+      "gm_to_l1_bytes": 167772160,
+      "violation": null
+     },
      "schedule_sha256": "08f9c6964361404499f68fc855605cd06377ba45f359829dbe0d6ec206bd175b"
     }
    ]
@@ -2830,6 +5996,16 @@
   "stealing_pipeline": {
    "kernel_total_us": 453.77996294985155,
    "slowest_rank": 1,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 19
+   },
+   "provenance_sha256": "ecbce88dcdba8d5d3ca7936bf7f584d6d60ae8209b82a8f0f9b387821d20bbe9",
    "ranks": [
     {
      "rank": 0,
@@ -2849,6 +6025,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R0.dispatch_read": 12976128.0,
+      "R0.dispatch_write": 13041664.0,
+      "R0.gm_to_l1": 503316480.0,
+      "R0.hbm_write": 16908288.0,
+      "fab_dst:0": 6488064.0,
+      "fab_dst:1": 12582912.0,
+      "fab_src:0": 12582912.0,
+      "fab_src:1": 6488064.0
+     },
+     "bounds": {
+      "compute_us": 102.2611260952381,
+      "bandwidth_us": 115.45015139003578,
+      "dependency_us": 45.28328263061343,
+      "lower_us": 115.45015139003578,
+      "binding": "bandwidth",
+      "total_mac": 77309411328,
+      "gm_to_l1_bytes": 167772160,
+      "violation": null
+     },
      "schedule_sha256": "7134917613a45cc09e3f1bb26bb3c5775b521ece7e467cc49280d9f76309d406"
     },
     {
@@ -2869,6 +6065,26 @@
       "moe_stage_done": 0.0
      },
      "critical_path_len": 15,
+     "traffic_bytes": {
+      "R1.dispatch_read": 12976128.0,
+      "R1.dispatch_write": 13041664.0,
+      "R1.gm_to_l1": 503316480.0,
+      "R1.hbm_write": 16908288.0,
+      "fab_dst:0": 12582912.0,
+      "fab_dst:1": 6488064.0,
+      "fab_src:0": 6488064.0,
+      "fab_src:1": 12582912.0
+     },
+     "bounds": {
+      "compute_us": 102.2611260952381,
+      "bandwidth_us": 115.45015139003578,
+      "dependency_us": 45.283282630613456,
+      "lower_us": 115.45015139003578,
+      "binding": "bandwidth",
+      "total_mac": 77309411328,
+      "gm_to_l1_bytes": 167772160,
+      "violation": null
+     },
      "schedule_sha256": "47fcd366fd430faa7feb11ef0a6ecfdd760bb0768337ecead1b152bbc150e837"
     }
    ]
