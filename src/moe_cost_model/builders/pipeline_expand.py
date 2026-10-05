@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Tuple
 
-from ..config.hardware import BW_L1_GM, BW_SCATTER, KernelConfig
+from ..config.hardware import BW_L1_GM, KernelConfig
 from ..scheduler.events import Event
 from ..config.pipeline import PipelineConstraints
 
@@ -376,9 +376,12 @@ def _expand_aiv(
     # 保留建图器自己申报的字节 (ACT 的 GM 写出、COMBINE 的片间写), 只在这里**追加**
     # COMBINE 的散射写。原先这里是直接覆盖 —— ACT 的写信道字节与 COMBINE 的
     # fab_* 字节都会在启用相位流水时被悄悄丢掉。
+    # 建图器自己申报的字节原样保留 (ACT 的 GM 写出、COMBINE 的片间写与本卡读写)。
+    # 2026-10-05 之前这里还会**追加** (CH_HBM_WRITE, base_dur x BW_SCATTER) ——
+    # 从时长倒推字节, 方向是反的; 用的 BW_SCATTER 自己标着"旧口径, 已不用";
+    # 而且它只在开了相位流水时出现 —— 换一个编排旋钮不该改变搬了多少字节。
+    # COMBINE 的本卡读回与本卡行写现在由 builders/comm/mte.py 按字节直接申报。
     ch = ev.channel_bytes
-    if stage == _STAGE_COMBINE and base_dur > 0:
-        ch = ch + ((CH_HBM_WRITE, base_dur * BW_SCATTER, BW_SCATTER),)
 
     need_split = load_bw is not None and base_dur > 0
     if not need_split:

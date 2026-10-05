@@ -161,6 +161,9 @@ class Calibration:
     # hbm_write 信道的每核应得速率 (速率服务器用, 不进 COMBINE 公式)
     bw_scatter: Optional[float] = None
     count_table_prepare_us: Optional[float] = None
+    # 晚绑定下每取一次活的开销 (原子加/核间同步标志的读改写)。缺省 0 不表示没有代价,
+    # 表示本模型没有声称它是多少 —— 见 PrimitiveCosts.late_bind_fetch_us 与 R7。
+    late_bind_fetch_us: float = 0.0
     dispatch: DispatchMechanisticLatency = field(default_factory=DispatchMechanisticLatency)
     urma: Optional[UrmaMechanisticLatency] = None
 
@@ -311,6 +314,8 @@ class Scenario:
         extra = {}
         if cal.count_table_prepare_us is not None:
             extra["count_table_prepare_us"] = cal.count_table_prepare_us
+        if cal.late_bind_fetch_us:
+            extra["late_bind_fetch_us"] = cal.late_bind_fetch_us
         # 行级软流水槽数的真值来源, 依次: [tiling] path > pipeline.buffers > 缺省常数
         dispatch = cal.dispatch
         til = self.tiling_truth()

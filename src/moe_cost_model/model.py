@@ -376,6 +376,8 @@ class A8W8WaveCostModel:
                 _rewrite_for_late_binding(
                     events, late, shape.aic_num, pre, pools,
                     act_role=self.options.roles.role_of("activation"))
+            if late:
+                _charge_late_bind_fetch(events, late, self.costs)
             if self.options.link("activation", "gmm2").location == "onchip":
                 # 共位在加 rank 前缀之前打: colocate_with 记的是事件名, 不带前缀。
                 _apply_onchip_act_to_gmm2(events, late)
@@ -600,3 +602,32 @@ class A8W8WaveCostModel:
     def cursor_summary(self, shape: MegaMoeShape) -> List[CursorTrace]:
         _, trace = self.build_events(shape)
         return trace
+
+
+def _charge_late_bind_fetch(events, late_pools, costs) -> None:
+    """晚绑定要付"动态取活"的代价: 每个落到池化角色上的事件加一次取活开销.
+
+    为什么必须计费
+    --------------
+    静态分核 (late_bind_pools=()) 里"我干哪些 tile"是编译期算出来的, 运行时零开销。
+    晚绑定是运行时从一个共享游标里抢活 —— 真实 kernel 得做一次原子加 (或一次核间
+    同步标志的读改写)。**模型里不计这笔, 晚绑定就永远显得更好**: 它只拿到了收益
+    (就绪的活能漂到空闲核), 没付代价。那是模型的结构偏置, 不是结论。
+
+    这个值没有标定
+    --------------
+    PrimitiveCosts.late_bind_fetch_us 缺省 0.0, 出处 assumed —— **0 不表示"没有代价",
+    表示"本模型没有声称代价是多少"**。所以缺省下换晚绑定的那个收益仍是不可信的,
+    analysis/design_space.py 会把这类行标出来。要定这个值, 见
+    docs/calibration_runs.md 的 R7 (同一形状跑静态分核与动态取活两版, 差分)。
+    """
+    fetch = float(getattr(costs, "late_bind_fetch_us", 0.0) or 0.0)
+    if fetch <= 0.0:
+        return
+    pooled = set(late_pools)
+    for ev in events:
+        for r in ev.resources:
+            role, _, core_s = r.partition(":")
+            if core_s and role in pooled:
+                ev.duration_us += fetch
+                break

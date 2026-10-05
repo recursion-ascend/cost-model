@@ -209,10 +209,21 @@ class PrimitiveCosts:
     # 必填 (不给零值缺省): 缺省 0 会让 COMBINE 的跨卡写悄悄不占片间资源 ——
     # 手工构造 PrimitiveCosts 的调用点会与 build_analytical_costs 静默分叉。
     combine_write_bytes_per_row: Callable[[float], float]
+    # 读回一个 GMM2 tile + 路由元数据的本卡 HBM 字节, 供 builder 申报本卡写/读流量。
+    # 缺省 None = 不申报 (手工构造 PrimitiveCosts 的旧调用点不必改); 给了就申报,
+    # build_analytical_costs 一律接上 —— 申报量不该少于算法必搬的字节
+    # (见 analysis/bounds.py)。
+    combine_read_bytes: Optional[Callable[[int, int], float]] = None
 
     # One-time per physical AIV1 before MoE waves.  Optional because profiler may
     # already fold it into another stage fit.
     count_table_prepare_us: float = T_COUNT_GATE
+
+    # 晚绑定 (ModelOptions.late_bind_pools 非空) 下每取一次活的开销: 真实 kernel 要做
+    # 一次原子加 / 核间同步标志的读改写, 静态分核不需要 (编译期算好)。
+    # **缺省 0.0 不表示"没有代价", 表示本模型没有声称它是多少** —— 不计这笔, 晚绑定
+    # 就只拿收益不付代价, 永远显得更好。要定它见 docs/calibration_runs.md 的 R7。
+    late_bind_fetch_us: float = 0.0
 
     # 每个专家波内任务的每核首次 tile 的启动开销
     gmm1_problem_startup_us: float = 0.0
@@ -595,6 +606,10 @@ class AnalyticalCombineCosts:
         """写侧每元素字节: NO_QUANT=2 (BF16); QUANT=1.03125 (FP8 + 1/32 scale)."""
         return self.out_elem_bytes + self.scale_bytes_per_elem
 
+    def read_bytes(self, m: int, logical_n: int) -> float:
+        """读回一个 GMM2 tile + 路由元数据的本卡 HBM 字节 (算法必搬, 与时长同口径)."""
+        return m * (self.in_elem_bytes * logical_n + self.meta_bytes)
+
     def read_us(self, m: int, logical_n: int) -> float:
         """GMM2 tile 从 GM 读回 UB + metaInfo, 全在本卡."""
         return m * (self.in_elem_bytes * logical_n + self.meta_bytes) / self.bw_local
@@ -651,6 +666,7 @@ def build_analytical_costs(
     bw_l1_gm: Optional[float] = None,
     bw_l1_gm_b_nz: float = 0.0,
     cube_mac_per_us: float = 0.0,
+    late_bind_fetch_us: float = 0.0,
     gmm1_fill_us: float = 0.0,
     gmm1_tile_restart_us: float = 0.0,
     bw_ub: Optional[float] = None,
@@ -716,6 +732,8 @@ def build_analytical_costs(
         activation_store_bytes=act.store_bytes,
         combine_tile=comb.tile,
         combine_write_bytes_per_row=comb.write_bytes_per_row,
+        combine_read_bytes=comb.read_bytes,
         count_table_prepare_us=count_table_prepare_us,
         gmm1_fill_us=gmm1_fill_us,
+        late_bind_fetch_us=late_bind_fetch_us,
     )
