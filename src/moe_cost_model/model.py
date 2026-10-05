@@ -18,7 +18,7 @@ from .builders.pipeline_expand import CH_HBM_WRITE, apply_pipeline
 from .costs import PrimitiveCosts
 from .analysis.bounds import attach_bounds
 from .shape import (
-    CursorTrace, EngineQueueDepths, MegaMoeShape, ModelOptions,
+    CursorTrace, MegaMoeShape, ModelOptions,
 )
 from .planning.waves import (
     Wave, calc_m_groups_per_wave, plan_waves, plan_layered_waves,
@@ -81,7 +81,7 @@ def _rewrite_for_late_binding(events: List[Event], roles: Sequence[str], aic_num
             # 按核的计数信号量分两类:
             #
             # 1) 自取自还 (Q:aic:c7 之类的引擎队列): 事件同时独占该核资源, 同核在途数
-            #    恒 <= 1, 只要深度 >= 1 就不起约束 (见 EngineQueueDepths 文档)。
+            #    恒 <= 1, 容量 1 就已经不起约束 (见下面声明容量处的说明)。
             #    **去掉**, 语义不变, 也省掉一次核号解析。
             # 2) 跨事件持有 (UB:gmm1act:c7 —— GMM1 取、配对 ACT 还): 真约束, 核号换成
             #    占位 c*, 由引擎在派发时回填 (_tok / _remap_tokens)。取与还必须落同一个
@@ -386,12 +386,20 @@ class A8W8WaveCostModel:
                 ev.channel_bytes = tuple(
                     (c, b, rt) if c.startswith("fab_") else (pre + c, b, rt)
                     for c, b, rt in ev.channel_bytes)
-            qd = self.options.engine_queue_depths or EngineQueueDepths()
+            # 每核引擎队列的容量恒为 1, 不设旋钮。原因是这个事件代数里 "更深的
+            # 队列" 没有可表达的后果: 持核事件独占 AIC/AIV0/AIV1, 同核在途数恒 <= 1,
+            # 所以容量 2 与 1 等价; 相位拆分后的 load 相位又刻意不继承 Q:* (继承会让
+            # 容量 1 的引擎信号量卡死 L1 缓冲深度, 见 pipeline_expand 的说明), 所以
+            # 拆相位也不会让它咬上。要表达 "更深的队列" 必须先有发射开销或在途计数的
+            # 物理后果, 模型里没有, 给个旋钮只会让扫描得到 "深了也没用" 的假结论。
+            # 2026-10-05 之前这里是 EngineQueueDepths(aic/vec0/aiv1): 四类形状逐个扫过,
+            # 任何取值都与容量 1 逐位相同 (golden 的 pipeline_engine_queue2 与
+            # pipeline_split 指纹全同可证), 所以它是个无法生效的旋钮, 已删。
             ub_depth = self.options.link("gmm1", "activation").depth
             for core in range(shape.aic_num):
-                capacities[pre + f"Q:aic:c{core}"] = qd.aic
-                capacities[pre + f"Q:vec0:c{core}"] = qd.vec0
-                capacities[pre + f"Q:aiv1:c{core}"] = qd.aiv1
+                capacities[pre + f"Q:aic:c{core}"] = 1
+                capacities[pre + f"Q:vec0:c{core}"] = 1
+                capacities[pre + f"Q:aiv1:c{core}"] = 1
                 # GMM1->ACT 的 UB 槽位数 (C2: 容量, 不是程序序边)。深度 0 时
                 # builders 不申报这个 token, 容量也就不必声明。
                 if ub_depth > 0:

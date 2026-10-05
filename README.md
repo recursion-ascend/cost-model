@@ -908,6 +908,53 @@ git add data/*/tiling_rank0.json           # 不在 gitignore 里
 `parse_tiling` 在 `raw/*.bin` 缺失时自动回落到上一级同名 `.json`, 所以 `examples/*.toml`
 一字不用改。两者都没有时报错会指明这条命令。
 
+## 旋钮覆盖: 每个可调参数都必须能动模型 (2026-10-05)
+
+这个项目是给算子工程师改**编排 / 编译期 / 运行期**参数用的, 所以一个旋钮扫出
+**0 收益**必须能分清是哪一种 0。四种意思, 指示完全相反:
+
+| 判定 | 意思 | 下一步 |
+| --- | --- | --- |
+| 生效 | 每个形状上都动 (与形状无关) | 这个取舍可以照着做 |
+| 生效* | 至少一个形状上动, 本形状没有作用对象 | 换形状再扫: 只有一波谈不上超前几波, 只有一个 K 块谈不上逐块就绪 |
+| 被拒 | 模型显式拒绝该取值 (缺标定 / 这条路径没实现) | 拒绝是诚实的 |
+| 动不了 | 模型里**没有可表达的后果** | **陷阱**: 这个 0 是模型的空白, 不是硬件的事实 |
+
+```bash
+python tools/knob_audit.py --quiet    # 五个互补形状 x 全部旋钮
+```
+
+旋钮树自动走 (`dataclasses.fields` + `scenario._NESTED`), 所以**新加的字段自动进审计**;
+全量判定钉在 `knob_audit.EXPECTED`, `tests/test_knob_coverage.py` 守着它:
+新旋钮忘了接线、老旋钮被改没了、"动不了"的声明过期了, 三种都会红。
+
+扫法三条 (为什么结论能信):
+
+1. 从**本场景的生效值**出发扰动, 不是从 dataclass 缺省值出发 —— 场景带 `profile` 时
+   两者不同, 拿缺省值当基线会把"值根本没变"误判成"没有读者"。
+2. 一个旋钮给**一串**候选取值 —— 翻倍常落在无语义的档上 (`l1_buf_num` 2→4 与 2 同构,
+   2→1 才是关 ping-pong; `swizzle_direction` 只有 0/1 两档)。
+3. 比对五项: 墙钟 / 事件数 / 事件名集合 / 逐事件时长 / 逐信道字节。只看墙钟会把
+   "结构变了而两边恰好等长"当成没动。
+
+建立这一层当天抓出三件事, 全是它要防的那一类:
+
+* **`EngineQueueDepths` 任何取值都无后果, 已删。** 持核事件独占 AIC/AIV0/AIV1,
+  同核在途数恒 ≤ 1; 相位拆分后的 load 相位又刻意不继承 `Q:*` (继承会让容量 1 的引擎
+  信号量卡死 L1 缓冲深度)。证据: golden 的 `pipeline_engine_queue2` 与 `pipeline_split`
+  指纹**逐位相同** —— 那个 case 从来什么都没测到。容量现在写死 1, 要表达"更深的队列"
+  得先有发射开销这类物理后果, 模型里没有, 给个旋钮只会让扫描得出"深了也没用"的假结论。
+* **`KernelConfig.topk_weights_prefetch` 没有读者, 已删** (硬门查的是
+  `ModelOptions.topk_weights_prefetch`)。
+* **`options.roles` 与 `options.epilogue_overheads` 在场景文件这条日常路径上写不出来**
+  (报"应为数值"), 只能在 Python 里构造对象 —— 于是"哪个 stage 跑在哪个核上"这一类编排
+  在场景扫描里根本到不了。已接上, 文件里写 `[options.roles]` 下 `combine = "AIV0"`。
+
+目前唯一标为"动不了"的是 `options.combine_layout`: 写侧只经 `scatter_us` 的
+`(spread_slots/m) ** scatter_exponent`, 而 `scatter_exponent` 缺省 0 使指数项恒 1,
+两种布局算出同一个数 —— 0 不是保守, 是实测把"落点跨度"这个机制否掉了; 读侧 UNPERMUTE
+从顺序读变 gather 的代价完全没建模 (缺口 10)。
+
 ## 回归保护
 
 `tests/test_golden.py` 对 40 个配置核对指纹, 2026-10-05 起锁**四类**东西:

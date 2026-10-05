@@ -327,8 +327,6 @@ class KernelConfig:
     tile_m: int = 256                 # MEGAMOE_TILE_M: 每个 m-group 的行数
     tile_n: int = 256                 # MEGAMOE_TILE_N: scheduler N tile
     l1_buf_num: int = 2               # MEGAMOE_L1_BUF_NUM: L1 ping-pong (1=禁用)
-    topk_weights_prefetch: bool = False  # MEGAMOE_TOPK_PREFETCH (未使用: 硬门查的是
-                                          #   ModelOptions.topk_weights_prefetch, 本字段无读者)
     topo_urma: bool = False           # MEGAMOE_TOPO_URMA: True → URMA Layered 路径
                                       #   (MegaMoeLayered); 建模见
                                       #   layered.py — 单 Server 假设, PUT 复用 GET 常数

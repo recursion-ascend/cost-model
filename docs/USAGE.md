@@ -126,7 +126,7 @@ python tools/diagnose.py data/<run_dir>   # 六问诊断: 瓶颈/归因/改什�
 | --- | --- |
 | tile 几何 (受 L1/L0C 容量约束, **物理**) | `KernelConfig.tile_m` / `tile_n` |
 | **事件粒度** (同步点密度 ↔ 并行度, **编排**) | `ModelOptions.granularity`, 每 stage 一个 |
-| stage 跑在哪个核 (AIC/AIV0/AIV1) | `ModelOptions.roles` |
+| stage 跑在哪个核 (AIC/AIV0/AIV1) | `ModelOptions.roles`, 文件里 `[options.roles]` |
 | stage 之间那条边 (等多少/放哪/存几块) | `ModelOptions.links` 里的 `StageLink` |
 | tile→核 怎么分 | `core_assignment` |
 | tile→核 什么时候定 | `ModelOptions.late_bind_pools` |
@@ -159,6 +159,51 @@ OPT(granularity={"gmm1": 2, "gmm2": 2, "combine": 0})
    所以这个旋钮要**扫**, 不能照搬别人的取值。
 
 ---
+
+## 4c. 旋钮覆盖: 这个旋钮到底接没接上线
+
+```
+python tools/knob_audit.py          # 全量 (五个形状 x 全部旋钮, 分钟级)
+python tools/knob_audit.py --quiet  # 只列非"每个形状都生效"的
+```
+
+扫一个旋钮扫出 **0 收益**, 有四种意思, 指示完全相反。审计把它们分开:
+
+| 判定 | 意思 | 下一步 |
+| --- | --- | --- |
+| 生效 | 每个形状上都动 | 这个取舍可以照着做 |
+| 生效* | 至少一个形状上动 —— 本形状没有作用对象 | 换形状再扫 (只有一波谈不上超前几波) |
+| 被拒 | 模型显式拒绝该取值 (缺标定 / 这条路径没实现) | 拒绝是诚实的, 看报错里缺什么 |
+| 动不了 | 模型里**没有可表达的后果**, 任何形状都是 0 | **这是陷阱**: 0 是模型的空白, 不是硬件的事实 |
+
+扫法三条 (为什么能信):
+
+1. 从**本场景的生效值**出发扰动, 不是从 dataclass 缺省值出发 —— 场景带 `profile` 时
+   两者不同, 拿缺省值当基线会把"值根本没变"误判成"没有读者"。
+2. 一个旋钮给**一串**候选取值 —— 翻倍常落在无语义的档上 (`l1_buf_num` 2→4 与 2 同构,
+   2→1 才是关 ping-pong)。
+3. 比对五项: 墙钟 / 事件数 / 事件名集合 / 逐事件时长 / 逐信道字节。只看墙钟会把
+   "结构变了但两边等长"当成没动。
+
+全量判定钉在 `knob_audit.EXPECTED` 里, `tests/test_knob_coverage.py` 守它:
+新加一个旋钮忘了接线、老旋钮被改没了、或者"动不了"的声明过期了, 都会红。
+旋钮树是自动走出来的 (`dataclasses.fields` + `scenario._NESTED`), 所以新字段自动进审计。
+
+这一层 2026-10-05 建立时抓到三件事, 都是它要防的那一类:
+
+* `EngineQueueDepths` (引擎 FIFO 深度) **任何取值都无后果** —— 持核事件独占该核,
+  同核在途数恒 ≤ 1; 相位拆分后的 load 相位又刻意不继承 `Q:*`。旋钮已删 (容量写死 1),
+  连带删掉的 golden case `pipeline_engine_queue2` 与 `pipeline_split` 指纹**逐位相同**,
+  即它从来什么都没测到。
+* `KernelConfig.topk_weights_prefetch` 在模型里**没有读者** (硬门查的是
+  `ModelOptions.topk_weights_prefetch`), 已删。
+* `options.roles` 与 `options.epilogue_overheads` 在**场景文件这条日常路径上写不出来**
+  (报"应为数值"), 只能在 Python 里构造对象 —— 于是"哪个 stage 跑在哪个核上"这一类编排
+  在场景扫描里根本到不了。已接上: `[options.roles]` 下 `combine = "AIV0"`。
+
+目前唯一标为"动不了"的是 `options.combine_layout`: 写侧要 `scatter_exponent > 0`
+(实测把"落点跨度"这个机制否掉了), 读侧 UNPERMUTE 从顺序读变 gather 的代价完全没建模
+(缺口 10)。扫它只会得到 0, 那是模型的空白。
 
 ## 4b. 流水编排效率怎么看
 

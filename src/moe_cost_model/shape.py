@@ -95,21 +95,6 @@ class MegaMoeShape:
                     )
 
 
-@dataclass(frozen=True)
-class EngineQueueDepths:
-    """引擎 FIFO 队列深度 (每核).
-
-    注意: 不开相位拆分 (ModelOptions.pipeline=None) 时, 深度 >1 无行为
-    差异 — 事件同时占独占资源 AIC/AIV0/AIV1, 引擎本就串行. 流水重叠
-    需配合 PipelineConstraints 相位拆分 (load 相位不占核资源, 深度
-    放开后 load 与 cube 才能跨 tile 重叠).
-    """
-
-    aic: int = 1
-    vec0: int = 1
-    aiv1: int = 1
-
-
 # 纯物理基线: 五项尾段开销按字面取 0, 不回落到实测常数。
 _ZERO_OVERHEADS = EpilogueOverheads(literal=True)
 
@@ -207,7 +192,6 @@ class ModelOptions:
     #                 的 combine, 那段等待计 forced。
     #   "wave"        等该波全部 combine
     dispatch_pacing: str = "none"
-    engine_queue_depths: Optional[EngineQueueDepths] = None
 
     def __post_init__(self) -> None:
         validate_links(self.links)

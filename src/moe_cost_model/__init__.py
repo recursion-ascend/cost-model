@@ -76,7 +76,7 @@ from .planning.wave_packing import (
     BalancedWaves, LongestExpertFirst, SequentialGreedy, WavePacking,
 )
 from .shape import (
-    BlockCursor, CursorTrace, EngineQueueDepths, MegaMoeShape, ModelOptions,
+    BlockCursor, CursorTrace, MegaMoeShape, ModelOptions,
 )
 from .costs import (
     AnalyticalActCosts, AnalyticalCombineCosts, AnalyticalGmmCosts,

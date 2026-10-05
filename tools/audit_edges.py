@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from artifacts import cube_rate
 from moe_cost_model.model import A8W8WaveCostModel
 from moe_cost_model.profiles import MEGAMOE_A8W8 as PROFILE
-from moe_cost_model.shape import MegaMoeShape, EngineQueueDepths
+from moe_cost_model.shape import MegaMoeShape
 from moe_cost_model.config.hardware import T_COUNT_GATE
 from moe_cost_model.scheduler import MultiResourceScheduler
 from moe_cost_model.costs import (
@@ -54,11 +54,11 @@ def strip_fab(events):
 
 def schedule(events, aic):
     caps = {}
-    qd = EngineQueueDepths()
     for core in range(aic):
-        caps[f"Q:aic:c{core}"] = qd.aic
-        caps[f"Q:vec0:c{core}"] = qd.vec0
-        caps[f"Q:aiv1:c{core}"] = qd.aiv1
+        # 每核引擎队列容量恒 1 (持核事件独占该核, 更深的队列无可表达的后果)
+        caps[f"Q:aic:c{core}"] = 1
+        caps[f"Q:vec0:c{core}"] = 1
+        caps[f"Q:aiv1:c{core}"] = 1
     total, sched = MultiResourceScheduler().schedule(events, capacities=caps)
     return total, sched
 

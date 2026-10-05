@@ -20,17 +20,18 @@ from typing import Dict, List, Mapping, Optional, Tuple
 from . import registry
 from .api import simulate_routing_counts
 from . import guardrails
-from .config.hardware import KernelConfig
+from .config.hardware import EpilogueOverheads, KernelConfig
 from .config.pipeline import parse_tiling
 from .config.pipeline import (BufferSlots, PhaseRates, PipelineConstraints,
                               QueueDepths, SyncLatency)
 from .config.granularity import resolve_granularity
 from .config.platform import resolve_platform
 from .config.links import StageLink
+from .config.roles import RoleAssignment
 from .config.policy import InstancePolicy, StageWaveOffsets
 from .costs import (DispatchDataLayout, DispatchMechanisticLatency, PrimitiveCosts,
                     UrmaMechanisticLatency, build_analytical_costs)
-from .shape import EngineQueueDepths, ModelOptions
+from .shape import ModelOptions
 
 ROUTING_MODES = ("uniform", "cyclic", "random", "explicit", "file")
 
@@ -450,11 +451,11 @@ _NESTED = {
     (Scenario, "tiling"): TilingSource,
     (InstancePolicy, "wave_offsets"): StageWaveOffsets,
     (ModelOptions, "pipeline"): PipelineConstraints,
-    (ModelOptions, "engine_queue_depths"): EngineQueueDepths,
     (PipelineConstraints, "sync"): SyncLatency,
     (PipelineConstraints, "buffers"): BufferSlots,
     (PipelineConstraints, "queues"): QueueDepths,
     (PipelineConstraints, "phases"): PhaseRates,
+    (ModelOptions, "epilogue_overheads"): EpilogueOverheads,
     (Calibration, "dispatch"): DispatchMechanisticLatency,
     (Calibration, "urma"): UrmaMechanisticLatency,
 }
@@ -466,6 +467,14 @@ _LIST_NESTED = {
 # 每 stage 一个取值, 所以是表而不是表数组 (links 那种每条边一个对象才用表数组)。
 _MAP_NESTED = {
     (ModelOptions, "granularity"): resolve_granularity,
+}
+# 值为"stage -> 字符串"映射的字段: 场景文件里写 [options.roles] 下 combine = "AIV0"。
+# 与 granularity 同形 (每 stage 一个取值), 只是取值是角色名而不是整数。
+# 2026-10-05 之前 options.roles 在场景文件/with_overrides 这条日常路径上**根本写不出来**
+# (会报"应为数值"), 于是"哪个 stage 跑在哪个核上"这一类编排只能在 Python 里构造对象 ——
+# 一个在日常路径上写不出的旋钮等于没有。epilogue_overheads 同病, 它走 _NESTED。
+_MAP_STR_NESTED = {
+    (ModelOptions, "roles"): lambda v: RoleAssignment(overrides=dict(v or {})),
 }
 # 值为"字符串元组"的字段: 场景文件里写 late_bind_pools = ["AIC"] 或 barriers = ["wave"]。
 # 这两个都是编排旋钮 (晚绑定池 / 分段栅栏), 日常路径是场景文件, 在那儿写不出等于没有。
@@ -514,6 +523,19 @@ def _convert(cls, key: str, value, path: str, base=None):
         if bad:
             raise ValueError(f"{where}: 每一项应为字符串, 得到 {bad!r}")
         return tuple(value)
+    mapper_str = _MAP_STR_NESTED.get((cls, key))
+    if mapper_str is not None:
+        if value is None:
+            return mapper_str({})
+        if not isinstance(value, Mapping):
+            raise ValueError(f"{where}: 应为表 (stage = \"角色\"), 得到 {value!r}")
+        bad = {k: v for k, v in value.items() if not isinstance(v, str)}
+        if bad:
+            raise ValueError(f"{where}: 每个 stage 的角色应为字符串, 得到 {bad!r}")
+        try:
+            return mapper_str(value)
+        except ValueError as exc:
+            raise ValueError(f"{where}: {exc}") from None
     mapper = _MAP_NESTED.get((cls, key))
     if mapper is not None:
         if value is None:
@@ -647,15 +669,22 @@ def _dump(value):
     return f"<{type(value).__name__}>"
 
 
-def _dump_changed(obj) -> Dict[str, object]:
-    """只导出与缺省值不同的字段. 缺省为 None 的表字段一旦给出就保留 (可为空表)."""
+def _dump_changed(obj, base=None) -> Dict[str, object]:
+    """只导出与缺省值不同的字段. 缺省为 None 的表字段一旦给出就保留 (可为空表).
+
+    base = 对照的缺省对象。嵌套表要拿**父字段的缺省实例**对照, 不能拿该类自己的缺省:
+    ModelOptions.epilogue_overheads 的缺省是 EpilogueOverheads(literal=True), 而
+    EpilogueOverheads() 自己的缺省是 literal=False —— 拿类缺省对照, 一个没人动过的
+    字段也会被报成"改过"。
+    """
     cls = type(obj)
     out: Dict[str, object] = {}
     for f in dataclasses.fields(cls):
         value = getattr(obj, f.name)
-        default = _default(f)
+        default = getattr(base, f.name) if base is not None else _default(f)
         if (cls, f.name) in _NESTED and value is not None:
-            sub = _dump_changed(value)
+            sub_base = default if isinstance(default, type(value)) else None
+            sub = _dump_changed(value, sub_base)
             if sub or default is None:
                 out[f.name] = sub
         elif _dump(value) != _dump(default):

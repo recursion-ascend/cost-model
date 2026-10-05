@@ -216,10 +216,11 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
     # 哪天 fix 口径改成计时长, 差异会在这里显形。
     c["pipeline_fix_phase"] = lambda: run_api(
         sk(), 64, options=_pipeline(queues=m.QueueDepths(mte_aic=2)))
-    c["pipeline_engine_queue2"] = lambda: run_api(
-        sk(), 64, options=P.with_options(
-            pipeline=m.PipelineConstraints(**split),
-            engine_queue_depths=m.EngineQueueDepths(aic=2, vec0=2, aiv1=2)))
+    # 2026-10-05 审计: 这里原有 pipeline_engine_queue2 = pipeline_split +
+    # engine_queue_depths(aic/vec0/aiv1=2)。两者指纹**逐位相同** —— 每核引擎队列在
+    # 持核事件独占该核时恒不起约束, 相位拆分又刻意不继承 Q:*, 所以那个旋钮任何取值
+    # 都无后果。旋钮已删 (model.py 把容量写死 1), case 一并去掉: 留着也只是第二份
+    # pipeline_split。
     c["pipeline_large_split"] = lambda: run_api(
         uniform_routing(4, 64, 8), 1024, p1=0, p2=0, options=_pipeline(**split))
     c["pipeline_layered_split"] = lambda: run_api(

@@ -45,5 +45,8 @@ dispatch_lookahead = 2
 # dispatch = 1
 # gmm2 = -1
 
+# [options.roles]            # 哪个 stage 跑在哪个核上 (矩阵乘只能在 AIC)
+# combine = "AIV0"           #   把 combine 挪到 AIV0, 让 AIV1 专做 dispatch
+
 # [options.pipeline.queues]  # 相位流水: load 与 cube 跨 tile 重叠
 # mte_aic = 2
