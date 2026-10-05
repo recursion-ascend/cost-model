@@ -314,12 +314,6 @@ class A8W8WaveCostModel:
                 cls = MteEventBuilder
         return cls(self.costs, self.options).build(shape, self.waves(shape))
 
-    def dispatch_ir(self, shape: MegaMoeShape) -> List:
-        return [
-            MteEventBuilder(self.costs, self.options)._dispatch_call_ir(shape, w, core)
-            for w in self.waves(shape)
-            for core in range(shape.aic_num)
-        ]
 
     def simulate(self, shape: MegaMoeShape, restructure=None) -> Dict[str, object]:
         return self.simulate_multi([shape], restructure=restructure)[shape.rank_id]
@@ -582,26 +576,6 @@ class A8W8WaveCostModel:
             "idle_decomposition": idle_reports,
         }
 
-    def structural_summary(self, shape: MegaMoeShape) -> List[Dict[str, object]]:
-        rows: List[Dict[str, object]] = []
-        km = shape.kernel if shape.kernel is not None else KernelConfig()
-        g1n = ceil_div(ceil_div(shape.hidden_dim, km.activation_n_half), km.tile_n)
-        g2n = ceil_div(shape.h, km.tile_n)
-        for w in self.waves(shape):
-            rows.append({
-                "wave": w.index, "rows": w.rows, "m_groups": w.m_groups,
-                "expert_slices": len(w.slices),
-                "gmm1_tiles": sum(s.m_groups * g1n for s in w.slices),
-                "gmm2_tiles": sum(s.m_groups * g2n for s in w.slices),
-                "begin": (w.begin.expert, w.begin.row, w.begin.global_row),
-                "end": (w.end.expert, w.end.row, w.end.global_row),
-                "slices": tuple((s.expert, s.row_begin, s.row_end, s.m_groups)
-                                for s in w.slices)})
-        return rows
-
-    def cursor_summary(self, shape: MegaMoeShape) -> List[CursorTrace]:
-        _, trace = self.build_events(shape)
-        return trace
 
 
 def _charge_late_bind_fetch(events, late_pools, costs) -> None:

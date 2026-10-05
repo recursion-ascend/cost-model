@@ -53,11 +53,6 @@ class _Pending:
         return (t.row_begin == self.row_begin and t.row_end == self.row_end
                 and out_begin == self.out_end)
 
-    @property
-    def out_cols(self) -> int:
-        return self.out_end - self.out_begin
-
-
 class ActBatcher:
     """按事件粒度攒 ACT. 粒度 1 时每来一项立刻发 (与攒批前逐字节等价)."""
 
@@ -143,13 +138,3 @@ def _emit(builder, ctx: BuildContext, w, si, sl, core, global_group,
                          "store_bytes": store_bytes})
     ctx.activation_ready.setdefault((sl.expert, global_group), []).append(
         ActRecord(row_begin, row_end, out_begin, out_end, aname))
-
-
-def add_activation_tile(builder, ctx: BuildContext, w, si, sl, t, label, ntile,
-                        core, global_group, gname, out_div: int = 1,
-                        ub_slot=None) -> None:
-    """粒度 1 的直发路径 (保留给不经 ActBatcher 的调用方)."""
-    out_begin, out_end = t.col_begin // out_div, t.col_end // out_div
-    _emit(builder, ctx, w, si, sl, core, global_group, t.row_begin, t.row_end,
-          t.rows, out_begin, out_end, [gname], ub_slot, ntile, label=label,
-          n_items=1)

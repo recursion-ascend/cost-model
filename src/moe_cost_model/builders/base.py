@@ -135,11 +135,6 @@ class EventBuilderBase:
         return name
 
     @staticmethod
-    def _tile_rows(slice_: ExpertSlice, local_mgroup: int, tile_m: int = 256) -> int:
-        start = local_mgroup * tile_m
-        return max(0, min(tile_m, slice_.rows - start))
-
-    @staticmethod
     def _rotated_balanced_range(total: int, worker: int, workers: int,
                                 global_prefix: int) -> Tuple[int, int]:
         if workers <= 0 or worker < 0 or worker >= workers:

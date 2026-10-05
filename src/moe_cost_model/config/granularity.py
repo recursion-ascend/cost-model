@@ -28,8 +28,14 @@ gmm2           一个 GMM2 tile              items x tile 的 A+B 字节 <= L1
 combine        一个 GMM2 tile 的输出       items x tile 输出字节 <= UB
 =============  ==========================  ======================================
 
-``items_per_event = 0`` 表示"整个专家切片一个事件" (combine 的 per_expert 就是它),
-容量上界照样查。
+``items_per_event = 0`` 表示"整个专家切片一个事件" (combine 的 per_expert 就是它)。
+
+**上表的"物理上界"目前只强制了一条**: activation 的粒度不得超过 UB 槽数
+(``StageLink("gmm1","activation").depth``), 在 ``builders/activation.ActBatcher`` 构造时查
+—— 槽不够会死锁, 所以必须拦。**按字节的容量上界 (items x tile 字节 <= L1/UB) 没有强制**:
+它要在建图时按形状算字节, 还没接线。原先这里放了一个 ``validate_capacity`` 函数,
+但它从未被任何地方调用 (2026-10-05 审计删除) —— 一个没人调的校验函数比没有更糟,
+它让人以为这条约束已经在查了。
 """
 from __future__ import annotations
 
@@ -70,14 +76,6 @@ class StageGranularity:
         if self.items_per_event < 0:
             raise ValueError(
                 f"{self.stage} 的 items_per_event 不能为负 (0 = 整个切片一个事件)")
-
-    @property
-    def unit(self) -> str:
-        return UNIT_OF[self.stage]
-
-    @property
-    def whole_slice(self) -> bool:
-        return self.items_per_event == 0
 
 
 #: 缺省粒度. 四个计算/通信 stage 最细 (1 个单元一个事件 = 最少假设);
@@ -136,28 +134,6 @@ class GranularityAssignment:
 
 
 DEFAULT_GRANULARITIES = GranularityAssignment()
-
-
-def validate_capacity(grain: GranularityAssignment, kernel, *,
-                      bytes_per_unit: Mapping[str, float],
-                      limits: Mapping[str, float]) -> None:
-    """查物理上界: items x 每单元字节 <= 该 stage 的片上容量.
-
-    bytes_per_unit / limits 由调用方按形状算出 (本模块不知道形状)。
-    items_per_event == 0 (整个切片) 时调用方应把当前切片的单元数填进 items 再查。
-    """
-    for stage, per_unit in bytes_per_unit.items():
-        limit = limits.get(stage)
-        if limit is None or limit <= 0:
-            continue
-        items = grain.items(stage)
-        if items <= 1:
-            continue
-        need = items * float(per_unit)
-        if need > limit:
-            raise ValueError(
-                f"{stage} 的粒度 {items} 个{UNIT_OF[stage]} 需要 {need:.0f}B 片上空间, "
-                f"超过上界 {limit:.0f}B —— 粗粒度的代价是片上驻留, 这是物理约束")
 
 
 def resolve_granularity(value: Optional[object]) -> GranularityAssignment:
