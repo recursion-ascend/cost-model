@@ -84,11 +84,16 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             # 同一个 tile 的各 K 段按时长占比分摊本 tile 的 B 流, 信道字节才不会在
             # 计算绑定时被整段时长放大。段的 K 范围决定它等哪些 ACT。
             phases = _sum_phases(c, members, k_gmm2)
-            # 物化编排下 GMM2 的 A 要从 GM 读回 (ACT 写出的量化激活); 申报到
-            # gm_to_l1 访存量上。max(A流,B流) 口径下只有较大那一股折算成时长,
-            # 但两股字节都真实发生 —— 这里按字节申报, 不按时长折算。
+            # GM→L1 访存量: B 流权重 K2·cols (每个 tile 都要读) + A 流激活 m·K2
+            # (只在物化编排下存在: ACT 写 GM, GMM2 读回)。
+            # 2026-10-05 之前只申报 A 流 —— B 流进了时长公式 (gmm2_phases 的
+            # b_load = k2·cols/bw_b) 却没进字节申报, 于是全卡申报量**低于算法必搬的
+            # 字节** (scenario_basic: 1660.9MB vs 2420.1MB, 差 759.2MB ≈ GMM2 权重
+            # 805.3MB)。申报量低于算法下界在物理上不可能, 那是漏账不是口径差异。
+            # GMM1 一直是两股都申报的 (a_bytes + b_bytes), 这里补上对称。
             a_gm = (sum(mt.rows * k_gmm2 for mt in members)
                     if link.materialised else 0)
+            b_gm = sum(k_gmm2 * mt.cols for mt in members)
             # C1: 名字不带核号 (见 gmm1.py 的说明)
             gname = f"W{w.index}.E{sl.expert}.S{si}.gmm2.{label}"
             n_seg = len(bounds)
@@ -107,8 +112,9 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                 else:
                     name, part = f"{gname}.k{j}", f"k{j}"
                 seg_meta = dict(meta, part=part)
-                seg_ch = (((CH_GM_TO_L1, a_gm * frac, float(BW_L1_GM)),)
-                          if a_gm else ())
+                seg_bytes = (a_gm + b_gm) * frac
+                seg_ch = (((CH_GM_TO_L1, seg_bytes, float(BW_L1_GM)),)
+                          if seg_bytes else ())
                 if phases is not None:
                     load_us, compute_us = phases
                     seg_meta["load_us"] = load_us * frac

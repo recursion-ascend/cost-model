@@ -339,7 +339,7 @@ class Scenario:
 
 
 def simulate(scenario: Scenario, *, platform=None,
-             check_bounds: bool = False) -> Dict[str, object]:
+             check_bounds: bool = True) -> Dict[str, object]:
     """场景 → 执行时间. 返回 simulate_routing_counts 的结果, 另带 scenario.
 
     platform / check_bounds 直通 simulate_routing_counts: 前者给聚合 HBM 规格 (让带宽

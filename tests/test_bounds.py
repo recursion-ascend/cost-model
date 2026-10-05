@@ -127,41 +127,77 @@ def test_bounds_are_attached_to_every_rank():
 
 
 @pytest.mark.skipif(not SCENARIO.exists(), reason="需要场景文件")
-def test_known_gap_declared_traffic_is_below_the_algorithmic_minimum():
-    """**已知漏账 1**: GMM2 的权重流进了时长公式却没进字节申报.
+def test_declared_traffic_is_at_least_the_algorithmic_minimum():
+    """申报的 GM->L1 字节不得少于算法必搬的字节.
 
-    builders/gmm2.py 只申报 a_gm (激活), 不申报 B 流 (k2 x cols 的权重);
-    GMM1 两条都申报。于是模型申报的 GM->L1 字节**少于算法必搬的字节** —— 申报量
-    低于算法下界在物理上不可能, 所以这是漏账, 不是口径差异。
-    修好之后这条测试要翻成 declared >= algorithmic。
+    2026-10-05 修掉的漏账: builders/gmm2.py 只申报 a_gm (激活), 不申报 B 流
+    (k2 x cols 的权重); GMM1 一直两股都申报。当时 scenario_basic 上申报 1660.9MB <
+    算法必搬 2420.1MB (差 759.2MB ≈ GMM2 权重 805.3MB)。申报量低于算法下界在物理上
+    不可能 —— 那是漏账, 不是口径差异。
+    申报量**可以高于**下界 (模型按 tile 重复读权重, 多个 m-group 各读一次)。
     """
     r = m.simulate(m.load_scenario(SCENARIO))
     rr = r["rank_results"][0]
     declared = rr["traffic_bytes"]["R0.gm_to_l1"]
     algorithmic = rr["bounds"]["gm_to_l1_bytes"]
-    assert declared < algorithmic, "漏账已修? 把这条测试翻成 declared >= algorithmic"
+    assert declared >= algorithmic, (
+        f"申报 {declared / 1e6:.1f}MB 少于算法必搬 {algorithmic / 1e6:.1f}MB")
 
 
 @pytest.mark.skipif(not SCENARIO.exists(), reason="需要场景文件")
-def test_known_gap_phase_pipelining_breaks_the_bandwidth_bound():
-    """**已知漏账 2**: 相位流水下载入相位不占任何资源, 于是载入无限并行.
+def test_phase_pipelining_respects_the_bandwidth_bound():
+    """相位流水不得穿透带宽下界: 载入必须占住本核那条 MTE2 管道.
 
-    信道模型 2026-10-03 停用后 channel_bytes 只做申报、不参与准入, 所以拆相位把
-    载入从 Cube 的账上挪走却没挪到别的账上。墙钟因此低于带宽下界约 27%。
-    这不是"相位流水省了 30%", 是搬运被算成免费。
-    修好之后这条测试要翻成"不再穿透"。
+    2026-10-05 修掉的漏账: .ld 相位 resources=() 不占任何资源, GMM2 的载入又整段裹在
+    AIC 事件里 —— 等于每个核有两条载入管道, 聚合载入带宽翻倍。当时墙钟 1221.80us
+    低于带宽下界 1665.37us 达 26.6%, 被当成"相位流水省了 30.24%"。
+    修法是硬件事实: 一个 AI Core 只有一条 MTE2, 所以 GMM1 与 GMM2 的载入都占
+    MTE2:c{core}; 双缓冲 (queues.mte_aic = L1 槽数) 只决定能提前多少发起, 不决定
+    能同时搬几笔。修后真实收益是 1751.48 -> 1748.18 (-0.19%), 不是 -30%。
     """
     base = m.load_scenario(SCENARIO)
-    r = m.simulate(base.with_overrides(PIPE))        # 缺省只记录不抛
+    r = m.simulate(base.with_overrides(PIPE))
     rr = r["rank_results"][0]
-    assert rr["bounds"]["violation"], "漏账已修? 把这条测试翻成断言无 violation"
-    assert r["kernel_total_us"] < rr["bounds"]["lower_us"]
+    assert rr["bounds"]["violation"] is None
+    assert r["kernel_total_us"] >= rr["bounds"]["lower_us"]
+
+
+def test_load_phase_holds_the_cores_mte2_pipe():
+    """硬件事实: 一个 AI Core 一条 MTE2, 所以载入相位必须独占它.
+
+    不占的话载入并发只受 L1 槽数限制 (28 核 x d 笔同时满带宽), 聚合载入带宽超过
+    核数 x BW_L1_GM 这条硬件规格。
+    """
+    base = m.load_scenario(SCENARIO)
+    r = m.simulate(base.with_overrides(PIPE))
+    lds = [e for e in r["rank_results"][0]["events"] if e.name.endswith(".ld")]
+    assert lds, "开了相位流水却没有载入相位事件"
+    mte = [e for e in lds if any("MTE2:" in x for x in e.resources)]
+    assert mte, "载入相位没有占住 MTE2 管道"
+    # 同一个核上两笔载入不得重叠 (独占资源的直接推论, 这里直接验时间线)
+    by_core = {}
+    for e in mte:
+        key = [x for x in e.resources if "MTE2:" in x][0]
+        by_core.setdefault(key, []).append((e.start_us, e.end_us))
+    for key, spans in by_core.items():
+        spans.sort()
+        for (a0, a1), (b0, _) in zip(spans, spans[1:]):
+            assert b0 >= a1 - 1e-9, f"{key} 上两笔载入重叠: {a1} > {b0}"
 
 
 @pytest.mark.skipif(not SCENARIO.exists(), reason="需要场景文件")
-def test_check_bounds_true_raises_on_the_known_violation():
-    """断言开关本身要有效: check_bounds=True 时穿透下界必须抛, 不许静默."""
-    base = m.load_scenario(SCENARIO)
-    sc = base.with_overrides(PIPE)
-    with pytest.raises(BoundViolation):
-        m.simulate(sc, check_bounds=True)
+def test_check_bounds_raises_by_default_and_records_when_switched_off():
+    """断言开关本身要有效, 且缺省是**抛**而不是静默.
+
+    用一个带宽低得荒谬的平台把带宽下界顶到墙钟之上来触发 —— 不依赖任何现存漏账,
+    所以漏账修好之后这条测试照样有效。
+    """
+    tiny = m.PlatformSpec(name="tiny-bw", source="test fixture",
+                          hbm_bytes_per_us=1.0e3, fabric_bytes_per_us=1.0e3)
+    sc = m.load_scenario(SCENARIO)
+    with pytest.raises(BoundViolation, match="低于物理下界"):
+        m.simulate(sc, platform=tiny)
+    r = m.simulate(sc, platform=tiny, check_bounds=False)
+    rr = r["rank_results"][0]
+    assert rr["bounds"]["violation"], "降级之后也要把诊断记进结果, 不能悄悄丢掉"
+    assert rr["bounds"]["bandwidth_limited_by"] == "aggregate"

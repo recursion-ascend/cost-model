@@ -97,7 +97,11 @@ def apply_pipeline(
         if stage == _STAGE_GMM1:
             new_events.extend(_expand_gmm1(ev, cons, split_gmm1, by_name, h, km))
         elif stage == _STAGE_GMM2:
-            new_events.extend(_annotate(ev,
+            # split 与 GMM1 同一个开关: 深度 1 时整段闭式时长记在 AIC 上 (载入含在
+            # 其中, 本来就被 AIC 独占串起来, 不会多出并发), 所以**不拆** ——
+            # PipelineConstraints() 这种中性约束必须与不开相位流水逐字节一致
+            # (tests/test_api_smoke.py::test_neutral_pipeline_invariance)。
+            new_events.extend(_annotate(ev, split=split_gmm1,
                                         queues=("QUEUE:mte_aic", "QUEUE:cube")))
         elif stage == _STAGE_ACT:
             new_events.extend(_expand_aiv(
@@ -146,10 +150,18 @@ def _annotate(
     ev: Event,
     *,
     queues: Tuple[str, ...],
+    split: bool = False,
 ) -> List[Event]:
     """GMM2 head/tail: 保留原结构, 挂队列计数信号量 (L1 缓冲槽 + Cube) 与 B 流信道.
 
     head/tail 是同一个 tile 的两段, 各按自己的时长占比分摊该 tile 的 B 流字节。
+
+    **载入也要占本核的 MTE2 管道**: GMM2 的 GM→L1 与 GMM1 的走同一条 MTE2
+    (一个 AI Core 只有一条)。2026-10-05 之前 GMM2 的载入整段裹在 AIC 事件里, 等于
+    给每个核**第二条载入管道** —— 于是 GMM1 的载入 (占 MTE2) 与 GMM2 的载入 (占 AIC)
+    可以在同一个核上同时满带宽跑, 聚合载入带宽翻倍, 墙钟低于带宽下界。
+    这里按 meta 里的载入份额拆出一个前置 .ld 事件占住 MTE2 (与 ACT/COMBINE 的
+    _expand_aiv 同一套做法), 主事件只留计算份额。
     """
     core = ev.meta.get("core")
     qs = tuple((f"{queue}:c{core}", 1) for queue in queues)
@@ -157,9 +169,23 @@ def _annotate(
     load_us = ev.meta.get("load_us")      # 该事件自己的载入份额, 不是整段时长
     if load_us:
         ch = ((CH_GM_TO_L1, load_us * BW_L1_GM, BW_L1_GM),)
-    return [Event(
-        name=ev.name, resources=ev.resources, duration_us=ev.duration_us,
-        deps=ev.deps, order=ev.order, meta=dict(ev.meta),
+    pre: List[Event] = []
+    deps, dur = ev.deps, ev.duration_us
+    compute_us = ev.meta.get("compute_us")
+    if split and load_us and compute_us is not None and core is not None:
+        ld = Event(
+            name=ev.name + ".ld", resources=(f"MTE2:c{core}",),
+            duration_us=float(load_us), deps=ev.deps, order=ev.order,
+            meta=dict(ev.meta, phase="load"),
+            dep_latency_us=ev.dep_latency_us,
+            dep_latency_overrides=ev.dep_latency_overrides,
+            channel_bytes=ch,
+        )
+        pre = [ld]
+        deps, dur, ch = (ld.name,), float(compute_us), ()
+    return pre + [Event(
+        name=ev.name, resources=ev.resources, duration_us=dur,
+        deps=deps, order=ev.order, meta=dict(ev.meta),
         dep_latency_us=ev.dep_latency_us,
         dep_latency_overrides=ev.dep_latency_overrides,
         acquires=ev.acquires + qs, releases=ev.releases + qs,
@@ -263,10 +289,20 @@ def _expand_gmm1(
         dep_latency_overrides=ev.dep_latency_overrides,
         acquires=(mte,) + carried,
     )
+    # 载入相位独占**本核的 MTE2 管道** (GM→L1 搬运单元)。这是硬件事实:
+    # 一个 AI Core 只有一条 MTE2, 所以同一个核上同时只能有一笔 GM→L1 在飞。
+    # 双缓冲 (l1_buf_num / queues.mte_aic = L1 缓冲槽数) 决定能提前多少发起下一笔,
+    # **不是**能同时搬几笔 —— 两件事以前被当成了一件:
+    #   2026-10-05 之前 .ld 的 resources=() (不占任何资源), 于是载入的并发只受
+    #   QUEUE:mte_aic 的深度 d 限制 = 28 核 x d 笔同时按满带宽搬。d=2 时聚合载入带宽
+    #   达到 2.9e6 B/us, 是每核规格 (28 x 51900 = 1.45e6) 的两倍, 墙钟因此低于带宽
+    #   下界 26.6% (见 analysis/bounds.py 与 docs/design_space_gaps.md "下界与漏账")。
+    # 占住 MTE2 之后载入并发上限 = 核数, 聚合载入带宽自动不超过 核数 x BW_L1_GM,
+    # 带宽下界由构造满足, 不需要速率服务器。
     ld = Event(
-        name=ev.name + ".ld", resources=(), duration_us=load_us,
+        name=ev.name + ".ld", resources=(f"MTE2:c{core}",), duration_us=load_us,
         deps=(lg.name,), order=ev.order,
-        meta=dict(ev.meta, phase="load", overlapped=not load_longer),
+        meta=dict(ev.meta, phase="load", overlapped=not load_longer, core=core),
         channel_bytes=ch,
     )
     cb = Event(

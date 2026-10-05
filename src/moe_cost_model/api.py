@@ -89,12 +89,11 @@ def simulate_routing_counts(
     tile_grid=None,
     orchestration=None,
     platform=None,
-    # 下界断言: 缺省**只记录不抛** (rank_results[i]["bounds"]["violation"])。
-    # 为什么不是缺省抛: 现在已知两处漏账会穿透带宽下界 (载入相位不占资源;
-    # GMM2 的权重流没申报字节), 修这两处要定口径、要重算所有 golden。
-    # 两处修完就把缺省翻成 True —— 穿透物理下界的数不该让人拿去做决策。
-    # 见 docs/design_space_gaps.md 的"下界与漏账"。
-    check_bounds: bool = False,
+    # 下界断言: 缺省**抛异常**。穿透物理下界的数说明模型漏算了某项代价, 不该让人
+    # 拿去做决策。给 False 可降级为只记录 (rank_results[i]["bounds"]["violation"]),
+    # 用于排查而不是用于出结论。见 analysis/bounds.py 与
+    # docs/design_space_gaps.md 的"下界与漏账"。
+    check_bounds: bool = True,
 ) -> Dict[str, object]:
     """Simulate directly from C[dst_rank][local_expert][src_rank].
 
