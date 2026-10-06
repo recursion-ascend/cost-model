@@ -1281,13 +1281,35 @@ python tools/gen_golden.py             # 重新生成快照
 
 ## 仿真耗时
 
-| 配置 | 事件数 | 耗时 |
-| --- | --- | --- |
-| MTE, 4 rank × 64 专家, B=64 (`examples/run_basic.py`) | 2.7 万 | 约 1.5 s |
-| Layered, 同上 | 1.9 万 | 约 1.1 s |
-| 相位流水, 4 rank × 64 专家, B=1024 | 3.5 万 | 约 4 s |
+实测 (2026-10-06, 本容器单核; 事件数是**每 rank**):
 
-无重构钩子、使用内置调度策略时, 各 rank 独立调度。`idle_core_stealing` 每次提交都扫描全部未提交事件, 耗时随事件数平方增长: 6800 事件约 30 s。
+| 配置 | 事件数/rank | 耗时 |
+| --- | --- | --- |
+| `examples/run_basic.py` —— MTE, 4 rank × 64 专家, B=64, **缺省选项 (晚绑定)** | 4423 | 160.6 s |
+| 同上, 只改 `ModelOptions(late_bind_pools=())` (静态钉核) | 4423 | **2.24 s** |
+| `examples/scenario_basic.toml` (profile `megamoe-a8w8`, 其 `late_bind_pools=()`) | 6599 | 2.22 s |
+| 同形状改 Layered (`topo_urma=True`), 缺省选项 | 3210 | 196.6 s |
+
+**晚绑定是主要开销, 同形状 72 倍**: 池化资源下调度器要为每个事件在池里挑核, 静态钉核则在
+建图时就定了。缺省是晚绑定 (`late_bind_pools=("AIC", "AIV1")`) —— 它存在的理由是把
+avoidable 空闲清零 (见上文), 代价就是这 72 倍。要快就显式给 `late_bind_pools=()` ——
+这个形状上静态钉核的 avoidable 空闲是 AIC 20.7 / AIV0 0.0 / AIV1 685.3 核·µs
+(墙钟 1754.9 µs, 晚绑定下是 1737.5 µs)。
+
+分段 (run_basic 那一行, 4 rank 合计 17692 事件):
+
+| 阶段 | 耗时 |
+| --- | --- |
+| `build_events` (建图, 4 个 rank) | 0.46 s |
+| 调度 + 后处理 (`simulate_multi` 其余部分) | 171 s |
+| `idle_decomposition` (1 rank, AIC 池) | 0.01 s |
+
+所以慢的是调度本身, 不是建图, 也不是空闲分解。无重构钩子、使用内置调度策略时各 rank
+独立调度 (结果与合并调度逐位一致, 见 `model._ranks_independent`)。
+
+`idle_core_stealing` 是另一笔: 它每次提交都扫描全部未提交事件。golden 里
+`stealing_gmm1` (1674 事件) 1.8 s、`stealing_pipeline` (2826 事件) 3.7 s, 而同规模
+不带转移的用例 (`core_greedy_least_busy`, 2308 事件) 是 0.13 s。
 
 ## 项目结构
 
