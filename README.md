@@ -23,10 +23,12 @@ profile = "megamoe-a8w8"     # 场景文件: 以那份实现的取值为底, 下
 ```python
 from moe_cost_model import (MEGAMOE_A8W8 as P, StageLink,
                             simulate_routing_counts)
-# ... = 路由计数 C[dst][expert][src] 与 costs, 见下文"改参数直接评估"
-simulate_routing_counts(..., **P.shape_kw(), options=P.options)
+# 本函数**只收关键字参数**。routing_counts / costs 见下文"改参数直接评估"
+simulate_routing_counts(routing_counts=C, costs=costs,
+                        **P.shape_kw(), options=P.options)
 # 以那份实现为底, 只改一条 stage 边 (GMM2 改成逐 kL1 块就绪)
-simulate_routing_counts(..., **P.shape_kw(), options=P.with_options(links=(
+simulate_routing_counts(routing_counts=C, costs=costs,
+                        **P.shape_kw(), options=P.with_options(links=(
     StageLink("gmm1", "activation", location="onchip", depth=1,
               colocated_by_hardware=True),
     StageLink("activation", "gmm2", readiness=0))))
@@ -151,29 +153,62 @@ res = simulate(sc)
 
 底层入口 `simulate_routing_counts` 保留, 直接给路由计数 `C[dst][expert][src]` 与公式容器。
 
-可调的全部旋钮 —— **这张表不在这里**。权威清单是 `tools/knob_audit.py` 的 `EXPECTED`
-(39 项), 它同时登记每个旋钮的**判定**: 生效 / 生效* (需对的形状) / 被拒 (要显式给标定) /
-动不了 (有旋钮但当前建模下无后果)。`tests/test_knob_coverage.py` 钉住"旋钮树 = 这张表的键集合",
-所以新加字段不进表就红。
+可调的全部旋钮。**下表由 `python tools/knob_audit.py --markdown` 从代码生成**
+(数据源: `knob_audit.EXPECTED` + `knob_audit.WHAT`), `tests/test_knob_coverage.py`
+核对 README 里这份与生成结果逐字一致, 所以它不会和代码分叉。
+
+判定的含义: **生效** = 五个形状上都动了模型; **生效\*** = 只在有作用对象的形状上动
+(只有一波就谈不上超前几波); **被拒** = 模型显式拒绝该取值 (缺标定常数); **动不了** =
+有旋钮但当前建模下没有可表达的后果。
+
+<!-- BEGIN knob-table (generated: python tools/knob_audit.py --markdown) -->
+| 旋钮 | 判定 | 管什么 |
+| --- | --- | --- |
+| `core_assignment` | 生效* | tile 分给哪个核 (三种策略) |
+| `kernel.activation_n_half` | 生效 | SwiGLU 的投影数 (gate+up) |
+| `kernel.combine_meta_bytes_per_row` | 生效 | COMBINE 每行搬几字节路由元数据 |
+| `kernel.combine_quant_mode` | 生效 | COMBINE 的数据格式 (BF16 / FP8+scale) |
+| `kernel.gmm1_b_reuse_frac` | 生效* | 非首个 m-group 的 tile 付几成 B 流 |
+| `kernel.gmm1_interleaved` | 生效 | GMM1 的 gate/up 是否在 tile 内按列交织 |
+| `kernel.l1_buf_num` | 生效 | L1 ping-pong 缓冲块数 (1 = 关) |
+| `kernel.l1_size` | 生效* | L1 容量 (进 select_kl1 的容量判据) |
+| `kernel.l1_tile_k` | 生效* | K 窗基线 |
+| `kernel.swizzle_direction` | 生效* | tile 遍历的外层维 (0 = M 在外) |
+| `kernel.swizzle_offset` | 生效* | swizzle 的分组宽度 |
+| `kernel.tile_m` | 生效* | 一个 m-group 的行数 |
+| `kernel.tile_n` | 生效 | 一个 N-tile 的列数 |
+| `kernel.topk_weights_prefetch` | 生效 | topk 权重在 epilogue 里乘; 行块 256->128 且 GMM1 输出走 GM 往返 |
+| `kernel.topo_urma` | 生效 | 通信路径: MTE 波循环 / URMA Layered 宏波循环 (换建图器) |
+| `kernel.weight_nz` | 被拒 | 权重 GM 布局 Z / NZ (开启须显式给 NZ 带宽) |
+| `options.barriers` | 生效 | 全核栅栏: 不加 / 波间 / 波内每 stage 后 |
+| `options.combine_granularity` | 生效* | 一个 COMBINE 事件覆盖几个 GMM2 tile |
+| `options.combine_layout` | 动不了 | COMBINE 写出的落点跨度 |
+| `options.dispatch_pacing` | 生效* | dispatch 的发起配速 |
+| `options.dispatch_partition` | 生效* | dispatch 的行按核预切还是不预切 |
+| `options.dispatch_rows_per_item` | 生效* | 一份 dispatch 工作覆盖多少行 |
+| `options.epilogue_overheads` | 生效 | 尾段五项固定开销 |
+| `options.gmm2_kl1` | 生效 | GMM2 的 kL1 (不给则自适应) |
+| `options.granularity` | 生效* | 每个 stage 一个事件覆盖多少个单元 |
+| `options.late_bind_pools` | 生效* | 哪些引擎晚绑定 (派发时刻才定核) |
+| `options.links` | 生效* | stage 边: 就绪粒度 / 落点 / 片上槽数 |
+| `options.m_groups_per_wave` | 生效* | 波宽: 每波装几个 m-group |
+| `options.pipeline` | 生效 | 相位拆分 (load/cube/fix) + 每核队列深度 |
+| `options.roles` | 生效* | 哪个 stage 跑在哪个引擎角色上 |
+| `options.serialize_dispatch_comm` | 生效* | 跨卡搬运是否串行化 |
+| `policy.cursor_resonance_fix` | 生效* | 游标共振修正 |
+| `policy.dispatch_lookahead` | 生效* | dispatch 超前几波 |
+| `policy.gmm2_combine_credit` | 生效* | GMM2->COMBINE 的固定 credit |
+| `policy.gmm2_lag_threshold` | 生效* | GMM2 滞后生效的 token 阈值 |
+| `policy.gmm2_lag_waves` | 生效* | GMM2 滞后几波 |
+| `policy.wave_offsets` | 生效* | 各 stage 的波偏移组合 |
+| `scheduling_policy` | 生效* | 就绪集里谁先跑 (三种策略) |
+| `wave_packing` | 生效* | 专家怎么组成波 (三种策略) |
+<!-- END knob-table -->
 
 ```bash
 python tools/knob_audit.py          # 五个形状逐旋钮扫一遍, 打印判定与差值
 python tools/knob_audit.py --emit   # 重新生成 EXPECTED
 ```
-
-为什么不在 README 里再抄一份: 2026-10-06 核对时这里那张手写表已经和代码分叉 ——
-列着早已删掉的 `gmm1_activation_depth`, 把 `gmm1_b_reuse` 写成"不影响时长 (B 流不建模)"
-(正好与下面那条订正相反), 还缺 `topk_weights_prefetch` / `barriers` / `roles` /
-`granularity` / `links` / `late_bind_pools` 等十几项。一份会过期的副本比没有更糟。
-
-按层分布 (类别 -> 项数, 取自同一张表):
-
-| 类别 | 项数 | 是什么 |
-| --- | --- | --- |
-| `kernel.*` | 15 | 编译点 (`KernelConfig`): tile 几何、L1、swizzle、量化格式、prefetch、通信路径 |
-| `options.*` | 15 | 编排 (`ModelOptions`): stage 边、角色、事件粒度、栅栏、相位流水、晚绑定、波宽 |
-| `policy.*` | 6 | 运行期策略 (`InstancePolicy`): 前瞻、滞后、credit、波偏移 |
-| 顶层策略名 | 3 | `wave_packing` / `core_assignment` / `scheduling_policy` |
 
 **`topo_urma` 不是平级旋钮，是结构分叉。** 切换后波粒度从 256 行 m-group 变为专家范围，dispatch 从源推变为目的拉，combine 从配对 tile 变为批量 PUT。
 
@@ -465,13 +500,9 @@ kernel 自己的 tiling key 只编码 5 个轴 (`mega_moe_tiling_key.h`), 而 `T
 
 有测试逐轴扫: 任何一个声明的轴不进指纹就红。
 
-### 一个轴怎么才算"建模了": TopkWeightsPrefetch
+### TopkWeightsPrefetch (`MEGAMOE_TOPK_PREFETCH`)
 
-`MEGAMOE_TOPK_PREFETCH` 原先是被**拒**的 —— 适配器直接抛 `Unsupported`。拒绝的理由写得
-很清楚 ("能建模但还没建"), 但一个被拒的轴对算子工程师等于不存在。2026-10-06 建上了,
-过程可以当作"怎么从 kernel 读出一个轴的后果"的样板:
-
-它在 kernel 里只是一个模板参数, 但有三个**结构**后果, 一个都不是时长系数:
+这个编译期模板参数在 kernel 里有三个**结构**后果, 模型逐条建了:
 
 | kernel 的事实 | 出处 | 模型里的落点 |
 |---|---|---|
@@ -479,37 +510,31 @@ kernel 自己的 tiling key 只编码 5 个轴 (`mega_moe_tiling_key.h`), 而 `T
 | AIC 落 GM + 置 `gmm1TileStatus`, AIV 等 GM 标志再 `CopyGM2UB` | `stage/mega_moe_gmm1_activation.h:618-645, 405-460` | `config.links.effective_gmm1_act_link`: 这条边 location="gm"、depth=0、同核不再是硬件强制 |
 | 每个行块一次 topk 权重 GM→UB 读 (m × `META_INFO_SIZE` × int32) | 同文件 349/419 | `AnalyticalActCosts.readback_bytes`, 申报到 `act_readback` 通路 |
 
-行块减半的**物理原因**是 UB 容量: prefetch 要在 UB 里多留一块 topk 权重缓冲
-(`block_epilogue_activation_mx_quant.h:184` 的 `weightUb_`, 只在 prefetch 下分配),
-行块矮一半才放得下。所以 256→128 不是风格, 是容量换来的几何。
+行块减半的原因是 UB 容量: prefetch 要多留一块 topk 权重缓冲
+(`block_epilogue_activation_mx_quant.h:184` 的 `weightUb_`, 只在 prefetch 下分配)。
 
-两点要讲清楚:
+依赖键不变: 通知用的 flag 下标仍是 `subMLoc / L1_TILE_M_256` (m-group), 所以
+`ctx.activation_ready` 的键还是 (专家, m-group), 同一个键下多一条行范围更窄的记录,
+GMM2 按行相交把两个行块都取到。
 
-* **时长口径**: 读回与向量计算**串行相加**, 不重叠 —— 依据是 kernel 自己的同步
-  (`CopyGM2UB` 之后紧跟 `SetFlag/WaitFlag<MTE2_V>` 才进 epilogue)。但带宽取的是
-  `BW_LOCAL_GM`, 而**仓内没有 prefetch 路径的实测**: 这是按物理口径算出的预测,
-  不是标定值。GMM1 侧的 Fixpipe 写出两种落点下都不在时长公式里, 这条路径上也没有
-  实测可据 —— 只申报字节, 不动时长。
-* **依赖没有被改**: 通知用的 flag 下标仍是 `subMLoc / L1_TILE_M_256` (m-group),
-  所以 `ctx.activation_ready` 的键还是 (专家, m-group), 只是同一个键下多了一条行范围
-  更窄的记录, GMM2 按行相交把两个行块都取到。
+**时长口径**: 读回与向量计算串行相加 (kernel 在 `CopyGM2UB` 之后紧跟
+`SetFlag/WaitFlag<MTE2_V>` 才进 epilogue), 带宽取 `BW_LOCAL_GM`。**仓内没有 prefetch
+路径的实测**, 所以这一项是按物理口径算的, 不是标定值。GMM1 侧的 Fixpipe 写出在两种落点下
+都不进时长公式 —— 只申报字节, 不动时长。手工拼的 `PrimitiveCosts` 不描述读回时, 开 prefetch
+会直接报错而不是按"读回免费"算。
 
-`tools/knob_audit.py` 里它从"被拒"变成"生效"; 这条路由 `tests/test_topk_prefetch.py`
-的 15 个测试钉住。
+模型给出的差值 (golden 的 `mte_topk_prefetch` vs 同形状的 `mte_3wave_lag2`):
 
-**模型给出的结论, 以及它为什么还不能当预测用**: golden 的 `mte_topk_prefetch` 与同形状的
-`mte_3wave_lag2` 对比 —— 600.93 → 591.50 µs (**-1.6%**), 事件数 1252 → 1348,
-本卡写出 25.4 → 50.5 MB (翻倍), 另加 26.0 MB 的 `act_readback` 读。
+| | 墙钟 | 事件数 | `hbm_write` | `act_readback` | AIC forced idle |
+| --- | --- | --- | --- | --- | --- |
+| 关 | 600.93 µs | 1252 | 25.4 MB | — | 1669.2 核·µs |
+| 开 | 591.50 µs (−1.6%) | 1348 | 50.5 MB | 26.0 MB | 462.2 核·µs |
 
-也就是: 模型说"多搬一倍字节, 换来 1.6% 的提速"。收益来自那条边不再有 UB 交接
-(GMM1 不必等配对 AIV 读走就能发下一个 tile); 代价**只有 ACT 的读回时长**那一项,
-因为**信道争用模型自 2026-10-03 停用** —— 翻倍的 HBM 写在时长上目前是免费的。
-收益的机制在空闲分解里看得见: AIC 的 forced idle 从 1669.2 降到 462.2 核·us
-(同形状、同编排) —— AIC 不再等配对 AIV 把 UB 读空才能发下一个 tile。
-两种配置的 avoidable 都是 0, 所以这不是调度器放水换来的。
+两种配置的 avoidable 空闲都是 0。提速来自 AIC 不再等配对 AIV 读走 UB; 翻倍的 HBM 写**在
+时长上不计** —— 信道争用模型 2026-10-03 已停用 (见下文)。所以 −1.6% 是解耦收益的上界,
+不是对实测的预测; 要收紧它需要整卡访存带宽与 prefetch 路径的实测, 两者仓内都没有。
 
-所以这个 -1.6% 是"解耦收益的上界", 不是对实测的预测。要让它可信, 缺的是两件实测:
-整卡访存带宽 (重建争用模型), 与 prefetch 路径本身的打点。两者都没有, 结论就只能这么标着。
+`tests/test_topk_prefetch.py` 的 15 个测试钉住这条路。
 
 ### 编译清单: 与 C++ 源码对账
 
@@ -673,6 +698,14 @@ topk=8) 跑在全部带宽常数的标定域之外** —— 实测都是在 h=51
 | `rank_results[r]["idle_decomposition"]`       | 核空闲分解 (forced / avoidable + 逐段给出哪些核在空、当时哪些就绪事件在等) |
 | `rank_results[r]["traffic_bytes"]`            | 各通路访存量 (见下) |
 | `rank_results[r]["bounds"]`                   | **三个下界与谁绑定** + `violation` (穿透就是模型漏算了代价) |
+| `rank_results[r]["resource_busy_us"]` / `resource_idle_us` / `resource_span_us` | 逐资源 (如 `R0.AIC:7`) 的忙 / 闲 / 跨度 |
+| `rank_results[r]["stage_first_start_us"]` / `stage_last_end_us` | 各 stage 的首个开始 / 最后结束时刻 |
+| `rank_results[r]["events"]`                   | 全部 `ScheduledEvent` (名字、起止、落核、meta) |
+| `rank_results[r]["waves"]` / `wave_count` / `m_groups_per_wave` | 波计划: 逐波范围、波数、每波组数 |
+| `rank_results[r]["gmm2_lag_active"]`          | 本次运行 GMM2 滞后有没有真的生效 |
+| `rank_results[r]["dispatch_ready_tiles"]`     | 每个 (波, 专家, m-group) 的就绪时刻与依赖 |
+| `rank_results[r]["implementation"]`           | 这条结果的身份: 实现 id / 编译指纹 / 运行拓扑 / 计时终点 stage |
+| `slowest_rank` / `scenario`                   | 最慢 rank 的号; 本次运行的场景对象 |
 | `provenance`                                  | 全部常数出处报告    |
 
 `traffic_bytes` 的通路名有语义, 不能混用 —— 塞错地方等于悄悄废掉别处的护栏
@@ -716,43 +749,34 @@ topk=8) 跑在全部带宽常数的标定域之外** —— 实测都是在 h=51
 **`impl:` 类的数必须能被参数覆盖** (`KernelConfig` / `InstancePolicy` / `ModelOptions`),
 模块常数只是那份实现的缺省来源; 模型的缺省值不引用它 (见上文分层)。
 
-### 有读者的常数与只作参考的常数要分开看 (2026-10-05 审计, 2026-10-06 重核)
+### 模块常数: 哪些有读者, 改了会发生什么
 
-出处标签说"这个数是谁定的", 但不说"它现在有没有进公式"。原先这一段把 12 个常数一律写成
-"改它们不会改变任何结果" —— 2026-10-06 逐个用猴补丁实测, **那句话对其中几个是错的**。
-现在按"改了它会怎样"分三层:
+出处标签说"这个数是谁定的", 不说"它现在有没有进公式"。按"改了它会发生什么"分三类:
 
-**第 1 层: 改了什么都不会发生 (真的只作参考)**
+**一、改了什么都不会发生**
 
-| 常数 | 为什么没读者 |
+| 常数 | 实际取值走哪里 |
 | --- | --- |
 | `TOTAL_L1_SIZE` / `TOTAL_L0C_SIZE` / `VEC_REG_WIDTH` | 容量检查走 `KernelConfig.l1_size` 等可覆盖字段 |
 | `T_INIT_US` / `T_INPUT_QUANT_FIXED_US` / `T_INPUT_QUANT_PER_TOKEN_US` / `T_CALL_OH` | 这些阶段不在 `kernel_total_us` 口径内 |
-| `T_FILL_GMM1` (=0) | 实际取值走 `Calibration` 的同名字段 |
-| `BW_SCATTER` | 已退役 (2026-10-05): 它曾被用来从**时长倒推** COMBINE 的字节, 那条已删 |
+| `T_FILL_GMM1` (=0) | `Calibration` 的同名字段 |
+| `BW_SCATTER` | 不进任何公式、不进任何申报 (2026-10-05 退役, 只留复现记录) |
 
-**第 2 层: 公式读不到, 但对账读得到** —— 改了它 `python tools/compile_manifest.py --check`
-**会失配退出码 1** (实测各报 1 项失配):
+**二、公式读不到, 但 `tools/compile_manifest.py --check` 读得到** —— 它们是对 C++ 源码的
+断言, 改了对账失配 (退出码 1):
 
-| 常数 | 与 C++ 的哪一项对账 |
-| --- | --- |
-| `TOTAL_UB_SIZE` | `LAYERED_USABLE_UB_BYTES` |
-| `L1_TILE_K` | `L1_TILE_K` (公式侧走 `KernelConfig.l1_tile_k`, 模块常数只是 `select_kl1` 的缺省实参, 每个调用点都显式覆盖) |
-| `GMM2_LAG_MIN_TOKEN_NUM` | `GMM2_LAG_MIN_TOKEN_NUM` (策略侧走 `InstancePolicy.gmm2_lag_threshold`) |
+| 常数 | 对账的 C++ 项 | 公式侧实际走哪里 |
+| --- | --- | --- |
+| `TOTAL_UB_SIZE` | `LAYERED_USABLE_UB_BYTES` | — |
+| `L1_TILE_K` | `L1_TILE_K` | `KernelConfig.l1_tile_k` (模块常数只是 `select_kl1` 的缺省实参, 调用点都显式覆盖) |
+| `GMM2_LAG_MIN_TOKEN_NUM` | `GMM2_LAG_MIN_TOKEN_NUM` | `InstancePolicy.gmm2_lag_threshold` |
 
-所以这三个不是"随便改"的 —— 它们是对 C++ 源码的断言, 改了等于声称 kernel 变了。
+**三、有真读者**
 
-**第 3 层: 它有真读者, 原先那句话是错的**
-
-`SCALE_TRANSFER_BYTES` 进 `select_kl1` 的容量判据
-(`units * scale_a <= SCALE_TRANSFER_BYTES`, 两条)。实测: 把它从 64 KiB 改成 16 B,
-部分 tile 的 kL1 从 512 掉回 256 (`select_kl1(120, 2048)`), GMM2 的 K 分段数随之翻倍 ——
-一个分段就绪的小形状上**事件数 563 → 947**。那个形状的墙钟恰好没变 (段多了但依赖都已满足),
-所以单看 `total_us` 会以为它是死常数; 看事件图就看得见。**它是个活参数, 只是后果藏在结构里。**
-
-这件事本身是个教训: "有没有读者"不能靠读代码下结论, 要么像第 2 层那样有对账, 要么像这里
-一样**改一下看看** —— 而且判据不能只有墙钟 (这正是 golden 指纹除时长之外还锁
-`traffic_bytes` / `bounds` / 出处的理由)。
+`SCALE_TRANSFER_BYTES` 进 `select_kl1` 的容量判据 (`units * scale_a <= SCALE_TRANSFER_BYTES`
+与同式的 `scale_b`)。改小它, 部分 tile 的 kL1 从 512 掉回 256 (`select_kl1(120, 2048)`),
+GMM2 沿 K 的分段数随之翻倍 —— 一个分段就绪的形状上事件数 563 → 947, 墙钟不变
+(段多了但依赖都已满足)。后果在事件图里, 不在 `total_us` 上。
 
 ## 硬件规格 (spec) 与实测 (measured) 分开记
 
@@ -1111,7 +1135,9 @@ python tools/check_work_conservation.py <场景> --assert-conserving   # CI: 有
 import moe_cost_model as m
 
 res = m.simulate_routing_counts(
-    ..., scheduling_policy=m.WorkConservingCriticalPath(),
+    routing_counts=C, costs=costs, token_num_per_rank=..., h=..., hidden_dim=...,
+    aic_num=...,                      # 以上四项是必填关键字参数
+    scheduling_policy=m.WorkConservingCriticalPath(),
     options=m.ModelOptions(late_bind_pools=("AIC", "AIV1")))
 ```
 
@@ -1265,8 +1291,7 @@ python tools/gen_golden.py             # 重新生成快照
 
 ## 项目结构
 
-2026-10-06 核对过一遍 (原先这棵树停在四层架构之前: implementations/ ir/ validation/ 三个
-包、config/ 下的 links/roles/granularity/platform 四个文件都没进来, 测试数也还写着 155)。
+`tests/test_readme_structure.py` 核对这棵树与 `src/moe_cost_model/` 下的实际文件一一对应。
 
 ```
 moe-cost-model/

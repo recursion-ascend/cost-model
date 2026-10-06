@@ -281,7 +281,69 @@ def verdict_of(cells):
     return "未建模(疑)"
 
 
+#: 旋钮表里一行的"管什么": 路径 -> 一句话。缺了就在 --markdown 时报错 ——
+#: README 的表由代码生成, 新旋钮必须在这里给一句说明, 否则表里会出现空格子。
+WHAT = {
+    "core_assignment": "tile 分给哪个核 (三种策略)",
+    "scheduling_policy": "就绪集里谁先跑 (三种策略)",
+    "wave_packing": "专家怎么组成波 (三种策略)",
+    "kernel.activation_n_half": "SwiGLU 的投影数 (gate+up)",
+    "kernel.combine_meta_bytes_per_row": "COMBINE 每行搬几字节路由元数据",
+    "kernel.combine_quant_mode": "COMBINE 的数据格式 (BF16 / FP8+scale)",
+    "kernel.gmm1_b_reuse_frac": "非首个 m-group 的 tile 付几成 B 流",
+    "kernel.gmm1_interleaved": "GMM1 的 gate/up 是否在 tile 内按列交织",
+    "kernel.l1_buf_num": "L1 ping-pong 缓冲块数 (1 = 关)",
+    "kernel.l1_size": "L1 容量 (进 select_kl1 的容量判据)",
+    "kernel.l1_tile_k": "K 窗基线",
+    "kernel.swizzle_direction": "tile 遍历的外层维 (0 = M 在外)",
+    "kernel.swizzle_offset": "swizzle 的分组宽度",
+    "kernel.tile_m": "一个 m-group 的行数",
+    "kernel.tile_n": "一个 N-tile 的列数",
+    "kernel.topk_weights_prefetch": "topk 权重在 epilogue 里乘; 行块 256->128 且 GMM1 输出走 GM 往返",
+    "kernel.topo_urma": "通信路径: MTE 波循环 / URMA Layered 宏波循环 (换建图器)",
+    "kernel.weight_nz": "权重 GM 布局 Z / NZ (开启须显式给 NZ 带宽)",
+    "options.barriers": "全核栅栏: 不加 / 波间 / 波内每 stage 后",
+    "options.combine_granularity": "一个 COMBINE 事件覆盖几个 GMM2 tile",
+    "options.combine_layout": "COMBINE 写出的落点跨度",
+    "options.dispatch_pacing": "dispatch 的发起配速",
+    "options.dispatch_partition": "dispatch 的行按核预切还是不预切",
+    "options.dispatch_rows_per_item": "一份 dispatch 工作覆盖多少行",
+    "options.epilogue_overheads": "尾段五项固定开销",
+    "options.gmm2_kl1": "GMM2 的 kL1 (不给则自适应)",
+    "options.granularity": "每个 stage 一个事件覆盖多少个单元",
+    "options.late_bind_pools": "哪些引擎晚绑定 (派发时刻才定核)",
+    "options.links": "stage 边: 就绪粒度 / 落点 / 片上槽数",
+    "options.m_groups_per_wave": "波宽: 每波装几个 m-group",
+    "options.pipeline": "相位拆分 (load/cube/fix) + 每核队列深度",
+    "options.roles": "哪个 stage 跑在哪个引擎角色上",
+    "options.serialize_dispatch_comm": "跨卡搬运是否串行化",
+    "policy.cursor_resonance_fix": "游标共振修正",
+    "policy.dispatch_lookahead": "dispatch 超前几波",
+    "policy.gmm2_combine_credit": "GMM2->COMBINE 的固定 credit",
+    "policy.gmm2_lag_threshold": "GMM2 滞后生效的 token 阈值",
+    "policy.gmm2_lag_waves": "GMM2 滞后几波",
+    "policy.wave_offsets": "各 stage 的波偏移组合",
+}
+
+
+def markdown_table() -> str:
+    """按 EXPECTED 生成 README 里那张旋钮表 (代码是唯一来源)."""
+    missing = sorted(set(EXPECTED) - set(WHAT))
+    if missing:
+        raise SystemExit(f"knob_audit.WHAT 缺这些旋钮的说明: {missing}")
+    stale = sorted(set(WHAT) - set(EXPECTED))
+    if stale:
+        raise SystemExit(f"knob_audit.WHAT 里有已不存在的旋钮: {stale}")
+    out = ["| 旋钮 | 判定 | 管什么 |", "| --- | --- | --- |"]
+    for path in sorted(EXPECTED):
+        out.append(f"| `{path}` | {EXPECTED[path]} | {WHAT[path]} |")
+    return "\n".join(out)
+
+
 def main(argv):
+    if "--markdown" in argv:
+        print(markdown_table())
+        return 0
     quiet = "--quiet" in argv
     emit = "--emit" in argv
     scenario = load_scenario(SCENARIO)
