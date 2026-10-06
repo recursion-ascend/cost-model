@@ -46,6 +46,7 @@
 | stage 边: 片上槽数 | `StageLink.depth` | gmm1→act 缺省 1 (UB 单槽); 0 = 不设限 |
 | GMM2 kL1 | `ModelOptions.gmm2_kl1` | 自适应或显式 |
 | B 复用 | `KernelConfig.gmm1_b_reuse` | 实测 -16.3% (多 m-group 时); "付几次"的规律未定 |
+| epilogue 行块 + GMM1 输出落点 | `KernelConfig.topk_weights_prefetch` | 行块 256→128, 输出改走 GM 往返 (读回时长无实测) |
 | 通信路径 | `KernelConfig.topo_urma` | MTE / URMA Layered 两套建图器 |
 | 建图器本身 | `MegaMoeShape.orchestration` | 扩展点: 可传自己的建图器类 |
 | 相位流水 | `ModelOptions.pipeline` | load/cube/fix 相位拆分 + 每核队列深度 |
@@ -53,8 +54,7 @@
 
 **只有旋钮、但缺省标定下是空操作的**: `KernelConfig.l1_buf_num` (只在
 `gmm1_tile_restart_us > 0` 时生效, 缺省 0)、`KernelConfig.weight_nz` (开启需显式给 NZ
-带宽, 否则直接报错)、
-`KernelConfig.topk_weights_prefetch` (无读者, 硬门查的是 `ModelOptions` 的同名字段)。
+带宽, 否则直接报错)。
 
 ---
 

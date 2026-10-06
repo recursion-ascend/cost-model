@@ -35,7 +35,6 @@ from ..costs import UrmaMechanisticLatency
 from ..shape import BlockCursor, CursorTrace, MegaMoeShape, ModelOptions
 from ..planning.waves import Wave
 
-_ALIGN_32 = 32
 #: 原先这里写死 2048 并在注释里声明"= URMA_FLAG_WINDOW_TOKENS x URMA_FLAG_BYTES" ——
 #: 复制出来的派生值, 改常数不会跟着变。现在从公式容器取 (UrmaMechanisticLatency
 #: 的 flag_window_bytes), 它是某实现的选择, 可覆盖。

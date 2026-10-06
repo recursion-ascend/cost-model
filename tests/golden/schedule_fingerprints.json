@@ -3343,6 +3343,106 @@
     }
    ]
   },
+  "mte_topk_prefetch": {
+   "kernel_total_us": 591.4997038908674,
+   "slowest_rank": 0,
+   "provenance_summary": {
+    "algo": 1,
+    "assumed": 3,
+    "derived": 1,
+    "impl": 23,
+    "measured": 24,
+    "spec": 7,
+    "user-supplied": 18
+   },
+   "provenance_sha256": "2200d0de111807ce4fe0f12ab353cd7ba8a9a11b6a720256b1c6fb320a2cbfde",
+   "ranks": [
+    {
+     "rank": 0,
+     "total_us": 591.4997038908674,
+     "dag_end_us": 643.4021544171833,
+     "events": 1348,
+     "wave_count": 3,
+     "stage_busy_us": {
+      "activation": 1212.6382839531482,
+      "combine": 2570.3780299214686,
+      "dispatch": 549.172470104787,
+      "dispatch_call": 0.0,
+      "dispatch_ready": 0.0,
+      "epilogue": 51.902450526315874,
+      "gmm1": 8728.031445086703,
+      "gmm2": 5818.687630057773,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 28,
+     "traffic_bytes": {
+      "R0.act_readback": 25952256.0,
+      "R0.combine_read": 40108032.0,
+      "R0.dispatch_read": 19464192.0,
+      "R0.dispatch_write": 19562496.0,
+      "R0.gm_to_l1": 754974720.0,
+      "R0.hbm_write": 50528256.0,
+      "fab_dst:0": 9732096.0,
+      "fab_dst:1": 18874368.0,
+      "fab_src:0": 18874368.0,
+      "fab_src:1": 9732096.0
+     },
+     "bounds": {
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 103.26017602721782,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
+     "schedule_sha256": "e1d7ed8a4ab378052e88b968e0d245b949e0add257d774f84d9d80810d4b8879"
+    },
+    {
+     "rank": 1,
+     "total_us": 591.4997038908674,
+     "dag_end_us": 643.4021544171833,
+     "events": 1348,
+     "wave_count": 3,
+     "stage_busy_us": {
+      "activation": 1212.6382839531482,
+      "combine": 2570.3780299214677,
+      "dispatch": 545.0145613314155,
+      "dispatch_call": 0.0,
+      "dispatch_ready": 0.0,
+      "epilogue": 51.902450526315874,
+      "gmm1": 8728.031445086703,
+      "gmm2": 5818.687630057773,
+      "moe_stage_done": 0.0
+     },
+     "critical_path_len": 28,
+     "traffic_bytes": {
+      "R1.act_readback": 25952256.0,
+      "R1.combine_read": 40108032.0,
+      "R1.dispatch_read": 19464192.0,
+      "R1.dispatch_write": 19562496.0,
+      "R1.gm_to_l1": 754974720.0,
+      "R1.hbm_write": 50528256.0,
+      "fab_dst:0": 18874368.0,
+      "fab_dst:1": 9732096.0,
+      "fab_src:0": 9732096.0,
+      "fab_src:1": 18874368.0
+     },
+     "bounds": {
+      "compute_us": 153.39168914285713,
+      "bandwidth_us": 173.17522708505368,
+      "dependency_us": 103.26017602721782,
+      "lower_us": 173.17522708505368,
+      "binding": "bandwidth",
+      "total_mac": 115964116992,
+      "gm_to_l1_bytes": 251658240,
+      "violation": null
+     },
+     "schedule_sha256": "b142ad49f459244db91ccb38ccdce073e0f623fe3f020895f990f7712d8bbaf8"
+    }
+   ]
+  },
   "mte_uniform_bs64": {
    "kernel_total_us": 1751.4824642064764,
    "slowest_rank": 0,

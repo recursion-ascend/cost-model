@@ -34,34 +34,44 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-#: 仓内 kernel 的根目录 (相对仓库根)
+#: 仓内 kernel 的根目录 (相对仓库根). 下面的路径都由它拼出来 —— 原先它只是个声明,
+#: 而每条路径各自又写了一遍 "mega_moe/", 换目录要改十几处而这个常数改了不生效。
 KERNEL_ROOT = "mega_moe"
 
+
+def _k(*parts: str) -> str:
+    """KERNEL_ROOT 下的一条路径 (posix 分隔符, 与清单里记录的写法一致)."""
+    return "/".join((KERNEL_ROOT,) + parts)
+
+
+_ARCH35 = ("op_kernel", "arch35")
+_COMMON = _ARCH35 + ("common",)
+
 #: CMake 里定义 MEGAMOE_* 的唯一文件 (其余 CMakeLists 只做 glob)
-CMAKE_FILE = "mega_moe/include/CMakeLists.txt"
+CMAKE_FILE = _k("include", "CMakeLists.txt")
 
 #: 用两行 #ifndef/#define 惯用法给宏缺省的文件
 MACRO_FILES = (
-    "mega_moe/op_kernel/arch35/common/mega_moe_constants.h",
-    "mega_moe/op_kernel/arch35/common/mega_moe_gmm_common.h",
-    "mega_moe/op_kernel/arch35/mega_moe_apt.cpp",
-    "mega_moe/include/kernel.cpp",
-    "mega_moe/include/host.cpp",
-    "mega_moe/op_host/op_tiling/arch35/mega_moe_tiling.cpp",
+    _k(*_COMMON, "mega_moe_constants.h"),
+    _k(*_COMMON, "mega_moe_gmm_common.h"),
+    _k(*_ARCH35, "mega_moe_apt.cpp"),
+    _k("include", "kernel.cpp"),
+    _k("include", "host.cpp"),
+    _k("op_host", "op_tiling", "arch35", "mega_moe_tiling.cpp"),
 )
 
 #: 要抽的结构常数 (白名单): 名字 -> 它在哪个文件。白名单而不是全抽, 因为"模型用到哪些"
 #: 是一个断言: 名字消失或写法变了必须报错, 不能静默少一项。
 STRUCTURAL = {
-    "L1_TILE_M_256": "mega_moe/op_kernel/arch35/common/mega_moe_constants.h",
-    "L1_TILE_M_128": "mega_moe/op_kernel/arch35/common/mega_moe_constants.h",
-    "L1_TILE_N": "mega_moe/op_kernel/arch35/common/mega_moe_constants.h",
-    "ACTIVATION_N_HALF": "mega_moe/op_kernel/arch35/common/mega_moe_constants.h",
-    "META_INFO_SIZE": "mega_moe/op_kernel/arch35/common/mega_moe_constants.h",
-    "MXFP_DIVISOR_SIZE": "mega_moe/op_kernel/arch35/common/mega_moe_constants.h",
-    "MXFP_MULTI_BASE_SIZE": "mega_moe/op_kernel/arch35/common/mega_moe_constants.h",
-    "LAYERED_USABLE_UB_BYTES": "mega_moe/op_kernel/arch35/common/mega_moe_constants.h",
-    "L1_TILE_K": "mega_moe/op_kernel/arch35/common/mega_moe_gmm_common.h",
+    "L1_TILE_M_256": _k(*_COMMON, "mega_moe_constants.h"),
+    "L1_TILE_M_128": _k(*_COMMON, "mega_moe_constants.h"),
+    "L1_TILE_N": _k(*_COMMON, "mega_moe_constants.h"),
+    "ACTIVATION_N_HALF": _k(*_COMMON, "mega_moe_constants.h"),
+    "META_INFO_SIZE": _k(*_COMMON, "mega_moe_constants.h"),
+    "MXFP_DIVISOR_SIZE": _k(*_COMMON, "mega_moe_constants.h"),
+    "MXFP_MULTI_BASE_SIZE": _k(*_COMMON, "mega_moe_constants.h"),
+    "LAYERED_USABLE_UB_BYTES": _k(*_COMMON, "mega_moe_constants.h"),
+    "L1_TILE_K": _k(*_COMMON, "mega_moe_gmm_common.h"),
     "GMM2_LAG_MIN_TOKEN_NUM": "mega_moe/op_kernel/arch35/mega_moe_wave_a8w8.h",
 }
 
@@ -211,7 +221,7 @@ def extract(root) -> CompileManifest:
         else:
             man.entries[name] = found
 
-    gmm = _read(root, "mega_moe/op_kernel/arch35/common/mega_moe_gmm_common.h")
+    gmm = _read(root, _k(*_COMMON, "mega_moe_gmm_common.h"))
     if gmm:
         mo = _SWIZZLE.search(gmm)
         if mo is None:
@@ -227,7 +237,7 @@ def extract(root) -> CompileManifest:
                 source=f"mega_moe/op_kernel/arch35/common/mega_moe_gmm_common.h:{line}",
                 doc="第 2 个模板实参; 0 = m first, 1 = n first")
 
-    harness = _read(root, "mega_moe/include/kernel.cpp")
+    harness = _read(root, _k("include", "kernel.cpp"))
     if harness:
         mo = _HARNESS_INSTANCE.search(harness)
         if mo is None:
@@ -297,6 +307,11 @@ def compare(man: CompileManifest, kernel=None) -> Dict[str, object]:
          "META_INFO_SIZE_BYTES"),
         ("hardware.URMA_FLAG_WINDOW_TOKENS", int(hw.URMA_FLAG_WINDOW_TOKENS),
          "L1_TILE_M_256"),
+        # prefetch 的 epilogue 行块高度: kernel 的 EPILOGUE_TILE_M 真值分支
+        ("hardware.EPILOGUE_TILE_M_PREFETCH", int(hw.EPILOGUE_TILE_M_PREFETCH),
+         "L1_TILE_M_128"),
+        ("hardware.META_BYTES_PER_ROW", int(hw.META_BYTES_PER_ROW),
+         "META_INFO_SIZE_BYTES"),
     ]
     mismatch, skipped, checked = [], [], 0
     for label, py_value, entry_name in pairs:

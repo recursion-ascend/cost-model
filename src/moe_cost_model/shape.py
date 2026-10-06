@@ -7,7 +7,8 @@ from typing import List, Optional, Tuple
 from .config.hardware import EpilogueOverheads
 from .config.granularity import (DEFAULT_GRANULARITIES, GranularityAssignment,
                                  resolve_granularity)
-from .config.links import DEFAULT_LINKS, StageLink, resolve_link, validate_links
+from .config.links import (DEFAULT_LINKS, StageLink, effective_gmm1_act_link,
+                           resolve_link, validate_links)
 from .config.roles import DEFAULT_ROLES, RoleAssignment
 from .config.policy import InstancePolicy
 from .costs import DispatchDataLayout
@@ -101,7 +102,6 @@ _ZERO_OVERHEADS = EpilogueOverheads(literal=True)
 
 @dataclass(frozen=True)
 class ModelOptions:
-    topk_weights_prefetch: bool = False
     serialize_dispatch_comm: bool = False
     # C3 全核栅栏 (编排选择): () = 不加 (缺省, 逐核推进 = 融合算子);
     #   ("wave",)  波间全核对齐 —— 下一波的任何事件都等上一波全做完
@@ -243,6 +243,20 @@ class ModelOptions:
         """该 stage 在 core 号核上的资源名 —— 建图器用它代替写死的 f-string."""
         return self.roles.resource(stage, core)
 
+    def role_queue_token(self, stage: str, core: int) -> str:
+        """该 stage 在 core 号核上的引擎队列令牌 —— 同样跟着角色走, 见 roles.queue_token."""
+        return self.roles.queue_token(stage, core)
+
     def link(self, producer: str, consumer: str) -> StageLink:
         """取这条 stage 边的设置 (没给就回落到缺省)."""
         return resolve_link(self.links, producer, consumer)
+
+    def gmm1_act_link(self, kernel) -> StageLink:
+        """gmm1->activation 这条边在该编译点下的样子.
+
+        单列出来是因为它不只取决于 links: TopkWeightsPrefetch 开着时 kernel 走 GM
+        往返而不是 Fixpipe 直给, 那条边的 location/depth/同核性质都随之改变
+        (见 config/links.effective_gmm1_act_link)。所有读这条边的地方都走这里,
+        免得一半代码按 links 的说法、另一半按编译点的说法。
+        """
+        return effective_gmm1_act_link(self.links, kernel)

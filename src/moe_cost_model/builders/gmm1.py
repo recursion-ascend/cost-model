@@ -8,12 +8,12 @@ from __future__ import annotations
 
 from typing import List
 
-from ..config.hardware import BW_L1_GM
+from ..config.hardware import BW_L1_GM, GMM1_OUT_ELEM_BYTES
 from ..costs import gmm1_phase_split
 from ..planning.tile_grid import STAGE_GMM1, validate_tiles
 from .activation import ActBatcher
 from .context import BuildContext
-from .pipeline_expand import CH_GM_TO_L1
+from .pipeline_expand import CH_GM_TO_L1, CH_HBM_WRITE
 from .tiling import coalesce_tiles, resolve_grid, tile_label
 
 
@@ -29,8 +29,14 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
     grid = resolve_grid(shape)
     cursor = ctx.cursor
     # ACT 的事件粒度与 UB 槽数有物理耦合, ActBatcher 在构造时就查 (见 activation.py)
-    act_depth = builder.options.link("gmm1", "activation").depth
-    act_batch = ActBatcher(builder.options.grain("activation"), act_depth)
+    # 这条边的样子取决于编译点: prefetch 开着时是 GM 往返而不是 Fixpipe 直给,
+    # UB 槽约束随之消失 (见 config/links.effective_gmm1_act_link)。
+    act_link = builder.options.gmm1_act_link(km)
+    act_depth = act_link.depth
+    prefetch = bool(km.topk_weights_prefetch)
+    # epilogue 的行块高度: prefetch 时 128, 否则 = tile_m (kernel EPILOGUE_TILE_M)
+    act_batch = ActBatcher(builder.options.grain("activation"), act_depth,
+                           epilogue_rows=km.epilogue_tile_m, prefetch=prefetch)
     for si, sl in enumerate(w.slices):
         tiles = grid.plan(stage=STAGE_GMM1, rows=sl.rows, cols=gmm1_sched_n, kernel=km)
         validate_tiles(tiles, rows=sl.rows, cols=gmm1_sched_n, tile_m=TILE_M,
@@ -77,7 +83,7 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             global_group = sl.row_begin // TILE_M + mg
 
             deps: List[str] = []
-            q_aic = (f"Q:aic:c{core}", 1)
+            q_aic = (builder.options.role_queue_token("gmm1", core), 1)
             ready_name = ctx.dispatch_ready_event.get((sl.expert, global_group))
             if ready_name is None:
                 raise ValueError(
@@ -97,8 +103,7 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             #  已不存在: 现在 ACT 之间没有任何程序序边, 同核 ACT 的先后由资源互斥定。)
             # depth=0 = 不建这个约束 (假设 UB 不构成瓶颈)。
             ub_slot = (f"UB:gmm1act:c{core}", 1)
-            depth = builder.options.link("gmm1", "activation").depth
-            acq = (q_aic, ub_slot) if depth > 0 else (q_aic,)
+            acq = (q_aic, ub_slot) if act_depth > 0 else (q_aic,)
 
             if first_owned[core]:
                 duration += c.gmm1_problem_startup_us
@@ -127,15 +132,25 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             a_bytes = sum(mt.rows * shape.h for mt in members)
             b_bytes = sum(_gmm1_b_bytes(c, shape.h, mt.cols) * _b_load(mt)
                           for mt in members)
+            chans = [(CH_GM_TO_L1, float(a_bytes + b_bytes), float(BW_L1_GM))]
+            if prefetch:
+                # prefetch 路径: Fixpipe 的终点是 GM 而不是配对 AIV 的 UB
+                # (AIV 随后 CopyGM2UB 读回, 见 activation.py)。字节两边对称申报:
+                # 这里是写, ACT 那边是读。
+                # **时长没动**: gmm1_tile 是 max(载入, 计算), Fixpipe 的写出两种落点
+                # 下都不在公式里 —— 口径差异在这条路径上还没有实测可据。
+                out_bytes = sum(mt.rows * mt.cols for mt in members) \
+                    * km.activation_n_half * GMM1_OUT_ELEM_BYTES / out_div
+                meta["out_store_bytes"] = out_bytes
+                chans.append((CH_HBM_WRITE, float(out_bytes), float(BW_L1_GM)))
             builder._event(gname, (builder.options.role_resource("gmm1", core),),
                            duration, deps=deps,
                            acquires=acq, releases=(q_aic,), meta=meta,
-                           channel_bytes=((CH_GM_TO_L1, float(a_bytes + b_bytes),
-                                           float(BW_L1_GM)),))
+                           channel_bytes=tuple(chans))
 
             act_batch.add(builder, ctx, w, si, sl, t, label, ntile, core,
                           global_group, gname, out_div,
-                          ub_slot if depth > 0 else None)
+                          ub_slot if act_depth > 0 else None)
         # 攒批不跨切片: ctx.activation_ready 以 (专家, m-group) 为键, 而 GMM2 按这个
         # 键取依赖 —— 跨切片攒会让依赖指错专家。
         act_batch.flush_all(builder, ctx, w, si, sl)

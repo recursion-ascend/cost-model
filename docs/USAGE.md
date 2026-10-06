@@ -195,8 +195,10 @@ python tools/knob_audit.py --quiet  # 只列非"每个形状都生效"的
   同核在途数恒 ≤ 1; 相位拆分后的 load 相位又刻意不继承 `Q:*`。旋钮已删 (容量写死 1),
   连带删掉的 golden case `pipeline_engine_queue2` 与 `pipeline_split` 指纹**逐位相同**,
   即它从来什么都没测到。
-* `KernelConfig.topk_weights_prefetch` 在模型里**没有读者** (硬门查的是
-  `ModelOptions.topk_weights_prefetch`), 已删。
+* `topk_weights_prefetch` 有**两个出处**, 其中 `KernelConfig` 上那个没有读者。
+  当时删的是 `KernelConfig` 的; 2026-10-06 反过来了 —— 它是编译期宏
+  `MEGAMOE_TOPK_PREFETCH`, 唯一出处是 `KernelConfig`, 且已建模 (见下文),
+  `ModelOptions` 上那个已删。
 * `options.roles` 与 `options.epilogue_overheads` 在**场景文件这条日常路径上写不出来**
   (报"应为数值"), 只能在 Python 里构造对象 —— 于是"哪个 stage 跑在哪个核上"这一类编排
   在场景扫描里根本到不了。已接上: `[options.roles]` 下 `combine = "AIV0"`。

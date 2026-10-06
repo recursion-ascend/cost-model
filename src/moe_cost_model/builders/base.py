@@ -242,8 +242,9 @@ class EventBuilderBase:
         return self._event("epilogue.shared_gmm2_done", (), 0.0, deps=tuple(tiles),
                            meta={"stage": "epilogue", "part": "shared_gmm2_done"})
 
-    # stage 建图函数在同包各文件: dispatch.py / gmm1.py / activation.py /
-    # gmm2.py / combine.py — 状态经 BuildContext (context.py) 传递.
+    # stage 建图函数在同包各文件: gmm1.py / activation.py / gmm2.py, 通信与归约在
+    # comm/{mte,urma}.py (dispatch 与 combine 都在那里, 没有 dispatch.py / combine.py) —
+    # 状态经 BuildContext (context.py) 传递.
 
     # ---- 尾段 ----
 

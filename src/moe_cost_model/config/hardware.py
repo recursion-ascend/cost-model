@@ -206,28 +206,68 @@ MXFP_MULTI_BASE_SIZE = SourcedInt(2, 'spec:MX scale 每组字节数 (MX 格式�
 SCALE_TRANSFER_BYTES = SourcedInt(64 * 1024, 'impl:scale 载入窗单侧上限, 字节')
 
 
+#: K 窗翻倍的倍数. kernel 里是 CalcAdaptiveL1Params 的 `constexpr uint64_t maxKL1Units = 2U`
+#: (common/mega_moe_gmm_common.h), 一个**固定**常数 —— 它问的是"两个基础 K 窗放不放得下",
+#: 与 L1 ping-pong 的缓冲块数 (MEGAMOE_L1_BUF_NUM) 是两件事。
+MAX_KL1_UNITS = 2
+
+
+#: TopkWeightsPrefetch 开启后 epilogue 的行块高度.
+#:
+#: kernel: `EPILOGUE_TILE_M = TopkWeightsPrefetch ? L1_TILE_M_128 : L1_TILE_M_256`
+#: (op_kernel/arch35/mega_moe_arch35.h:161, mega_moe_layered.h:365)。物理原因是
+#: prefetch 要在 UB 里多留一块 topk 权重缓冲 (block_epilogue_activation_mx_quant.h:184
+#: 的 `weightUb_`, 只在 prefetch 下分配), 行块高度减半才放得下 —— 所以这不是风格,
+#: 是 UB 容量换来的几何。
+#:
+#: kernel 的两个取值都是字面常量 (128 / 256), 与 MEGAMOE_TILE_M 无关; 本模型按
+#: "不高于 GMM1 行块" 取 min, 这样 tile_m != 256 的编译点上也有定义。tile_m = 256 时
+#: 与 kernel 逐值相同; 其他 tile_m 是模型的外推, 不是 kernel 事实。
+EPILOGUE_TILE_M_PREFETCH = 128
+
+#: GMM1 输出在 GM 里的每元素字节. prefetch 路径下 AIC 把 L0C 写回 GM、AIV 再读回
+#: UB (stage/mega_moe_gmm1_activation.h:405-460 的 CopyGM2UB), 读回的元素类型就是
+#: epilogue 的输入类型 bfloat16_t (mega_moe_arch35.h:176 的 DataTypeIn)。
+GMM1_OUT_ELEM_BYTES = 2
+
+#: 一行路由元数据的字节数: META_INFO_SIZE = 8 个 int32
+#: (op_kernel/arch35/common/mega_moe_constants.h:73)。prefetch 的 epilogue 每个行块
+#: 要把这些行的 topk 权重从 GM 读进 UB (`DataCopy(topkWeightTensor, metaInfoGm[...],
+#: subM * INT32_PER_256B)`, INT32_PER_256B = 8)。
+META_BYTES_PER_ROW = 32
+
+
+def epilogue_tile_m(tile_m: int, topk_weights_prefetch: bool) -> int:
+    """epilogue (ACT) 的行块高度: prefetch 开启时减半 (见 EPILOGUE_TILE_M_PREFETCH)."""
+    if not topk_weights_prefetch:
+        return int(tile_m)
+    return min(int(tile_m), EPILOGUE_TILE_M_PREFETCH)
+
+
 def select_kl1(m_rows: int, k: int, override=None, tile_m: int = TILE_M,
                tile_n: int = TILE_N, l1_size: int = TOTAL_L1_SIZE,
-               k_l1_base: int = L1_TILE_K, n_windows: int = 2) -> int:
-    """kL1 选择: 部分 tile 时容量允许则 kL1 翻倍.
+               k_l1_base: int = L1_TILE_K) -> int:
+    """kL1 选择: 部分 tile 时容量允许则 kL1 翻倍 (移植 CalcAdaptiveL1Params).
 
     正向规则: 整 tile (m>=tile_m) 或 K<=基线 → k_l1_base;
-    部分 tile: blockM=align16(m), n_windows 个数据窗 + scale 窗能放进
-    半片 L1 且单侧 scale ≤ 64KiB → kL1 = 2×k_l1_base. (kL1 不变仅放大
-    scale 窗的分支不影响 K 窗结构, 未移植.)
+    部分 tile: blockM=align16(m), **两个** K 窗的 A/B 与 scale 能放进半片 L1 且单侧
+    scale ≤ 64KiB → kL1 = 2×k_l1_base. (kL1 不变仅放大 scale 窗的分支不影响 K 窗结构, 未移植.)
 
     k_l1_base: K-chunk 基线, KernelConfig.l1_tile_k 可设; 缺省 = 源码 256.
-    n_windows: L1 缓冲窗数, 缺省 2 (kernel 双缓冲). 多缓冲变体
-    (l1_buf_num=3) 传入 3 — 窗数增加时 kL1 倾向不翻倍, 这是多缓冲
-    的容量代价.
+
+    **2026-10-06 去掉了 n_windows 参数** (原先由 KernelConfig.l1_buf_num 传入, 缺省 2):
+    那是把两个不同的量当成了一个。kernel 的容量判据里乘的是固定的 `maxKL1Units = 2U`
+    (见 MAX_KL1_UNITS), 而 `MEGAMOE_L1_BUF_NUM` 在 CalcAdaptiveL1Params 的三个比较式里
+    **一次都没出现** —— 它只进 `L1Params{.l1BufNum = ...}`, 管的是 ping-pong 的缓冲块数
+    (模型侧对应 AnalyticalGmmCosts 的 serial: l1_buf_num==1 时单缓冲, 换块要停顿)。
+    缺省值恰好都是 2, 所以缺省配置下两种写法同值; 一旦扫 l1_buf_num, 旧写法会改 kL1 而
+    kernel 不会 —— 那个旋钮于是在模型里多了一份 kernel 没有的后果。
     """
     if override is not None:
         return override
     base = int(k_l1_base)
     if base <= 0:
         raise ValueError("k_l1_base must be positive")
-    if n_windows < 1:
-        raise ValueError("n_windows must be >= 1")
     if m_rows == 0 or m_rows >= tile_m or k <= base:
         return base
     block_m = ((m_rows + 15) // 16) * 16
@@ -236,10 +276,10 @@ def select_kl1(m_rows: int, k: int, override=None, tile_m: int = TILE_M,
                         // MXFP_DIVISOR_SIZE) * MXFP_MULTI_BASE_SIZE
     scale_a = block_m * scale_k_per_unit
     scale_b = tile_n * scale_k_per_unit
-    can_double = (n_windows * data_per_unit + n_windows * (scale_a + scale_b)
-                  <= l1_size // 2
-                  and n_windows * scale_a <= SCALE_TRANSFER_BYTES
-                  and n_windows * scale_b <= SCALE_TRANSFER_BYTES)
+    units = MAX_KL1_UNITS
+    can_double = (units * data_per_unit + units * (scale_a + scale_b) <= l1_size // 2
+                  and units * scale_a <= SCALE_TRANSFER_BYTES
+                  and units * scale_b <= SCALE_TRANSFER_BYTES)
     return base * 2 if can_double else base
 
 
@@ -357,6 +397,18 @@ class KernelConfig:
     # 出处: stage/mega_moe_gmm1_activation.h:251-285 (同步分支),
     #       mega_moe_wave_a8w8.h:446 (调度宽度), 同文件 377-392 (epilogueN = N/2)。
     gmm1_interleaved: bool = False
+    # MEGAMOE_TOPK_PREFETCH -> MegaMoeA8W8Wave 的 TopkWeightsPrefetch 模板参数.
+    # 开启后 topk 权重在 epilogue 里就乘上 (SwiGLU 取 topkWeights 指针), 代价是:
+    #   1. epilogue 行块高度 256 -> 128 (EPILOGUE_TILE_M, 见 epilogue_tile_m);
+    #   2. GMM1 的输出改走 GM: AIC 落 GM + 置 gmm1TileStatus, AIV 等这个 GM 标志再
+    #      CopyGM2UB 读回 (stage/mega_moe_gmm1_activation.h:405-460), 而不是 Fixpipe
+    #      L0C->UB 直给配对 AIV0。于是 gmm1->activation 这条边从"片上"变成"GM 往返",
+    #      UB ping-pong 槽位约束也不再适用 (见 config/links.effective_gmm1_act_link);
+    #   3. 每个行块多一次 topk 权重的 GM->UB 读 (m x META_BYTES_PER_ROW)。
+    # **影响时长**: 2、3 两项的字节要搬, 且 kernel 用 MTE2_V 标志把搬运与向量计算
+    # 严格串起来 (同文件 353-356: SetFlag/WaitFlag 紧挨着), 所以读回时间不与计算重叠。
+    # 缺省 0: megamoe_profile/CMakeLists.txt 没给这个宏 (include/kernel.cpp:24-26)。
+    topk_weights_prefetch: bool = False
     l1_tile_k: int = 256              # K-chunk 基线 (select_kl1 自适应)
     # GMM1 B 复用: 切片内首个 m-group 的 tile 付整份 B 流, 其余 m-group 的 tile 各付
     # **本比例**。1.0 = 不复用 (缺省, 不声称 L2 会命中); 0.0 = 完全复用 (只有首个付)。
@@ -381,3 +433,8 @@ class KernelConfig:
     # 核数 aic_num 是可调场景输入 (MegaMoeShape.aic_num); 向量核数恒为 2×aic_num
     # (每 block 1 AIC + 2 AIV, 平台结构常数), 模型以每核 AIV0/AIV1 两角色表达,
     # 不设独立旋钮。
+
+    @property
+    def epilogue_tile_m(self) -> int:
+        """epilogue (ACT) 的行块高度 = kernel 的 EPILOGUE_TILE_M."""
+        return epilogue_tile_m(self.tile_m, self.topk_weights_prefetch)

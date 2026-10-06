@@ -42,10 +42,11 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             owners = cursor.owners(tile_count)
         first_owned = [True] * p
 
+        # 不传 l1_buf_num: kernel 的 CalcAdaptiveL1Params 在容量判据里乘的是固定的
+        # maxKL1Units = 2, l1BufNum 不进那三个比较式 (见 config.hardware.select_kl1)。
         kl1 = select_kl1(sl.rows, k_gmm2, builder.options.gmm2_kl1,
                          tile_m=km.tile_m, tile_n=km.tile_n,
-                         l1_size=km.l1_size, k_l1_base=km.l1_tile_k,
-                         n_windows=km.l1_buf_num)
+                         l1_size=km.l1_size, k_l1_base=km.l1_tile_k)
 
         for tile_idx, core in enumerate(owners):
             t, members = items[tile_idx]
@@ -58,7 +59,7 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             _require_full_k(acts, k_gmm2, sl.expert, global_group, t)
 
             deps: List[str] = []
-            q_aic2 = (f"Q:aic:c{core}", 1)
+            q_aic2 = (builder.options.role_queue_token("gmm2", core), 1)
             combine_history = ctx.gmm2_combine_history[core]
             credit = policy.gmm2_combine_credit
             if credit is not None and len(combine_history) >= credit:

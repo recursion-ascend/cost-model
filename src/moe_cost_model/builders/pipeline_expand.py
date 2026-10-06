@@ -48,6 +48,9 @@ CH_COMBINE_READ = "combine_read"
 # dispatch 的访存: 读源卡窗口 → UB, 写本卡 workspace。
 # 这些名字现在只是**访存量的分类标签** (信道模型已停用), 按通路汇总在
 # rank_results["traffic_bytes"] 里。要重建争用模型, 得先有**整卡访存带宽**的实测。
+#: prefetch 路径 (TopkWeightsPrefetch=true) 的 ACT 把 GMM1 输出 + topk 权重从 GM
+#: 读回 UB。单独一条通路名, 理由同 CH_COMBINE_READ: 目的地是 UB 不是 L1, 也不是写。
+CH_ACT_READBACK = "act_readback"
 CH_DISPATCH_READ = "dispatch_read"
 CH_DISPATCH_WRITE = "dispatch_write"
 

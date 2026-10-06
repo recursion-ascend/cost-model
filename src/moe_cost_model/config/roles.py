@@ -44,6 +44,10 @@ VECTOR_ROLES = (AIV0, AIV1)
 #: 只能跑在 Cube 上的 stage —— 矩阵乘没有别的去处, 这是物理
 CUBE_ONLY_STAGES = ("gmm1", "gmm2", "shared_gmm1", "shared_gmm2")
 
+#: 角色 -> 该角色的每核引擎队列令牌前缀。名字是历史沿用的 (model.py 声明容量时用同一组),
+#: 这里把映射写在一处, 建图器不再各自拼 f-string。
+QUEUE_TOKENS = {AIC: "Q:aic", AIV0: "Q:vec0", AIV1: "Q:aiv1"}
+
 #: 缺省分工 = 最少假设: 矩阵乘上 Cube, 其余各占一个向量角色。
 #: ACT 与 GMM1 同核由 StageLink 的物理共位保证, 这里只说它用哪个向量角色。
 DEFAULT_STAGE_ROLES: Dict[str, str] = {
@@ -100,6 +104,20 @@ class RoleAssignment:
     def resource(self, stage: str, core: int) -> str:
         """该 stage 在 core 号核上的资源名 (建图器就调这个, 不再拼 f-string)."""
         return f"{self.role_of(stage)}:{core}"
+
+    def queue_token(self, stage: str, core: int) -> str:
+        """该 stage 在 core 号核上的引擎队列令牌名, **跟着角色走**.
+
+        2026-10-06 之前建图器各自写死 f-string (activation 写 "Q:vec0:c{core}",
+        combine/dispatch 写 "Q:aiv1:c{core}"), 而资源名已经走 resource()。于是
+        `roles={"combine": "AIV0"}` 这类覆盖会让一个事件**占着 AIV0 的核、扣着 AIV1 的队列**
+        —— 两个名字说的是两个不同的引擎。
+
+        今天这三个令牌都是空约束 (容量恒 1, 而事件同时独占该核), 所以那个不一致不改时长;
+        但它会让按令牌名做的分析看错引擎 (ir 的 TokenKind 就是按前缀分型的), 而且一旦引擎
+        队列哪天有了真约束, 它就变成一个时长错误。名字跟着角色走, 这类错就不存在。
+        """
+        return f"{QUEUE_TOKENS[self.role_of(stage)]}:c{core}"
 
     def roles_in_use(self) -> Tuple[str, ...]:
         """这份分工实际用到的角色 (按 ROLES 的顺序), 供资源池声明用."""

@@ -40,6 +40,7 @@ tile 一旦发给某核, 别的核不能拿。于是 n-tile 数不整除核数�
 from __future__ import annotations
 
 from collections import defaultdict
+import dataclasses
 from typing import Dict, List, Optional, Tuple
 
 from ..scheduler.events import Event, RestructureAction
@@ -77,19 +78,29 @@ def _remap_token(token: str, old_core: str, new_core: str) -> str:
 
 
 def _moved(ev: Event, new_core: str, old_core: str, meta_extra: Dict) -> Event:
-    """同名、同依赖、同时长, 只把资源与队列 token 换到新核."""
-    return Event(
-        name=ev.name,
+    """同名、同依赖、同时长, 只把资源与队列 token 换到新核.
+
+    **必须逐字段搬全**。2026-10-06 之前这里漏了三个字段 —— colocate_with / core_group /
+    once_per_core —— 于是被转移的事件静默丢掉约束:
+
+      colocate_with  共位是硬件通路 (GMM1 的 L0C -> 配对 AIV0 的 UB, Fixpipe 只在绑定对内)。
+                     丢了它, 调度器就不再强制 ACT 与它的 GMM1 同核。本模块是成组搬的
+                     (gmm1 连同它的 activation 一起), 所以**今天**两者仍然同核 —— 但那是
+                     搬运逻辑恰好保证的, 不是约束还在。改一下分组或加一个 stage, 它就不成立,
+                     而且不会报错。
+      core_group     不持核资源的相位事件 (lg/ld/fix) 靠它拿候选核 (engine 的 _group_members)。
+                     丢了它, 这类事件在新核上没有候选 -> _pick_core 返回 None -> 排不上。
+      once_per_core  每核一次的开销 (dispatch 的调用开销走这条)。丢了它, 开销凭空消失。
+
+    用 dataclasses.replace 而不是逐字段重建: 以后 Event 加字段, 这里自动带上, 不会再漏。
+    只有真要改的四项显式覆盖。
+    """
+    return dataclasses.replace(
+        ev,
         resources=tuple(_retarget(r, new_core) for r in ev.resources),
-        duration_us=ev.duration_us,
-        deps=ev.deps,
-        order=ev.order,
         meta=dict(ev.meta, **meta_extra),
-        dep_latency_us=ev.dep_latency_us,
-        dep_latency_overrides=ev.dep_latency_overrides,
         acquires=tuple((_remap_token(q, old_core, new_core), k) for q, k in ev.acquires),
         releases=tuple((_remap_token(q, old_core, new_core), k) for q, k in ev.releases),
-        channel_bytes=ev.channel_bytes,
     )
 
 

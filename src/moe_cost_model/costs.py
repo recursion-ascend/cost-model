@@ -9,7 +9,8 @@ from typing import Callable, Optional, Tuple
 
 from .config.hardware import (
     ACT_BYTES_PER_VEC, BW_L1_GM, BW_LOCAL_GM, BW_REMOTE_GM, BW_REMOTE_WRITE,
-    BW_UB, DISPATCH_BUFFER_COUNT,
+    BW_UB, DISPATCH_BUFFER_COUNT, ACTIVATION_N_HALF,
+    GMM1_OUT_ELEM_BYTES, META_BYTES_PER_ROW,
     T_COUNT_GATE, T_GMM1_OVERLAP, T_LAT_LOCAL, T_LAT_REMOTE,
     T_STARTUP_VEC,
     MXFP_DIVISOR_SIZE, MXFP_MULTI_BASE_SIZE, MXFP_MULTI_BASE_SIZE_K,
@@ -239,6 +240,14 @@ class PrimitiveCosts:
 
     # Explicit ready/ACK overheads if they are visible after calibration.
     dispatch_ready_publish_us: float = 0.0
+    # prefetch 路径 (KernelConfig.topk_weights_prefetch=True) 每个 epilogue 行块要
+    # 从 GM 读回 GMM1 的输出与 topk 权重: 时长 (与计算串行相加) 与字节 (申报到
+    # act_readback 通路)。
+    # 缺省 None = **这份 costs 不描述 prefetch 路径** —— 手工构造 PrimitiveCosts 又
+    # 开 prefetch 时 builder 直接报错, 不会静默按"读回免费"算
+    # (combine_read_bytes 那次踩的就是"可选 = 悄悄不申报"的坑)。
+    activation_readback_us: Optional[Callable[[int, int], float]] = None
+    activation_readback_bytes: Optional[Callable[[int, int], float]] = None
     activation_ready_publish_us: float = 0.0
     combine_ack_us: float = 0.0
 
@@ -427,7 +436,9 @@ class AnalyticalActCosts:
     profile 区间 = 内核 Gmm1Aiv0EpilogueTileGeneric 一次调用 (stage/
     mega_moe_gmm1_activation.h 的 MOE_PROFILE_BEGIN(ACT_QUANT)), 纯计算+写出:
     WaitForCube 在前一个 WAIT_ACT_INPUT 区间里, NotifyCube 在区间外。
-    非 prefetch 路径下输入已由 AIC 落在 UB, 区间内**没有 GM→UB 读**。
+    非 prefetch 路径下输入已由 AIC 落在 UB, 区间内**没有 GM→UB 读**。prefetch 路径
+    是另一个函数 (`Gmm1Aiv0PrefetchEpilogueTileGeneric`), 区间内有读: 见下面的
+    `readback_bytes` / `readback_us`, 时长在 tile() 之外另算。
 
     每 tile (m行 × tileN列) 的向量操作数:
         n_vec = m * tileN / VEC_ELEM  (VEC_ELEM = 64 FP32/向量)
@@ -470,16 +481,52 @@ class AnalyticalActCosts:
 
     def __init__(self, bw_ub_bytes_per_us=BW_UB, t_startup_us=T_STARTUP_VEC,
                  mxfp_divisor: int = MXFP_DIVISOR_SIZE,
-                 mxfp_scale_bytes: int = MXFP_MULTI_BASE_SIZE):
+                 mxfp_scale_bytes: int = MXFP_MULTI_BASE_SIZE,
+                 act_n_half: int = ACTIVATION_N_HALF,
+                 bw_local_gm_bytes_per_us=BW_LOCAL_GM,
+                 out_elem_bytes: int = GMM1_OUT_ELEM_BYTES,
+                 meta_bytes_per_row: int = META_BYTES_PER_ROW):
         # 几何量 (每窗列数) 调用期传入 — 同 GMM, 消除 tile_n 双份来源
         self.bw_ub = bw_ub_bytes_per_us
         self.t_startup = t_startup_us
         self.mxfp_divisor = int(mxfp_divisor)
         self.mxfp_scale_bytes = int(mxfp_scale_bytes)
+        # prefetch 路径的读回口径 (见 readback_bytes / readback_us)
+        self.act_n_half = int(act_n_half)
+        self.bw_local_gm = bw_local_gm_bytes_per_us
+        self.out_elem_bytes = int(out_elem_bytes)
+        self.meta_bytes_per_row = int(meta_bytes_per_row)
 
     def tile(self, m: int, cols: int) -> float:
         n_vec = m * cols / self.VEC_ELEM
         return self.t_startup + n_vec * self.BYTES_PER_VEC / self.bw_ub
+
+    def readback_bytes(self, m: int, out_cols: int) -> float:
+        """prefetch 路径下一个 epilogue 行块要从 GM 读回 UB 的字节.
+
+        两股:
+          * GMM1 的输出 —— 非交织两次 CopyGM2UB (gate 块 + up 块, 各 m x out_cols),
+            交织一次但 tile 宽是输出宽的 activation_n_half 倍, 两条路径都是
+            ``m x out_cols x activation_n_half`` 个元素, 每元素 GMM1_OUT_ELEM_BYTES;
+            出处 stage/mega_moe_gmm1_activation.h:405-460。
+          * topk 权重 —— 每行一条路由元数据 (m x META_BYTES_PER_ROW), 同文件 349/419
+            的 ``DataCopy(topkWeightTensor, metaInfoGm[...], subM * INT32_PER_256B)``。
+
+        非 prefetch 路径没有这一项 (输入已由 AIC 经 Fixpipe 落在 UB), 返回值只在
+        KernelConfig.topk_weights_prefetch 为真时被 builder 取用。
+        """
+        elems = int(m) * int(out_cols) * self.act_n_half
+        return elems * self.out_elem_bytes + int(m) * self.meta_bytes_per_row
+
+    def readback_us(self, m: int, out_cols: int) -> float:
+        """读回时间. 与向量计算**串行相加**, 不重叠.
+
+        依据是 kernel 自己的同步: 每个行块里 CopyGM2UB 之后紧跟
+        ``SetFlag/WaitFlag<MTE2_V>`` 再进 epilogue (同文件 354-356),
+        搬完才算。带宽取本卡 GM 读速率 BW_LOCAL_GM —— 与 ACT 写出申报同一个常数,
+        **没有 prefetch 路径的实测**: 这是按物理口径算出来的预测, 不是标定值。
+        """
+        return self.readback_bytes(m, out_cols) / self.bw_local_gm
 
     def store_bytes(self, m: int, cols: int) -> float:
         """本 tile 写出到 GM 的字节: m 行 x (fp8 cols x 1B + MX scale).
@@ -725,6 +772,7 @@ def build_analytical_costs(
     act = AnalyticalActCosts(
         bw_ub_bytes_per_us=bw_ub if bw_ub is not None else BW_UB,
         t_startup_us=t_startup_us if t_startup_us is not None else T_STARTUP_VEC,
+        act_n_half=km.activation_n_half,
     )
     comb = AnalyticalCombineCosts(
         combine_quant_mode=km.combine_quant_mode,
@@ -740,6 +788,8 @@ def build_analytical_costs(
         gmm2_tile=gmm.gmm2_tile,
         activation_tile=act.tile,
         activation_store_bytes=act.store_bytes,
+        activation_readback_us=act.readback_us,
+        activation_readback_bytes=act.readback_bytes,
         combine_tile=comb.tile,
         combine_write_bytes_per_row=comb.write_bytes_per_row,
         combine_read_bytes=comb.read_bytes,

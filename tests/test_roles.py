@@ -148,3 +148,53 @@ def test_assignment_reports_who_shares_a_role():
     assert "combine" in R().stages_on("AIV1")
     assert set(R({"combine": "AIV0"}).stages_on("AIV0")) >= {"activation", "combine"}
     assert R().roles_in_use() == ("AIC", "AIV0", "AIV1")
+
+
+def test_queue_token_follows_the_role_not_a_hardcoded_engine():
+    """引擎队列令牌必须跟着角色走, 不能写死.
+
+    2026-10-06 之前建图器各自拼 f-string (activation 写 "Q:vec0:c{core}",
+    combine/dispatch 写 "Q:aiv1:c{core}"), 而资源名已经走 role_resource()。于是
+    roles={"combine": "AIV0"} 会让一个事件**占着 AIV0 的核、扣着 AIV1 的队列** ——
+    两个名字说的是两个不同的引擎。
+
+    今天这三个令牌都是空约束 (容量恒 1, 事件同时独占该核), 所以那个不一致不改时长; 但它让
+    按令牌名分型的分析看错引擎 (ir 的 TokenKind 就按前缀分), 而且引擎队列一旦有了真约束,
+    它就变成时长错误。
+    """
+    from moe_cost_model.config.roles import QUEUE_TOKENS, RoleAssignment
+
+    default = RoleAssignment()
+    assert default.queue_token("activation", 3) == "Q:vec0:c3"
+    assert default.queue_token("combine", 3) == "Q:aiv1:c3"
+    assert default.queue_token("gmm1", 3) == "Q:aic:c3"
+    # 挪角色 -> 令牌跟着挪, 与 resource() 指向同一个引擎
+    moved = RoleAssignment(overrides={"combine": "AIV0"})
+    assert moved.resource("combine", 3) == "AIV0:3"
+    assert moved.queue_token("combine", 3) == "Q:vec0:c3"
+    # 映射表覆盖全部三个角色 (model.py 声明容量时用同一组名字)
+    assert set(QUEUE_TOKENS.values()) == {"Q:aic", "Q:vec0", "Q:aiv1"}
+
+
+def test_moving_combine_moves_its_queue_token_in_the_real_graph():
+    """真实建图里也要一致: 把 combine 挪到 AIV0, 它扣的队列也必须是 AIV0 的那条.
+
+    必须用**静态发牌** (late_bind_pools=()): 缺省的晚绑定会把这类"自取自还"的按核令牌
+    整个去掉 (model.py: 事件同时独占该核, 同核在途数恒 <= 1, 令牌是空约束), 所以晚绑定下
+    根本看不到它 —— 当年那个不一致也就只在静态发牌时能观察到。
+    """
+    from moe_cost_model.ir import TokenKind, classify_resource, classify_token
+
+    res = _run(m.ModelOptions(roles=R({"combine": "AIV0"}), late_bind_pools=()),
+               LOCAL=3, PER=64, aic=4)
+    combines = [e for e in res["events"] if e.meta.get("stage") == "combine"]
+    assert combines
+    for ev in combines:
+        engines = {classify_resource(r).engine.value for r in ev.resources
+                   if classify_resource(r)}
+        assert engines == {"AIV0"}, engines
+        queues = [classify_token(t) for t, _ in ev.acquires]
+        queues = [q for q in queues if q and q.kind is TokenKind.ENGINE_QUEUE]
+        assert queues, "combine 应当持有一个引擎队列令牌"
+        for q in queues:
+            assert q.raw.split(".", 1)[-1].startswith("Q:vec0:"), q.raw

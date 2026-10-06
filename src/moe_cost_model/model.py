@@ -271,8 +271,6 @@ class A8W8WaveCostModel:
         # (写侧每元素字节随之变)。这里原有一道 ModelOptions.combine_no_quant 的门, 拒绝
         # "量化 combine" —— 与 combine_quant_mode=1 能跑互相矛盾, 同一个事实两个说法。
         # 2026-10-05 删掉那个字段与门, 只留 combine_quant_mode 一个真相。
-        if options.topk_weights_prefetch:
-            raise NotImplementedError("v3 models TopkWeightsPrefetch=false only")
         # 编排与公式必须同口径: activation->gmm2 这条边落片上时 GMM2 的 A 不付 GM
         # 字节, 落 GM 时要付。调用方给的 costs 可能两边都不是, 这里按选定的编排改写
         # 公式, 不让两套口径混在一张图里 (混着就会把物化算成近乎免费)。
@@ -374,7 +372,7 @@ class A8W8WaveCostModel:
             if self.options.barriers:
                 events = apply_barriers(
                     events, self.options.barriers,
-                    ub_depth=self.options.link("gmm1", "activation").depth,
+                    ub_depth=self.options.gmm1_act_link(shape.kernel).depth,
                     aic_num=shape.aic_num,
                     pooled=bool(self.options.late_bind_pools))
             caps: Dict = {}
@@ -382,7 +380,7 @@ class A8W8WaveCostModel:
                 events, caps = apply_pipeline(
                     events, self.options.pipeline,
                     aic_num=shape.aic_num, h=shape.h,
-                    gmm1_act_depth=self.options.link("gmm1", "activation").depth,
+                    gmm1_act_depth=self.options.gmm1_act_link(shape.kernel).depth,
                     kernel=shape.kernel)
             per.append((shape, events, caps, trace))
 
@@ -421,7 +419,7 @@ class A8W8WaveCostModel:
             # 2026-10-05 之前这里是 EngineQueueDepths(aic/vec0/aiv1): 四类形状逐个扫过,
             # 任何取值都与容量 1 逐位相同 (golden 的 pipeline_engine_queue2 与
             # pipeline_split 指纹全同可证), 所以它是个无法生效的旋钮, 已删。
-            ub_depth = self.options.link("gmm1", "activation").depth
+            ub_depth = self.options.gmm1_act_link(shape.kernel).depth
             for core in range(shape.aic_num):
                 capacities[pre + f"Q:aic:c{core}"] = 1
                 capacities[pre + f"Q:vec0:c{core}"] = 1

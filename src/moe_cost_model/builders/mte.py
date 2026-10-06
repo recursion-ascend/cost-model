@@ -1,8 +1,8 @@
 """第 4 层: MTE 路径建图器 — dispatch 前瞻 + 波主循环 + GMM2 滞后补跑.
 
 MTE 路径 (非 Layered).
-各 stage 的建图函数在同包: dispatch.py / gmm1.py / activation.py /
-gmm2.py / combine.py; 本类只负责编排与共享状态 BuildContext.
+各 stage 的建图函数在同包: gmm1.py / activation.py / gmm2.py; dispatch 与 combine 在
+comm/mte.py (没有 dispatch.py / combine.py 这两个文件)。本类只负责编排与共享状态 BuildContext.
 """
 from __future__ import annotations
 

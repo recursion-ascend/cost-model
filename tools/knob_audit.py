@@ -96,10 +96,13 @@ CANDIDATES = {
     "policy.wave_offsets": [{"dispatch": 3, "gmm2": -1}],
     "kernel.l1_buf_num": [1, 3],          # 1 = 关 ping-pong; 4 与 2 同构
     "kernel.swizzle_offset": [1, 2],
-    "kernel.swizzle_direction": [0],      # 0 = M 维在外层
+    # 缺省已是 0 (与 kernel 的 BlockSchedulerSwizzle<3,0> 一致, 2026-10-05 更正),
+    # 所以要扫的是**另一个**取值 1 —— 扫 0 等于什么都没扫。
+    "kernel.swizzle_direction": [1],      # 1 = N 维在外层
     "kernel.l1_size": [256 * 1024],       # 减半才可能翻转 select_kl1 的 can_double
     "kernel.combine_quant_mode": [1],
     "kernel.activation_n_half": [1],
+    "kernel.topk_weights_prefetch": [True],   # epilogue 行块 256->128 + GM 往返
     "policy.gmm2_lag_threshold": [512],   # 阈值要跨过本形状的 token 数才有作用
     "options.epilogue_overheads": [{"literal": True}, {"counts_export_us": 5.0}],
 }
@@ -141,6 +144,7 @@ EXPECTED = {
     "kernel.swizzle_offset": "生效*",
     "kernel.tile_m": "生效*",
     "kernel.tile_n": "生效",
+    "kernel.topk_weights_prefetch": "生效",
     "kernel.topo_urma": "生效",
     "kernel.weight_nz": "被拒",
     "options.barriers": "生效",
@@ -151,14 +155,13 @@ EXPECTED = {
     "options.dispatch_rows_per_item": "生效*",
     "options.epilogue_overheads": "生效",
     "options.gmm2_kl1": "生效",
-    "options.granularity": "生效",
+    "options.granularity": "生效*",
     "options.late_bind_pools": "生效*",
     "options.links": "生效*",
     "options.m_groups_per_wave": "生效*",
     "options.pipeline": "生效",
     "options.roles": "生效*",
     "options.serialize_dispatch_comm": "生效*",
-    "options.topk_weights_prefetch": "被拒",
     "policy.cursor_resonance_fix": "生效*",
     "policy.dispatch_lookahead": "生效*",
     "policy.gmm2_combine_credit": "生效*",

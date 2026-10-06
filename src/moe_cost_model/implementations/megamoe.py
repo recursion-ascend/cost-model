@@ -41,18 +41,13 @@ class _MegaMoeAdapterBase:
     def accepts(self, compile_cfg: CompileConfig, options: Any) -> None:
         """不支持的编译点/编排组合在这里拒绝.
 
-        目前只有一条: TopkWeightsPrefetch=true 没建模。它在 kernel 里有确定的后果
-        (EPILOGUE_TILE_M 256 -> 128, mega_moe_arch35.h:161; 外加 maxTilesPerExpert
-        的 tiling, op_host/op_tiling/arch35/mega_moe_tiling.cpp:1023-1030), 所以这是
-        "能建模但还没建", 不是"物理上不可能" —— 拒绝的措辞要说清这一点。
+        **目前没有被拒的组合。** 原先这里拒 TopkWeightsPrefetch=true; 2026-10-06 起
+        它建模了 (见 config.links.effective_gmm1_act_link 与
+        builders/activation.py): epilogue 行块 256->128、GMM1 的输出改走 GM 往返、
+        每行块多一次 topk 权重读。保留这个钩子是因为"拒绝"必须有地方说 ——
+        适配器接受的是一个编译点集合, 不是任意取值。
         """
-        if getattr(options, "topk_weights_prefetch", False) or \
-                compile_cfg.topk_weights_prefetch:
-            raise Unsupported(
-                f"{self.ID.key}: TopkWeightsPrefetch=true 未建模。"
-                "它在 kernel 里的后果是确定的 (EPILOGUE_TILE_M 256->128, "
-                "mega_moe_arch35.h:161), 但本模型还没把 epilogue tile 几何参数化; "
-                "要评估它需要先把那条路补上, 不是改一个旋钮")
+        return None
 
     def measured_end_stage(self) -> str:
         return self.END_STAGE

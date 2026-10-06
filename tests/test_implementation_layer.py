@@ -148,16 +148,15 @@ def test_old_orchestration_names_still_resolve():
         resolve("no_such_impl")
 
 
-def test_unsupported_compile_point_is_refused_with_a_reason():
-    """不支持的编译点要说清是"没建模"还是"物理不可能".
+def test_the_adapter_refuses_nothing_on_the_wave_path_any_more():
+    """原先这里拒 TopkWeightsPrefetch=true, 理由是"没建模"。
 
-    TopkWeightsPrefetch 在 kernel 里有确定后果 (EPILOGUE_TILE_M 256->128,
-    mega_moe_arch35.h:161), 所以它属于前者, 拒绝的话术必须这么说 —— 否则使用者会以为
-    这条路不存在。
+    2026-10-06 它建模了 (epilogue 行块 256->128、GMM1 输出走 GM 往返、每行块多一次
+    topk 权重读 —— 见 tests/test_topk_prefetch.py)。钩子留着: 适配器接受的是一个
+    编译点集合, "拒绝"必须有地方说。
     """
-    with pytest.raises(Unsupported, match="未建模"):
-        A8W8WaveV1().accepts(CompileConfig(topk_weights_prefetch=True), m.ModelOptions())
-    A8W8WaveV1().accepts(CompileConfig(), m.ModelOptions())      # 缺省编译点照过
+    A8W8WaveV1().accepts(CompileConfig(topk_weights_prefetch=True), m.ModelOptions())
+    A8W8WaveV1().accepts(CompileConfig(), m.ModelOptions())
 
 
 def test_wave_plan_is_computed_once_per_shape():

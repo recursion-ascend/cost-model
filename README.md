@@ -461,6 +461,52 @@ kernel 自己的 tiling key 只编码 5 个轴 (`mega_moe_tiling_key.h`), 而 `T
 
 有测试逐轴扫: 任何一个声明的轴不进指纹就红。
 
+### 一个轴怎么才算"建模了": TopkWeightsPrefetch
+
+`MEGAMOE_TOPK_PREFETCH` 原先是被**拒**的 —— 适配器直接抛 `Unsupported`。拒绝的理由写得
+很清楚 ("能建模但还没建"), 但一个被拒的轴对算子工程师等于不存在。2026-10-06 建上了,
+过程可以当作"怎么从 kernel 读出一个轴的后果"的样板:
+
+它在 kernel 里只是一个模板参数, 但有三个**结构**后果, 一个都不是时长系数:
+
+| kernel 的事实 | 出处 | 模型里的落点 |
+|---|---|---|
+| `EPILOGUE_TILE_M = TopkWeightsPrefetch ? 128 : 256` | `mega_moe_arch35.h:161` | `config.hardware.epilogue_tile_m`; ACT 按行块拆成两个事件 |
+| AIC 落 GM + 置 `gmm1TileStatus`, AIV 等 GM 标志再 `CopyGM2UB` | `stage/mega_moe_gmm1_activation.h:618-645, 405-460` | `config.links.effective_gmm1_act_link`: 这条边 location="gm"、depth=0、同核不再是硬件强制 |
+| 每个行块一次 topk 权重 GM→UB 读 (m × `META_INFO_SIZE` × int32) | 同文件 349/419 | `AnalyticalActCosts.readback_bytes`, 申报到 `act_readback` 通路 |
+
+行块减半的**物理原因**是 UB 容量: prefetch 要在 UB 里多留一块 topk 权重缓冲
+(`block_epilogue_activation_mx_quant.h:184` 的 `weightUb_`, 只在 prefetch 下分配),
+行块矮一半才放得下。所以 256→128 不是风格, 是容量换来的几何。
+
+两点要讲清楚:
+
+* **时长口径**: 读回与向量计算**串行相加**, 不重叠 —— 依据是 kernel 自己的同步
+  (`CopyGM2UB` 之后紧跟 `SetFlag/WaitFlag<MTE2_V>` 才进 epilogue)。但带宽取的是
+  `BW_LOCAL_GM`, 而**仓内没有 prefetch 路径的实测**: 这是按物理口径算出的预测,
+  不是标定值。GMM1 侧的 Fixpipe 写出两种落点下都不在时长公式里, 这条路径上也没有
+  实测可据 —— 只申报字节, 不动时长。
+* **依赖没有被改**: 通知用的 flag 下标仍是 `subMLoc / L1_TILE_M_256` (m-group),
+  所以 `ctx.activation_ready` 的键还是 (专家, m-group), 只是同一个键下多了一条行范围
+  更窄的记录, GMM2 按行相交把两个行块都取到。
+
+`tools/knob_audit.py` 里它从"被拒"变成"生效"; 这条路由 `tests/test_topk_prefetch.py`
+的 15 个测试钉住。
+
+**模型给出的结论, 以及它为什么还不能当预测用**: golden 的 `mte_topk_prefetch` 与同形状的
+`mte_3wave_lag2` 对比 —— 600.93 → 591.50 µs (**-1.6%**), 事件数 1252 → 1348,
+本卡写出 25.4 → 50.5 MB (翻倍), 另加 26.0 MB 的 `act_readback` 读。
+
+也就是: 模型说"多搬一倍字节, 换来 1.6% 的提速"。收益来自那条边不再有 UB 交接
+(GMM1 不必等配对 AIV 读走就能发下一个 tile); 代价**只有 ACT 的读回时长**那一项,
+因为**信道争用模型自 2026-10-03 停用** —— 翻倍的 HBM 写在时长上目前是免费的。
+收益的机制在空闲分解里看得见: AIC 的 forced idle 从 1669.2 降到 462.2 核·us
+(同形状、同编排) —— AIC 不再等配对 AIV 把 UB 读空才能发下一个 tile。
+两种配置的 avoidable 都是 0, 所以这不是调度器放水换来的。
+
+所以这个 -1.6% 是"解耦收益的上界", 不是对实测的预测。要让它可信, 缺的是两件实测:
+整卡访存带宽 (重建争用模型), 与 prefetch 路径本身的打点。两者都没有, 结论就只能这么标着。
+
 ### 编译清单: 与 C++ 源码对账
 
 ```bash
@@ -1134,8 +1180,12 @@ python tools/knob_audit.py --quiet    # 五个互补形状 x 全部旋钮
   信号量卡死 L1 缓冲深度)。证据: golden 的 `pipeline_engine_queue2` 与 `pipeline_split`
   指纹**逐位相同** —— 那个 case 从来什么都没测到。容量现在写死 1, 要表达"更深的队列"
   得先有发射开销这类物理后果, 模型里没有, 给个旋钮只会让扫描得出"深了也没用"的假结论。
-* **`KernelConfig.topk_weights_prefetch` 没有读者, 已删** (硬门查的是
-  `ModelOptions.topk_weights_prefetch`)。
+* **`topk_weights_prefetch` 有两个出处, 其中一个没有读者。** 当时的处置是删掉
+  `KernelConfig` 上那个 (硬门查的是 `ModelOptions` 的同名字段)。2026-10-06 改回来了,
+  方向相反: 它是编译期宏 `MEGAMOE_TOPK_PREFETCH`, 本来就该待在编译点上, 而
+  `ModelOptions` 不该有一个"编排选项"去表达编译参数。现在 `KernelConfig` 上那个是
+  唯一出处, 并且**有后果**: epilogue 行块 256→128、GMM1 的输出改走 GM 往返、每个行块
+  多一次 topk 权重读 (见下节)。`ModelOptions` 上那个字段已删。
 * **`options.roles` 与 `options.epilogue_overheads` 在场景文件这条日常路径上写不出来**
   (报"应为数值"), 只能在 Python 里构造对象 —— 于是"哪个 stage 跑在哪个核上"这一类编排
   在场景扫描里根本到不了。已接上, 文件里写 `[options.roles]` 下 `combine = "AIV0"`。

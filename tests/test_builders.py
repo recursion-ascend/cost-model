@@ -10,6 +10,7 @@ from moe_cost_model.scheduler import PriorityByStage
 from moe_cost_model.analysis import idle_core_stealing
 from moe_cost_model.shape import MegaMoeShape
 from moe_cost_model.analysis import bottleneck_report
+from routing import conserving_tokens
 
 # 测试夹具值, 非标定常数: Cube 速率没有缺省, 测试统一取此值
 CUBE_RATE = 2.7e7
@@ -396,3 +397,63 @@ def test_wave_offsets_parameterized():
     with pytest.raises(ValueError):
         StageWaveOffsets(gmm2=1)
 
+
+
+def test_stealing_carries_every_event_field_to_the_new_core():
+    """任务转移必须把 Event 的字段**搬全**, 尤其是三个约束字段.
+
+    2026-10-06 之前 _moved() 逐字段重建, 漏了 colocate_with / core_group / once_per_core:
+      colocate_with  共位是硬件通路 (GMM1 的 L0C -> 配对 AIV0 的 UB, Fixpipe 只在绑定对内);
+                     丢了它调度器就不再强制同核。本模块成组搬 (gmm1 连同 activation),
+                     所以当时两者**恰好**仍同核 —— 那是搬运逻辑凑巧保证的, 不是约束还在。
+      core_group     不持核资源的相位事件靠它拿候选核; 丢了它这类事件在新核上排不上。
+      once_per_core  每核一次的开销; 丢了它开销凭空消失。
+    现在用 dataclasses.replace, 以后 Event 加字段会自动带上。
+    """
+    import dataclasses
+
+    from moe_cost_model.analysis.stealing import _moved
+    from moe_cost_model.scheduler.events import Event
+
+    original = Event(
+        "W0.E0.gmm1.m0.n0", ("R0.AIC:3",), 12.5, deps=("dep",), order=7,
+        meta={"stage": "gmm1", "core": 3}, dep_latency_us=0.25,
+        dep_latency_overrides=(("dep", 0.5),),
+        acquires=(("R0.Q:aic:c3", 1), ("R0.UB:gmm1act:c3", 1)),
+        releases=(("R0.Q:aic:c3", 1),),
+        channel_bytes=(("R0.gm_to_l1", 4096.0, 0.0),),
+        colocate_with="W0.E0.gmm1.anchor", core_group=("g0", "AIC"),
+        once_per_core=("W0.dispatch_call", 1.006))
+    moved = _moved(original, "9", "3", {"stolen_from": "3"})
+
+    # 换核的四项
+    assert moved.resources == ("R0.AIC:9",)
+    assert moved.acquires == (("R0.Q:aic:c9", 1), ("R0.UB:gmm1act:c9", 1))
+    assert moved.releases == (("R0.Q:aic:c9", 1),)
+    assert moved.meta["stolen_from"] == "3" and moved.meta["stage"] == "gmm1"
+    # 其余字段必须原样 —— 逐字段比, 这样 Event 以后加字段也会被这条测试覆盖
+    moved_only = {"resources", "meta", "acquires", "releases"}
+    for field in dataclasses.fields(Event):
+        if field.name in moved_only:
+            continue
+        assert getattr(moved, field.name) == getattr(original, field.name), field.name
+
+
+def test_stealing_keeps_the_colocation_invariant_enforceable():
+    """转移后的图仍要过共位不变量 —— 而且是**被强制**的, 不是凑巧成立的.
+
+    validation 的 C3 查的是"共位事件与锚点同核"。转移前后都该过; 关键在于 colocate_with
+    现在还在图里, 所以哪天分组改了、锚点没跟着搬, C3 会报出来而不是静默违规。
+    """
+    from moe_cost_model.validation import check_graph
+
+    world, local, per = 2, 4, 1024
+    C = [[[per] * world for _ in range(local)] for _ in range(world)]
+    kw = dict(token_num_per_rank=conserving_tokens(C, 8), h=6144, hidden_dim=4096,
+              aic_num=28, costs=_costs(), topk=8, p1_override=2, p2_override=1,
+              options=m.MEGAMOE_A8W8.options)
+    stolen = m.simulate_routing_counts(
+        routing_counts=C, restructure=idle_core_stealing(), **kw)
+    events = stolen["rank_results"][0]["events"]
+    assert [e for e in events if "stolen_from" in e.meta], "这个夹具本应触发转移"
+    assert check_graph(events) == []

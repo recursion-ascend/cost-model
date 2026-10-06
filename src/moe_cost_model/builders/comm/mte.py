@@ -62,7 +62,8 @@ class MteDispatch(DispatchTransport):
             elif pacing != "none" and pacing not in ("per_core", "wave"):
                 raise ValueError(f"dispatch_pacing 只能是 per_core/wave/none, 收到 {pacing!r}")
             if emit_call_events:
-                q_aiv1 = (f"Q:aiv1:c{core}", 1)
+                # 令牌跟着角色走 (见 config/roles.queue_token)
+                q_aiv1 = (builder.options.role_queue_token("dispatch_call", core), 1)
                 call_name = builder._event(
                     f"W{w.index}.dispatch_call.c{core}",
                     (builder.options.role_resource("dispatch_call", core),),
@@ -304,7 +305,7 @@ class MteCombine(CombineTransport):
                    row_begin, row_end, col_begin, col_end, deps, n_tiles):
         rows, cols = row_end - row_begin, col_end - col_begin
         c = builder.costs
-        q_aiv1 = (f"Q:aiv1:c{core}", 1)
+        q_aiv1 = (builder.options.role_queue_token("combine", core), 1)
         # C1: 名字不带核号 (见 gmm1.py 的说明)
         cname = f"W{w.index}.E{sl.expert}.S{si}.combine.{label}"
         # 本窗每行要写回它的来源卡: 行区间按源卡分段, 逐卡行数精确数出。
@@ -390,7 +391,7 @@ class MteCombine(CombineTransport):
                 ch for d, n in enumerate(by_dst) if d != shape.rank_id and n
                 for ch in ((f"fab_src:{shape.rank_id}", n * row_bytes, bw_fab),
                            (f"fab_dst:{d}", n * row_bytes, bw_fab)))
-            q_aiv1 = (f"Q:aiv1:c{core}", 1)
+            q_aiv1 = (builder.options.role_queue_token("combine", core), 1)
             cname = f"W{w.index}.E{expert}.S{si}.combine.expert"
             spread = _spread_slots(builder.options, shape, rows)
             builder._event(

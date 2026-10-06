@@ -234,7 +234,9 @@ def idle_decomposition(scheduled: Sequence, resource_prefix: str = "AIC:",
     for e in scheduled:
         if not e.resources:
             continue
-        # 池事件只占一个池资源; 多占的 (如 moe_stage_done 同时占 AIC 与 AIV) 按首个算
+        # 池事件只占一个池资源; 真有多占的按首个算。
+        # (这里原先举例说 moe_stage_done 同时占 AIC 与 AIV —— 那是旧行为; 现在排空栅栏与
+        #  barriers 都是 resources=() 的零时长事件, 上面那个 `if not e.resources` 就跳过了。)
         hit = [r for r in e.resources if _split_rank(r)[1].startswith(resource_prefix)]
         if not hit:
             continue

@@ -183,6 +183,12 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
         sk(), SK_TOKENS, kernel=kc(l1_buf_num=1, combine_quant_mode=1),
         costs=analytical_costs(kc(l1_buf_num=1, combine_quant_mode=1)))
     c["mte_l1_tile_k512"] = lambda: run_api(sk(), SK_TOKENS, kernel=kc(l1_tile_k=512))
+    # TopkWeightsPrefetch: epilogue 行块 256->128 + GMM1 输出走 GM 往返 + 每行块一次
+    # topk 权重读 (见 README「一个轴怎么才算建模了」)。costs 必须同编译点构造 ——
+    # 手工 PrimitiveCosts 不描述读回, builder 会直接报错。
+    c["mte_topk_prefetch"] = lambda: run_api(
+        w3(), W3_TOKENS, kernel=kc(topk_weights_prefetch=True),
+        costs=analytical_costs(kc(topk_weights_prefetch=True)))
     # B 复用比例 0.53: 由 bs128 (1 组) 与 bs8192 (12 组) 反解的那一个实测点
     c["mte_b_reuse"] = lambda: run_api(w3(), W3_TOKENS, kernel=kc(gmm1_b_reuse_frac=0.53))
     c["mte_gmm2_kl1_256"] = lambda: run_api(sk(), SK_TOKENS, options=P.with_options(gmm2_kl1=256))

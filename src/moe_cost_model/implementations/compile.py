@@ -132,6 +132,8 @@ class CompileConfig:
             l1_buf_num=int(getattr(kernel, "l1_buf_num", 2)),
             weight_nz=bool(getattr(kernel, "weight_nz", False)),
             gmm1_interleaved=bool(getattr(kernel, "gmm1_interleaved", False)),
+            topk_weights_prefetch=bool(
+                getattr(kernel, "topk_weights_prefetch", False)),
             activation_n_half=int(getattr(kernel, "activation_n_half", 2)),
             swizzle_offset=int(getattr(kernel, "swizzle_offset", 3)),
             swizzle_direction=int(getattr(kernel, "swizzle_direction", 0)),

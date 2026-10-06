@@ -109,3 +109,29 @@ def validate_links(links: Sequence[StageLink]) -> None:
         if lk.key in seen:
             raise ValueError(f"links 里有重复的边 {lk.producer}->{lk.consumer}")
         seen.add(lk.key)
+
+
+def effective_gmm1_act_link(links: Sequence[StageLink], kernel) -> StageLink:
+    """gmm1->activation 这条边在给定编译点下的样子.
+
+    TopkWeightsPrefetch=false (缺省): 就是 ``resolve_link`` 给的那条 —— GMM1 的结果经
+    Fixpipe L0C->UB 直给配对的 AIV0, 片上, 占一个 UB 槽。
+
+    TopkWeightsPrefetch=true: kernel 换了一条通路 —— AIC 把 tile 落 GM 并置
+    ``gmm1TileStatus``, AIV0 等这个 GM 标志再 ``CopyGM2UB`` 读回
+    (stage/mega_moe_gmm1_activation.h:618-645)。于是:
+      * location = "gm": 中间结果物化, 字节要申报;
+      * depth = 0: 那个 UB ping-pong 槽 (``vecSetSyncCom``) 在这条通路上不存在,
+        AIV 等的是 GM 标志而不是配对 AIC 的 UB 交接。留着它等于凭空多一条约束。
+      * colocated_by_hardware = False: 读回走 GM, Fixpipe 的同核要求没了。
+        **同核仍然成立**, 但那是实现的分工 (prefetch 的 epilogue 循环按
+        ``loopIdx += config.blockNum`` 分核, 与 GMM1 同一个 block 号), 不是硬件强制。
+
+    为什么不是旋钮: 这是编译期模板参数的后果, 不是算法工程师在 links 里能另选的
+    编排。给了 location="onchip" 又开 prefetch, 两种说法会同时出现在一张图里。
+    """
+    base = resolve_link(links, "gmm1", "activation")
+    if not bool(getattr(kernel, "topk_weights_prefetch", False)):
+        return base
+    return StageLink("gmm1", "activation", readiness=base.readiness,
+                     location=LOC_GM, depth=0, colocated_by_hardware=False)
