@@ -30,6 +30,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from ..config.hardware import (BW_L1_GM, BW_LOCAL_GM, BW_REMOTE_WRITE,
+                               BW_UNPERMUTE_AGG, T_RANK_SYNC_RTT_US,
+                               URMA_GET_BW_SINGLE, URMA_GET_LAT_US)
 from .compile import CompileConfig
 from .identity import (CalibrationDomain, ImplementationId, RuntimeTopology,
                        ShapeDomain)
@@ -114,6 +117,12 @@ class CalibrationTable:
     def names(self) -> Tuple[str, ...]:
         return tuple(sorted({n for group in self._by_key.values() for n in group}))
 
+    def records(self) -> Tuple["CalibrationRecord", ...]:
+        """表里的全部记录, 按 (名字, 域键) 排序。审计这张表本身要用它."""
+        return tuple(sorted(
+            (rec for group in self._by_key.values() for rec in group.values()),
+            key=lambda r: (r.name, r.domain.key)))
+
     def lookup(self, name: str, *, implementation: ImplementationId,
                compile_fingerprint: str, shape: Optional[Dict[str, int]] = None,
                topology: Optional[Dict[str, int]] = None) -> Optional[Lookup]:
@@ -175,33 +184,33 @@ def default_table() -> CalibrationTable:
             "data/20260930_145851_854111_bs8192_h5120_i4608_k6_cyclic_noshared")
     records = [
         CalibrationRecord(
-            name="bw_l1_gm", value=51900.0, label="measured",
+            name="bw_l1_gm", value=float(BW_L1_GM), label="measured",
             domain=_corpus_domain(a8w8, evidence=runs + ("hardware.BW_L1_GM 的注释",)),
             # 同一个量按并发核数重拟的另外两个观测 —— 它随拓扑变, 幅度 1.40 倍
             observations=(("28 核并发重拟", 45300.0), ("18 核并发重拟", 37000.0))),
         CalibrationRecord(
-            name="bw_remote_write", value=8600.0, label="measured",
+            name="bw_remote_write", value=float(BW_REMOTE_WRITE), label="measured",
             domain=_corpus_domain(a8w8, evidence=runs),
             # 三个形状各自反扣出的每核跨卡写带宽; 2.11 倍的离散度
             observations=(("bs36", 9500.0), ("bs128 (全程有争用)", 7800.0),
                           ("bs8192", 4500.0))),
         CalibrationRecord(
-            name="bw_unpermute_agg", value=950000.0, label="measured",
+            name="bw_unpermute_agg", value=float(BW_UNPERMUTE_AGG), label="measured",
             domain=_corpus_domain(a8w8, evidence=runs),
-            observations=(("h6144 (缺省形状, +18%)", 950000.0 * 1.18),)),
+            observations=(("h6144 (缺省形状, +18%)", float(BW_UNPERMUTE_AGG) * 1.18),)),
         CalibrationRecord(
-            name="t_rank_sync_rtt_us", value=2.2, label="measured",
+            name="t_rank_sync_rtt_us", value=float(T_RANK_SYNC_RTT_US), label="measured",
             domain=_corpus_domain(a8w8, evidence=runs),
             observations=(("缺省形状 r1/r3", 1.8), ("h6144 r1/r3", 2.35))),
         CalibrationRecord(
-            name="bw_local_gm", value=157000.0, label="measured",
+            name="bw_local_gm", value=float(BW_LOCAL_GM), label="measured",
             # 唯一一个标定条件窄到只靠硬件就能说清的: 单核大块 MTE, 无其它流量。
             # 所以形状与拓扑都不声明 (留 None = 未声明, 不是"任意")。
             domain=CalibrationDomain(
                 implementation=a8w8, compile_fingerprint=CORPUS_COMPILE.fingerprint,
                 evidence=("hardware.BW_LOCAL_GM 的注释: MTE 大尺寸拟合, 单核无竞争",))),
         CalibrationRecord(
-            name="urma_get_lat_us", value=8.5, label="measured",
+            name="urma_get_lat_us", value=float(URMA_GET_LAT_US), label="measured",
             domain=CalibrationDomain(
                 implementation=layered,
                 compile_fingerprint=CompileConfig(
@@ -211,7 +220,7 @@ def default_table() -> CalibrationTable:
                 evidence=("hardware.URMA_GET_LAT_US 的注释: 4 卡 / CANN 9.1.0 / "
                           "6336B 行 / 512B 对齐槽 / 单核 channel-owner / 3 条流",))),
         CalibrationRecord(
-            name="urma_get_bw_single", value=2253.0, label="measured",
+            name="urma_get_bw_single", value=float(URMA_GET_BW_SINGLE), label="measured",
             domain=CalibrationDomain(
                 implementation=layered,
                 compile_fingerprint=CompileConfig(

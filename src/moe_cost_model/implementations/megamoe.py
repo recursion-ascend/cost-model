@@ -125,7 +125,8 @@ class LayeredV1(_MegaMoeAdapterBase):
 
 
 #: 适配器表, 键 = ImplementationId.key。选哪一个由编译点的 comm_mode 决定
-#: (对应 kernel 的 TILINGKEY_COMM_MODE, mega_moe_tiling_key.h:28-29)。
+#: (对应 kernel 的 tiling key 轴 TILINGKEY_COMM_MODE, mega_moe_tiling_key.h:42 与 :54;
+#: 它的两个取值 TILINGKEY_TPL_MTE=0 / TILINGKEY_TPL_URMA=1 在同文件 :28-29)。
 ADAPTERS = {
     A8W8WaveV1.ID.key: A8W8WaveV1,
     LayeredV1.ID.key: LayeredV1,

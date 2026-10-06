@@ -199,3 +199,41 @@ def test_a8w4_cannot_be_used_by_accident():
         adapter.plan(object(), CompileConfig(), m.ModelOptions())
     with pytest.raises(Unsupported):
         adapter.lower(object(), None, None, m.ModelOptions())
+
+
+#: 标定记录名 -> 它登记的那个模块常数。标定表的 value 必须**就是**那个常数:
+#: 两边各写一遍数字时, 重标常数后这张表会留着旧值, 还继续声称自己是它的域记录 ——
+#: 正是这个模块存在的目的要防的事。
+RECORD_TO_CONSTANT = {
+    "bw_l1_gm": "BW_L1_GM",
+    "bw_remote_write": "BW_REMOTE_WRITE",
+    "bw_unpermute_agg": "BW_UNPERMUTE_AGG",
+    "t_rank_sync_rtt_us": "T_RANK_SYNC_RTT_US",
+    "bw_local_gm": "BW_LOCAL_GM",
+    "urma_get_lat_us": "URMA_GET_LAT_US",
+    "urma_get_bw_single": "URMA_GET_BW_SINGLE",
+}
+
+
+def test_every_record_value_is_the_module_constant():
+    from moe_cost_model.config import hardware as hw
+    from moe_cost_model.implementations.calibration import default_table
+
+    by_name = {r.name: r for r in default_table().records()}
+    for record_name, const in RECORD_TO_CONSTANT.items():
+        assert record_name in by_name, f"标定表里没有 {record_name}"
+        assert by_name[record_name].value == float(getattr(hw, const)), (
+            f"{record_name} 登记 {by_name[record_name].value}, "
+            f"而 hardware.{const} 是 {float(getattr(hw, const))}")
+
+
+def test_no_record_is_left_unmapped():
+    """新加一条标定记录时, 要么它对应某个常数 (进上表), 要么说明它为什么不对应."""
+    from moe_cost_model.implementations.calibration import default_table
+
+    #: 不对应单个模块常数的记录 (留空 = 当前没有)
+    STANDALONE: set = set()
+    names = set(default_table().names())
+    unmapped = names - set(RECORD_TO_CONSTANT) - STANDALONE
+    assert not unmapped, (
+        f"这些标定记录没说清对应哪个常数: {sorted(unmapped)}")

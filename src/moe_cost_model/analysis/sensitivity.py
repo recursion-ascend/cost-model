@@ -23,6 +23,8 @@ min/max。这是局部敏感度, 不覆盖输入之间的交互 —— 交互要
 """
 from __future__ import annotations
 
+from ..config.hardware import BW_L1_GM, BW_REMOTE_WRITE
+
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
@@ -63,14 +65,14 @@ class Unknown:
 UNCERTAIN_INPUTS: Tuple[object, ...] = (
     Ranged(
         name="calibration.bw_combine_remote",
-        nominal=8600.0, low=4500.0, high=9500.0,
+        nominal=float(BW_REMOTE_WRITE), low=4500.0, high=9500.0,
         source=("20260930 三个 noshared run 的最快 COMBINE tile 反扣: "
                 "bs8192 9.5 / bs36 7.8 / bs128 4.5 GB/s per core "
                 "(bs128 全程被挤, 是下界)。见 config/hardware.BW_REMOTE_WRITE"),
     ),
     Ranged(
         name="calibration.bw_l1_gm",
-        nominal=51900.0, low=49200.0, high=54400.0,
+        nominal=float(BW_L1_GM), low=49200.0, high=54400.0,
         source=("同一批 run 按 A 流 / B 流分别反解: A 49.2, B 54.4 GB/s; "
                 "标定值 51.9 取中。随并发核数变, 待按并发分档 (R2)"),
     ),

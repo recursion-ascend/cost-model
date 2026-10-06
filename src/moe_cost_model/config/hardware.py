@@ -227,7 +227,9 @@ EPILOGUE_TILE_M_PREFETCH = 128
 
 #: GMM1 输出在 GM 里的每元素字节. prefetch 路径下 AIC 把 L0C 写回 GM、AIV 再读回
 #: UB (stage/mega_moe_gmm1_activation.h:405-460 的 CopyGM2UB), 读回的元素类型就是
-#: epilogue 的输入类型 bfloat16_t (mega_moe_arch35.h:176 的 DataTypeIn)。
+#: epilogue 的输入类型: mega_moe_arch35.h:176 把 bfloat16_t 作第二个模板实参传给
+#: BlockEpilogueActivationMxQuant (该形参名 DataTypeIn, 见
+#: blaze/epilogue/block_epilogue_activation_mx_quant.h:47-48)。
 GMM1_OUT_ELEM_BYTES = 2
 
 #: 一行路由元数据的字节数: META_INFO_SIZE = 8 个 int32

@@ -47,7 +47,8 @@ class CompileConfig:
       tile_m / tile_n          MEGAMOE_TILE_M / _TILE_N, mega_moe/include/CMakeLists.txt:29-30,
                                缺省见 common/mega_moe_constants.h:82-87
       l1_tile_k                L1_TILE_K, common/mega_moe_gmm_common.h:30 (无宏可覆盖)
-      l1_buf_num               MEGAMOE_L1_BUF_NUM, CMakeLists.txt:31, gmm_common.h:114-116
+      l1_buf_num               MEGAMOE_L1_BUF_NUM, mega_moe/include/CMakeLists.txt:31,
+                               common/mega_moe_gmm_common.h:114-116
       weight_nz                **不是编译轴**: kernel 按 groupedMatmulMode 在运行期选
                                (stage/mega_moe_gmm1_activation.h:1074-1088 两个特化都实例化)。
                                这里保留它是因为模型的公式要知道走哪条带宽, 见下面 runtime_selected。
@@ -60,12 +61,13 @@ class CompileConfig:
       swizzle_offset/direction BlockSchedulerSwizzle<3, 0>, common/mega_moe_gmm_common.h:33
       combine_quant_mode       combineQuantMode (运行期 attr, tiling @40; key 值 0/3/4,
                                mega_moe_tiling_key.h:25-27)
-      combine_meta_bytes_per_row  META_INFO_SIZE(8) x int32 = 32B (constants.h:73);
+      combine_meta_bytes_per_row  META_INFO_SIZE(8) x int32 = 32B
+                               (common/mega_moe_constants.h:73);
                                模型缺省 16 是"四个具名字段"的下界口径, 见 KernelConfig
-      dispatch_quant_mode      DISPATCH_QUANT_MODE_MXFP = 4 (tiling_key.h:21)
-      dispatch_quant_out_dtype 3=E5M2 / 4=E4M3FN / 5=E2M1 (tiling_key.h:22-24)
-      x_dtype / weight_dtype   apt.cpp:102-111 限定 X=Y=BF16, weight1 ∈ {E5M2,E4M3FN,E2M1}
-      comm_mode                TILINGKEY_TPL_MTE=0 / URMA=1 (tiling_key.h:28-29)
+      dispatch_quant_mode      DISPATCH_QUANT_MODE_MXFP = 4 (mega_moe_tiling_key.h:21)
+      dispatch_quant_out_dtype 3=E5M2 / 4=E4M3FN / 5=E2M1 (mega_moe_tiling_key.h:22-24)
+      x_dtype / weight_dtype   mega_moe_apt.cpp:102-111 限定 X=Y=BF16, weight1 ∈ {E5M2,E4M3FN,E2M1}
+      comm_mode                TILINGKEY_TPL_MTE=0 / URMA=1 (mega_moe_tiling_key.h:28-29)
     """
 
     tile_m: int = 256
