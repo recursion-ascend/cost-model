@@ -106,3 +106,29 @@ def test_roles_and_epilogue_are_reachable_from_a_scenario_file():
                                      "options.epilogue_overheads": {"literal": True}})
     assert moved.options.roles.role_of("combine") == "AIV0"
     assert moved.options.epilogue_overheads.literal is True
+
+
+def test_readme_knob_counts_match_the_table():
+    """README 不再抄旋钮表, 但它引用了项数 —— 引用也会过期, 所以钉住.
+
+    2026-10-06 之前 README 里是一张**手写副本**: 列着早已删掉的 gmm1_activation_depth,
+    把 gmm1_b_reuse 写成"不影响时长", 还少十几项。现在那段只说"权威清单在 knob_audit.EXPECTED,
+    共 N 项", 并按类别给项数 —— 本测试核对那几个 N。
+    """
+    import collections
+    import re
+    from pathlib import Path
+
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+    assert f"(**{len(ka.EXPECTED)}** 项)" in readme or f"({len(ka.EXPECTED)} 项)" in readme, (
+        f"README 里的旋钮总数与 EXPECTED ({len(ka.EXPECTED)} 项) 不一致")
+    by_cat = collections.Counter(
+        k.split(".")[0] if "." in k else "(顶层)" for k in ka.EXPECTED)
+    for cat, prefix in (("kernel", "`kernel.*`"), ("options", "`options.*`"),
+                        ("policy", "`policy.*`")):
+        row = re.search(re.escape(prefix) + r"\s*\|\s*(\d+)\s*\|", readme)
+        assert row, f"README 的分类表里没有 {prefix} 这一行"
+        assert int(row.group(1)) == by_cat[cat], (
+            f"README 说 {prefix} 有 {row.group(1)} 项, 实际 {by_cat[cat]} 项")
+    top = re.search(r"顶层策略名\s*\|\s*(\d+)\s*\|", readme)
+    assert top and int(top.group(1)) == by_cat["(顶层)"]

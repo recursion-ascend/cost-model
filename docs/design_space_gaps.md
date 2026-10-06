@@ -45,7 +45,7 @@
 | stage 边: 落点 | `StageLink.location` | gm (缺省) / onchip (不物化, 代价是共位) |
 | stage 边: 片上槽数 | `StageLink.depth` | gmm1→act 缺省 1 (UB 单槽); 0 = 不设限 |
 | GMM2 kL1 | `ModelOptions.gmm2_kl1` | 自适应或显式 |
-| B 复用 | `KernelConfig.gmm1_b_reuse` | 实测 -16.3% (多 m-group 时); "付几次"的规律未定 |
+| B 复用 | `KernelConfig.gmm1_b_reuse_frac` | 比例 (不是布尔); 实测 -16.3% (多 m-group 时); "付几次"的规律未定 |
 | epilogue 行块 + GMM1 输出落点 | `KernelConfig.topk_weights_prefetch` | 行块 256→128, 输出改走 GM 往返 (读回时长无实测) |
 | 通信路径 | `KernelConfig.topo_urma` | MTE / URMA Layered 两套建图器 |
 | 建图器本身 | `MegaMoeShape.orchestration` | 扩展点: 可传自己的建图器类 |

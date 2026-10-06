@@ -314,7 +314,7 @@ class Scenario:
         layout = DispatchDataLayout.from_hidden(self.h)
         til = self.tiling_truth()
         if til and self.tiling is not None and self.tiling.adopt:
-            items = til.get("dispatchRouteItemsPerBatch") or 0
+            items = til.get(guardrails.TILING_KEY_ROUTE_ITEMS) or 0
             if items > 0 and items != layout.route_items_per_batch:
                 layout = dataclasses.replace(layout, route_items_per_batch=items)
         return layout
@@ -339,7 +339,7 @@ class Scenario:
         til = self.tiling_truth()
         window = 0
         if til and self.tiling is not None and self.tiling.adopt:
-            window = til.get("dispatchBufferCount") or 0
+            window = til.get(guardrails.TILING_KEY_BUFFER_COUNT) or 0
         if window <= 0:
             pipe = self.options.pipeline
             window = pipe.buffers.dispatch_window if pipe is not None else 0

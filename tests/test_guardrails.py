@@ -15,6 +15,7 @@ from moe_cost_model.guardrails import (
     check_routing_conservation)
 from moe_cost_model.config.pipeline import (
     TILING_FIELDS, parse_tiling, resolve_tiling_path)
+from moe_cost_model import scenario as scenario_module
 from moe_cost_model.scenario import TilingSource
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
@@ -98,6 +99,24 @@ def test_tiling_adopt_supplies_kernel_truths():
     # adopt=False 时退回缺省常数
     off = dataclasses.replace(sc, tiling=TilingSource(path=str(TILING), adopt=False))
     assert off.tiling_truth()["dispatchBufferCount"] == 6      # 真值仍读得到
+
+
+def test_every_declared_adopt_key_has_a_reader():
+    """TILING_ADOPT 是声明, 不是文档: 表里每个键都必须真有人读.
+
+    2026-10-06 之前这张表**没有任何读者** —— scenario.py 两处各写了一遍键名字面量。
+    于是表和代码是两份真相: 往表里加一行不会生效, 改掉字面量表就过期。现在键名只在
+    guardrails 里写一次, 本测试钉住"表里的键 = scenario 实际取的键"。
+    """
+    from moe_cost_model import guardrails
+    src = Path(scenario_module.__file__).read_text(encoding="utf-8")
+    names = {guardrails.TILING_KEY_BUFFER_COUNT: "TILING_KEY_BUFFER_COUNT",
+             guardrails.TILING_KEY_ROUTE_ITEMS: "TILING_KEY_ROUTE_ITEMS"}
+    assert set(guardrails.TILING_ADOPT) == set(names), (
+        "表里有键没给具名常量, 或常量没进表")
+    for key, const in names.items():
+        assert f"guardrails.{const}" in src, f"{key} 在 scenario.py 里没有读者"
+        assert f'"{key}"' not in src, f"{key} 在 scenario.py 里还有字面量写法"
 
 
 def test_tiling_absent_is_fine():

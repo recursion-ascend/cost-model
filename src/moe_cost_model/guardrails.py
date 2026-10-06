@@ -80,10 +80,18 @@ def check_against_tiling(scenario, tiling: Mapping[str, int]) -> List[str]:
     return bad
 
 
-#: tiling 键 -> 该直接采用的 kernel 真值 (不是标定值, 没有"域"的问题)
+#: 这两个 tiling 键的名字. scenario.py 按它们取值, 所以名字只在这里写一次 ——
+#: 原先那边各自写了字面量, 而下面这张表没有任何读者 (改了表不生效, 改了字面量表就过期)。
+TILING_KEY_BUFFER_COUNT = "dispatchBufferCount"
+TILING_KEY_ROUTE_ITEMS = "dispatchRouteItemsPerBatch"
+
+#: tiling 键 -> 该直接采用的 kernel 真值 (不是标定值, 没有"域"的问题)。
+#: [tiling] adopt=true 时 scenario 从 tiling 文件取这些键, 见 scenario.build_costs /
+#: build_dispatch_layout; 测试 test_guardrails.test_tiling_adopt_supplies_kernel_truths
+#: 钉住"表里每个键都真有读者"。
 TILING_ADOPT = {
-    "dispatchBufferCount": "dispatch 行级软流水槽数 (buffer_count)",
-    "dispatchRouteItemsPerBatch": "dispatch 路由批大小 (route_items_per_batch)",
+    TILING_KEY_BUFFER_COUNT: "dispatch 行级软流水槽数 (buffer_count)",
+    TILING_KEY_ROUTE_ITEMS: "dispatch 路由批大小 (route_items_per_batch)",
 }
 
 
