@@ -446,19 +446,19 @@ class AnalyticalActCosts:
     公式:
         T = T_startup + n_vec * BYTES_PER_VEC / BW_ub
 
-    ---- 已知的三处偏差 (2026-09-30 对 20260930 run 审计; 都没改, 理由见下) ----
+    ---- 已知偏差 ----
 
-    1. BYTES_PER_VEC = 580 与源码不符, 但**单改它是变相拟合**。
-       源码真值 (blaze/epilogue/block_epilogue_activation_mx_quant.h): bf16 中间
-       缓冲被**整体流三遍** —— SwiGLU 写一遍, ComputeMaxExp 读一遍,
-       ComputeFp8Data 再读一遍。模型只算了一次重读, 漏了 128B/向量; 另有
-       maxExp/inverseMxScale 各 uint16 的往返约 14B。UB 侧真值 722B/向量, 其中
-       66B (fp8 64 + scale 2) 其实是 GM 流量而非 UB。
-       但 (T_startup, BW_ub) 当初是**用 580 在两个 ACT 点上联合拟合**的 (截距取
-       小 m tile, 斜率取大 m tile), 所以只有比值 BYTES_PER_VEC/BW_ub 可观测:
-       把字节改成 722 再同两点重拟合会得到 BW_ub = 93000x722/580 = 115769,
-       预测**逐位不变**。故字节数的错是"结构上错、数值上惰性", 单改它没有信息,
-       要分开只能扫 m 或扫 tileN (本 run 全部 54 个 tile 形状相同, 零信息)。
+    1. **每向量字节数已改为源码真值 722** (`ACT_BYTES_PER_VEC`, 2026-09-30)。
+       源码 (blaze/epilogue/block_epilogue_activation_mx_quant.h): bf16 中间缓冲被
+       **整体流三遍** —— SwiGLU 写一遍, ComputeMaxExp 读一遍, ComputeFp8Data 再读一遍;
+       旧值 580 漏了第三遍 (128B/向量) 与 maxExp/inverseMxScale 的往返 (~14B)。
+       能改是因为有两个不同 m 的 run 把它与 BW_ub 分开了: bs36 (m=72) 与 bs8192 (m=256)
+       定出斜率 0.007760 µs/向量, 而 722/93000 = 0.007763 (+0.05%), 580 低 19.6%。
+       `BW_UB` 保持 93000 (它与这个两点斜率一致; 老标定点的原始数据已不可得, 无法按
+       722 重算)。见 config/hardware.py 两个常数各自的注释。
+       **仍然成立的那条告诫**: 单个 run 里 54 个 tile 形状全同, 只有比值
+       BYTES_PER_VEC/BW_ub 可观测 —— 在单 run 上动其中一个就是变相拟合。
+       其中 66B (fp8 64 + scale 2) 实际是 GM 流量而非 UB, 见第 2 条。
 
     2. 写出是 GM 而非 UB, 且代价随 m 走而不是随 m*cols 走 (待建模)。
        StoreQuantOutput 发 blockCount = m 次、每次 cols*1B(fp8) 的带 stride 突发;

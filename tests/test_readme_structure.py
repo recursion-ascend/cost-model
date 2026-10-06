@@ -67,3 +67,36 @@ def test_readme_documents_every_returned_field():
     missing_rank = set(res["rank_results"][0]) - named
     assert not missing_top, f"顶层字段没在表里: {sorted(missing_top)}"
     assert not missing_rank, f"rank_results 字段没在表里: {sorted(missing_rank)}"
+
+
+#: README「精度边界」里那两张表声称的常数值。单位: 带宽按 GB/s (代码是 B/µs),
+#: 其余按代码的原单位。2026-10-06 核对时 ACT 每向量字节数在 README 里还写着 580,
+#: 而代码早已是 722 (见 config/hardware.py 的两点 m 扫说明)。
+README_CONSTANTS = {
+    "BW_L1_GM": (51.9, 1000.0),
+    "BW_UB": (93.0, 1000.0),
+    "BW_SCATTER": (139.5, 1000.0),
+    "BW_LOCAL_GM": (157.0, 1000.0),
+    "BW_REMOTE_GM": (31.0, 1000.0),
+    "BW_WINDOW": (33.0, 1000.0),
+    "URMA_GET_BW_SINGLE": (2.25, 1000.0),
+    "URMA_PUT_BW_SINGLE": (2.25, 1000.0),
+    "BW_UNPERMUTE_AGG": (950.0, 1000.0),
+    "VEC_REG_WIDTH": (256, 1.0),
+    "T_STARTUP_VEC": (1.48, 1.0),
+    "ACT_BYTES_PER_VEC": (722, 1.0),
+}
+
+
+def test_readme_quotes_the_real_constant_values():
+    """README 引用的每个常数值必须与代码一致, 且那个数字真的出现在 README 里."""
+    from moe_cost_model.config import hardware as hw
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for name, (claimed, scale) in README_CONSTANTS.items():
+        value = float(getattr(hw, name)) / scale
+        tol = max(0.01, abs(claimed) * 0.005)
+        assert abs(value - claimed) <= tol, (
+            f"{name}: 代码 {value:g}, README 这张表按 {claimed:g} 写的")
+        shown = f"{claimed:g}"
+        assert shown in readme, f"{name} 的值 {shown} 没出现在 README 里"
