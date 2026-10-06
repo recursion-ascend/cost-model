@@ -20,8 +20,11 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 KERNEL = ROOT / "mega_moe"
 
-#: 引用形如 <名字>.h:<行号>, 或带目录与行号区间
-CITE = re.compile(r"([A-Za-z0-9_/]+\.(?:h|cpp)):(\d+)(?:[-–](\d+))?")
+#: 引用形如 <名字>.h:<行号> / <名字>.cpp:<行号> / <路径>CMakeLists.txt:<行号>,
+#: 带目录与行号区间都行
+CITE = re.compile(
+    r"([A-Za-z0-9_/]+\.(?:h|cpp)|[A-Za-z0-9_/]*CMakeLists\.txt):(\d+)"
+    r"(?:[-\u2013](\d+))?")
 
 pytestmark = pytest.mark.skipif(not KERNEL.is_dir(), reason="仓内没有 kernel 源码")
 
@@ -30,14 +33,29 @@ def _index() -> dict:
     out = {}
     for dirpath, _, filenames in os.walk(KERNEL):
         for name in filenames:
-            if name.endswith((".h", ".cpp")):
+            if name.endswith((".h", ".cpp")) or name == "CMakeLists.txt":
                 out.setdefault(name, []).append(Path(dirpath) / name)
     return out
 
 
 def _resolve(index: dict, cited: str):
+    """引用 -> 仓内真实路径.
+
+    **带目录的引用按完整路径核**: 只按文件名匹配时 `CMakeLists.txt` 这种常见名字
+    在任何目录下都能"找到", 于是写错目录查不出来 (2026-10-06 就有三处写着
+    megamoe_profile/CMakeLists.txt, 真实位置是 mega_moe/include/)。
+    裸文件名才回落到按名字找 (允许省略 mega_moe_ 前缀)。
+    """
+    if "/" in cited:
+        for prefix in ("", "mega_moe/", "mega_moe/op_kernel/arch35/"):
+            candidate = ROOT / (prefix + cited)
+            if candidate.is_file():
+                return [candidate]
+        return []
     base = os.path.basename(cited)
-    return index.get(base) or index.get("mega_moe_" + base) or []
+    # 裸文件名可能有多个候选 (CMakeLists.txt 在仓内有十来个), 全给出去, 由调用方
+    # 判"有没有任一候选满足"。只取第一个会按 os.walk 的顺序随机误报。
+    return list(index.get(base, ())) + list(index.get("mega_moe_" + base, ()))
 
 
 def _citations():
@@ -71,11 +89,13 @@ def test_every_cited_line_is_within_the_file():
         paths = _resolve(index, cited)
         if not paths:
             continue
-        length = len(paths[0].read_text(encoding="utf-8", errors="ignore").splitlines())
         last = int(end) if end else begin
-        if begin > length or last > length:
+        lengths = [len(q.read_text(encoding="utf-8", errors="ignore").splitlines())
+                   for q in paths]
+        if not any(begin <= n and last <= n for n in lengths):
             bad.append(f"{path.relative_to(ROOT)}:{lineno} -> {cited}:{begin}"
-                       f"{'-' + end if end else ''} (该文件只有 {length} 行)")
+                       f"{'-' + end if end else ''} "
+                       f"(候选文件行数 {sorted(set(lengths))})")
     assert not bad, "引用的行号超出文件长度: " + "; ".join(bad)
 
 

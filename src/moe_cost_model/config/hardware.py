@@ -360,7 +360,7 @@ class KernelConfig:
     """kernel 编译期参数. 默认值 = 源码/CMake 缺省.
 
     对应: MEGAMOE_TILE_M/TILE_N/L1_BUF_NUM/TOPO_URMA/TOPK_PREFETCH
-    (megamoe_profile/CMakeLists.txt:28-32) 与 Blaze BlockSchedulerSwizzle<3,0>
+    (mega_moe/include/CMakeLists.txt:28-32) 与 Blaze BlockSchedulerSwizzle<3,0>
     模板参数. 修改后模型的 wave 规划/tile 网格/分核轮转随之改变.
     """
 
@@ -409,7 +409,8 @@ class KernelConfig:
     #   3. 每个行块多一次 topk 权重的 GM->UB 读 (m x META_BYTES_PER_ROW)。
     # **影响时长**: 2、3 两项的字节要搬, 且 kernel 用 MTE2_V 标志把搬运与向量计算
     # 严格串起来 (同文件 353-356: SetFlag/WaitFlag 紧挨着), 所以读回时间不与计算重叠。
-    # 缺省 0: megamoe_profile/CMakeLists.txt 没给这个宏 (include/kernel.cpp:24-26)。
+    # 缺省 0: mega_moe/include/CMakeLists.txt:28 的 cache 变量就是 0
+    # (include/kernel.cpp:24-26 的 #ifndef 兜底同样是 0)。
     topk_weights_prefetch: bool = False
     l1_tile_k: int = 256              # K-chunk 基线 (select_kl1 自适应)
     # GMM1 B 复用: 切片内首个 m-group 的 tile 付整份 B 流, 其余 m-group 的 tile 各付

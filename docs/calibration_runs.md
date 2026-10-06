@@ -146,7 +146,8 @@
 
 ## 做完之后怎么确认模型真的准了
 
-1. `python tools/compare_measured.py --scenario examples/<run>.toml` 逐 stage 看偏差;
+1. `python tools/compare_measured.py <run_dir> examples/<run>.toml` 逐 stage 看偏差
+   (两个都是位置参数, 没有 `--scenario`);
 2. 六个 `examples/*.toml` (现有三个 batch x shared/noshared) 全部跑一遍, 记下每个 stage 的
    `stage_busy_us` 偏差与墙钟偏差;
 3. 偏差写进 `README.md` 的"精度边界"一节, **带上标定域** —— 域外的结论不作数。

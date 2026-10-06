@@ -147,3 +147,27 @@ def test_intentional_differences_carry_a_reason():
     assert INTENTIONAL, "至少有一项 (combine 元数据字节)"
     for field, (entry, reason) in INTENTIONAL.items():
         assert entry and len(reason) > 30, f"{field} 的理由太短"
+
+
+def test_the_profile_reproduces_the_in_repo_compile_point_with_nothing_exempted(manifest):
+    """`profiles.MEGAMOE_A8W8` 声称"复现那份实现" —— 那就必须 0 失配且 **0 豁免**.
+
+    缺省 `KernelConfig()` 跑对账是 0 失配 + **1 项有意豁免**
+    (`combine_meta_bytes_per_row` 16 vs 32: 缺省取"四个具名字段"的算法下界, kernel 搬满
+    META_INFO_SIZE=8 个 int32)。那条豁免是模型"缺省不引用任何实现"的体现, 不是对不上。
+
+    而 profile 的意思正是"按那份实现来", 所以在它身上**连豁免都不该有**。这条把
+    profiles.py 的那句话变成机械判据: 哪天 kernel 改了某个宏而 profile 没跟上, 这里就红。
+    """
+    import moe_cost_model as m
+
+    default = compare(manifest, kernel=m.KernelConfig())
+    assert not default["mismatch"]
+    assert len(default.get("skipped", ())) == 1, (
+        "缺省编译点的有意差异应当只有 combine_meta_bytes_per_row 一项")
+
+    profile = compare(manifest, kernel=m.MEGAMOE_A8W8.kernel)
+    assert not profile["mismatch"], profile["mismatch"]
+    assert not profile.get("skipped"), (
+        "profile 身上不该有任何豁免项 —— 它声称的就是复现仓内编译点: "
+        f"{profile.get('skipped')}")

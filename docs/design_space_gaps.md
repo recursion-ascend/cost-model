@@ -180,7 +180,7 @@ AIC/AIV0/AIV1 的 `avoidable_idle_us` 全为 0; `busy` 与静态绑定逐位相�
 
 ### 残留的保守之处
 
-1. **按核建的边在晚绑定后指向"原核号"**: `gmm1_activation_depth` 产生的 L1 反压边
+1. **按核建的边在晚绑定后指向"原核号"**: `StageLink("gmm1","activation").depth` 产生的 L1 反压边
    (`activation -> gmm1`) 与 `dispatch_pacing="per_core"` 的配速边, 都按建图时的核号连,
    而那个事件可能已落到别的核。这**不违反不变量** (那段等待计入 `forced`), 但墙钟略微
    高估。该类边占总边数 1.4%~3.0%。要彻底解决需要在调度过程中才知道的信息, 即用重构钩子
@@ -230,7 +230,8 @@ self._event("epilogue.unpermute",     (), unpermute_bytes / BW_UNPERMUTE_AGG, ..
 | `("wave",)` | 波间全核对齐 —— 下一波的任何事件都等上一波全做完 |
 | `("stage",)` | 波内每个 stage 之后对齐 (dispatch→gmm1→act→gmm2→combine) = 最彻底的**分段式执行** |
 
-实测"融合值多少" (同为 `gmm1_activation_depth=0`, 公平对比):
+实测"融合值多少" (两边同为片上槽数 0 —— 当时的旋钮名是 `gmm1_activation_depth`,
+现在是 `StageLink("gmm1","activation").depth`; 公平对比):
 
 | 形状 | 融合 | 波间栅栏 | 分段栅栏 |
 | --- | ---: | ---: | ---: |
@@ -267,6 +268,11 @@ self._event("epilogue.unpermute",     (), unpermute_bytes / BW_UNPERMUTE_AGG, ..
 659 -> 576。
 
 ### 原文
+
+> 以下是 2026-10-03 补齐之前的原始描述, 两点已不成立: 逐核排空节点 (当时 84 个,
+> 名字形如 `moe_expert_stage_done.{role}.c{core}`) 已换成**一个** `moe_stage_done`
+> (`builders/base.py` 的 `DRAIN_STAGES` 仍是归集机制); 全核栅栏已由 `ModelOptions.barriers`
+> 提供。保留原文是为了记下当时缺什么。
 
 现在图里只有**每核每引擎**一个排空节点 (`moe_expert_stage_done.{role}.c{core}`,
 `builders/base.py:287` 的 `DRAIN_STAGES`), 对应 kernel 的 `WAIT_GMM_DRAIN`。**全核栅栏**
@@ -318,7 +324,7 @@ MTE 路径同理: `DispatchMechanisticLatency` 只分 local / remote 两档, 没
 tile 数翻倍与每 tile B 流减半正好抵消, **搬运总量守恒**。交织于是成为净收益 (负载更均衡 +
 UB 握手深度 1->2), 不再背 A 流的账。
 
-残留的是另一件事: `gmm1_b_reuse` 表达的"B 流在 m-group 之间付几次"仍然待定。不过换成 max
+残留的是另一件事: `gmm1_b_reuse_frac` 表达的"B 流在 m-group 之间付几次"仍然待定。不过换成 max
 口径后它不再是解释 bs8192 实测偏差的必要条件 (max 口径下 bs8192 只差 -6.1%, 相加口径
 +40.8%)。
 

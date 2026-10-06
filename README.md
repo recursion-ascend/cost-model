@@ -379,7 +379,8 @@ bs36→bs128 只有 m 变 (同样 28 核并发), 实测涨了 34%。bs8192 之�
 
 - GMM1 的 A 流 = m·K 字节, B 流 = `wb`·K·cols (`wb` = 非交织 2 / 交织 1); GMM1 计算 = 2·m·cols·K MACs; GMM2 计算 = m·cols·K2 MACs。
 - GMM2 载入 = `A流 + B流`, 与 GMM1 同口径。A 流 = m·K2 字节, **只在物化编排
-  (`ModelOptions.act_to_gmm2="gm"`, 缺省) 下计**: ACT 把量化激活写回 GM, GMM2 的 A
+  (`StageLink("activation","gmm2").location="gm"`, 缺省; 原 `ModelOptions.act_to_gmm2`,
+  已并入 `links`) 下计**: ACT 把量化激活写回 GM, GMM2 的 A
   再从 GM 读回来 (参考 kernel 就是这样: epilogue 写 `activationQuantDataPtr`, GMM2
   从 `Location::GM` 取同一个指针)。`"onchip"` 编排下 A 留在片上 (硬件有 UB→L1 通路),
   A 流不付 GM 字节, 代价是一个 m-group 的 GMM1/ACT/GMM2 必须共位于一个核 ——
