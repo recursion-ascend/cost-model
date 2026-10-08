@@ -31,7 +31,7 @@
 | `kernel.tile_m` | 生效* | 一个 m-group 的行数 |
 | `kernel.tile_n` | 生效 | 一个 N-tile 的列数 |
 | `kernel.topk_weights_prefetch` | 生效 | topk 权重在 epilogue 里乘; 行块 256->128 且 GMM1 输出走 GM 往返 |
-| `kernel.topo_urma` | 生效 | 通信路径: MTE 波循环 / URMA Layered 宏波循环 (换建图器) |
+| `kernel.topo_urma` | 生效 | 通信路径: MTE 波循环 / URMA Layered 宏波循环 (换建图代码) |
 | `kernel.weight_nz` | 被拒 | 权重 GM 布局 Z / NZ (开启须显式给 NZ 带宽) |
 | `options.barriers` | 生效 | 全核栅栏: 不加 / 波间 / 波内每 stage 后 |
 | `options.combine_granularity` | 生效* | 一个 COMBINE 事件覆盖几个 GMM2 tile |
@@ -98,7 +98,7 @@ python tools/knob_audit.py --emit   # 重新生成 EXPECTED
 | `core_assignment`   | `static_round_robin` / `greedy_least_busy` / `contiguous_block` | tile 分给哪个核          |
 | `scheduling_policy` | `earliest_start` / `critical_path_first` / `priority_by_stage`  | 就绪集里谁先跑           |
 | `restructure`       | `idle_core_stealing`                                              | 运行时图重构             |
-| `orchestration`     | `mte` / `layered` / `"包.模块:类"`                              | 用哪个建图器             |
+| `orchestration`     | `mte` / `layered` / `"包.模块:类"`                              | 用哪个建图代码             |
 
 带参数时写成表：`{name = "split_rows", parts = 2}`。自定义策略用 `moe_cost_model.register(类别, 名字, 构造函数)` 注册。
 
@@ -128,7 +128,7 @@ python tools/knob_audit.py --quiet    # 五个互补形状 x 全部参数
    两者不同, 拿缺省值当基线会把"值根本没变"误判成"没有读者"。
 2. 一个参数给**一串**候选取值 —— 翻倍常落在无语义的档上 (`l1_buf_num` 2→4 与 2 同构,
    2→1 才是关 ping-pong; `swizzle_direction` 只有 0/1 两档)。
-3. 比对五项: 墙钟 / 事件数 / 事件名集合 / 逐事件时长 / 逐信道字节。只看墙钟会把
+3. 比对五项: 总时长 / 事件数 / 事件名集合 / 每个事件时长 / 逐信道字节。只看总时长会把
    "结构变了而两边恰好等长"当成没动。
 
 审计当前给出的几项判定:

@@ -86,9 +86,9 @@ res = m.simulate_routing_counts(
 
 | 参数 | 作用 |
 | --- | --- |
-| `ModelOptions.combine_layout` | 写出落点布局: `"token_scatter"` (缺省, 落点由 token 全局编号定, UNPERMUTE 顺序读) / `"expert_contiguous"` (按专家连续写, 读侧改 gather)。布局决定申报的**跨度**; 跨度的代价系数 (`AnalyticalCombineCosts.scatter_us_per_row`) 缺省 0, 要由扫 token 数的 run 定。读侧代价尚未建模 —— 见 `docs` 缺口 10 |
-| `ModelOptions.combine_granularity` | 一个 combine 事件覆盖多少工作: `"per_tile"` (缺省, 与 GMM2 tile 1:1 配对、与计算交错) / `"per_expert"` (一个专家切片一个事件、等自己那片 GMM2 做完)。与角色正交。实测合并省 0.5% 元数据字节但墙钟 +30.5% —— 不过模型还算不出它的主要好处 (写侧跨度, 见 `docs` 缺口 10) |
-| `ModelOptions.roles` | `stage -> 执行角色` 映射 (`RoleAssignment`): 哪个 stage 跑在 AIC / AIV0 / AIV1 上。矩阵乘只能在 AIC (物理), ACT 与它的 GMM1 必须同核 (Fixpipe), 其余可换。**实测在 A8W8 主路径上换角色不改墙钟** —— 两个向量核利用率都不到 6%, 关键路径在 AIC |
+| `ModelOptions.combine_layout` | 写出落点布局: `"token_scatter"` (缺省, 落点由 token 全局编号定, UNPERMUTE 顺序读) / `"expert_contiguous"` (按专家连续写, 读侧改 gather)。布局决定统计的**跨度**; 跨度的代价系数 (`AnalyticalCombineCosts.scatter_us_per_row`) 缺省 0, 要由扫 token 数的 run 定。读侧代价尚未建模 —— 见 `docs` 缺口 10 |
+| `ModelOptions.combine_granularity` | 一个 combine 事件覆盖多少工作: `"per_tile"` (缺省, 与 GMM2 tile 1:1 配对、与计算交错) / `"per_expert"` (一个专家切片一个事件、等自己那片 GMM2 做完)。与角色正交。实测合并省 0.5% 元数据字节但总时长 +30.5% —— 不过模型还算不出它的主要好处 (写侧跨度, 见 `docs` 缺口 10) |
+| `ModelOptions.roles` | `stage -> 执行角色` 映射 (`RoleAssignment`): 哪个 stage 跑在 AIC / AIV0 / AIV1 上。矩阵乘只能在 AIC (物理), ACT 与它的 GMM1 必须同核 (Fixpipe), 其余可换。**实测在 A8W8 主路径上换角色不改总时长** —— 两个向量核利用率都不到 6%, 关键路径在 AIC |
 | `ModelOptions.late_bind_pools` | 角色入池: 事件只声明"要一个 AIC", 调度器在**派发时刻**绑最早空闲的成员。缺省 `("AIC", "AIV1")`; `()` = 静态绑定 (某实现的分核方式)。`"AIC"` 入池隐含 `"AIV0"` 入池 —— `GMM1 -> ACT` 同核是物理约束, 整对一起漂移 |
 | `WorkConservingCriticalPath` | 排序键 `(start, -remaining_path_us, order, name)`: start 仍排第一位, 核不会为等未就绪的事件空闲; 关键路径只在**同样能立刻开始**的候选之间定先后 |
 | `ModelOptions.dispatch_pacing` | 下一波 dispatch 等什么: `"none"` (缺省, 不等, 跨波连续 dispatch) / `"per_core"` (等本核上一波最后一个 combine, `MEGAMOE_A8W8` 用这个) / `"wave"` (等该波全部 combine) |
@@ -113,12 +113,12 @@ res = m.simulate_routing_counts(
 | 18432 / 3 | 494.3 | 488.2 | **448.5** (−9.3%) |
 | 18432 / 6 | 880.7 | 911.4 (+3.5%) | 893.8 / **881.2** (`pacing="none"`) |
 
-**零空闲不等于最快**: 纯贪心在两个形状上把墙钟拖长了 (有就绪的活就立刻上核, 可能把更关键
+**零空闲不等于最快**: 纯贪心在两个形状上把总时长拖长了 (有就绪的活就立刻上核, 可能把更关键
 的 tile 挤后), 关键路径打破平手才把这部分补回来。反过来, 只换策略不开池也不够 —— 静态绑定
 下 6 个形状里 4 个仍有 avoidable (AIC 最多 1711.9 核·us)。两件事互相独立。
 
 ⚠️ 一处残留保守: `"per_core"` 配速边按建图时的核号连, 晚绑定后可能指向别的核 (占总边数
-1.4%~3.0%, 计入 `forced`, 墙钟略高估)。详见 `docs/design_space_gaps.md` 缺口 3。
+1.4%~3.0%, 计入 `forced`, 总时长略高估)。详见 `docs/design_space_gaps.md` 缺口 3。
 
 晚绑定与相位流水**可以同用**: 同一个 tile 的几个相位编成**核组**,
 核号由组里最先派发的那个事件选定, 同组其余事件跟随 —— 相位事件不持核资源, 所以不能靠

@@ -301,7 +301,7 @@ WHAT = {
     "kernel.tile_m": "一个 m-group 的行数",
     "kernel.tile_n": "一个 N-tile 的列数",
     "kernel.topk_weights_prefetch": "topk 权重在 epilogue 里乘; 行块 256->128 且 GMM1 输出走 GM 往返",
-    "kernel.topo_urma": "通信路径: MTE 波循环 / URMA Layered 宏波循环 (换建图器)",
+    "kernel.topo_urma": "通信路径: MTE 波循环 / URMA Layered 宏波循环 (换建图代码)",
     "kernel.weight_nz": "权重 GM 布局 Z / NZ (开启须显式给 NZ 带宽)",
     "options.barriers": "全核栅栏: 不加 / 波间 / 波内每 stage 后",
     "options.combine_granularity": "一个 COMBINE 事件覆盖几个 GMM2 tile",

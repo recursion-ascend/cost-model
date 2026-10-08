@@ -26,7 +26,7 @@ pytest tests/ -q          # 327 项 (5 项需 tiling 真值), 约 15 分钟
 | 看一个形状跑多久 | `examples/run_basic.py` | 最底层: 直接给形状 + 代价公式 |
 | 把场景写进文件, 改参数对比 | `examples/run_scenario.py` + `.toml` | **日常用这个** |
 | 扫一片编排选择, 看每个的代价是多少 | `examples/run_design_space.py` | 出一张对比表 |
-| 和一次实测 run 逐 stage 对账 | `tools/compare_measured.py` | 需要 trace + tiling 工件 |
+| 和一次实测 run 每个 stage 对账 | `tools/compare_measured.py` | 需要 trace + tiling 工件 |
 
 ```bash
 python examples/run_scenario.py        # 场景 + 变体对比
@@ -99,7 +99,7 @@ for label, ov in {
 | --- | --- |
 | `kernel_total_us` | **执行时间**: 五个 stage, 记到最后一个 COMBINE 结束 |
 | `kernel_dag_end_us` | 整个 DAG 末端 (含尾段 UNPERMUTE/FINALIZE 等) |
-| `rank_results[i]["events"]` | 逐事件: 名字、资源、起止、等待分解、`meta` |
+| `rank_results[i]["events"]` | 每个事件: 名字、资源、起止、等待分解、`meta` |
 | `rank_results[i]["stage_busy_us"]` | 每 stage 的总忙碌核·µs |
 | `avoidable_idle_us` | **护栏**: 必须是 0 —— 有就绪的活却有核空闲就是调度没做到位 |
 
@@ -182,7 +182,7 @@ python tools/knob_audit.py --quiet  # 只列非"每个形状都生效"的
    两者不同, 拿缺省值当基线会把"值根本没变"误判成"没有读者"。
 2. 一个参数给**一串**候选取值 —— 翻倍常落在无语义的档上 (`l1_buf_num` 2→4 与 2 同构,
    2→1 才是关 ping-pong)。
-3. 比对五项: 墙钟 / 事件数 / 事件名集合 / 逐事件时长 / 逐信道字节。只看墙钟会把
+3. 比对五项: 总时长 / 事件数 / 事件名集合 / 每个事件时长 / 逐信道字节。只看总时长会把
    "结构变了但两边等长"当成没动。
 
 全量判定固定在 `knob_audit.EXPECTED` 里, `tests/test_knob_coverage.py` 守它:
@@ -211,7 +211,7 @@ python tools/knob_audit.py --quiet  # 只列非"每个形状都生效"的
 ## 4b. 流水编排效率怎么看
 
 `python examples/run_pipeline_study.py` 在一个形状上逐个参数给出:
-墙钟、Δ%、AIC 忙碌%、**不可免空闲** (DAG 逼出来的) / **可避免空闲** (有活却空着,
+总时长、Δ%、AIC 忙碌%、**不可免空闲** (DAG 逼出来的) / **可避免空闲** (有活却空着,
 护栏), 以及关键路径按 `critical_reason` 的归类 (`resource` = 等核, `dependency` =
 等上游数据, `capacity` = 等信号量/槽位)。
 
@@ -295,7 +295,7 @@ print(m.format_design_space(rows))
    布局无关。所以一旦给 `token_scatter` 填了写侧系数, `expert_contiguous` 会单方面
    显得变好, 那是模型的偏置, 不是结论。
 3. **工作守恒 ≠ 最优** (Graham 异常)。放宽 UB 深度或加同步延迟在晚绑定下**可能让
-   墙钟变差**。`avoidable_idle == 0` 只保证没有可避免的空闲, 不保证单调。
+   总时长变差**。`avoidable_idle == 0` 只保证没有可避免的空闲, 不保证单调。
 
 四个系数仍未标定 (`BW_L1_GM` 的并发分档、COMBINE 跨度、`BW_UB`、URMA PUT),
 `BW_REMOTE_WRITE` 只定到量级 (4.5–9.5 GB/s 之间取了 8.6)。域外结论不作数。

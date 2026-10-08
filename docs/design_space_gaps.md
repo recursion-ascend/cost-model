@@ -48,8 +48,8 @@
 | GMM2 kL1 | `ModelOptions.gmm2_kl1` | 自适应或显式 |
 | B 复用 | `KernelConfig.gmm1_b_reuse_frac` | 比例 (不是布尔); 实测 -16.3% (多 m-group 时); "付几次"的规律未定 |
 | epilogue 行块 + GMM1 输出落点 | `KernelConfig.topk_weights_prefetch` | 行块 256→128, 输出改走 GM 往返 (读回时长无实测) |
-| 通信路径 | `KernelConfig.topo_urma` | MTE / URMA Layered 两套建图器 |
-| 建图器本身 | `MegaMoeShape.orchestration` | 扩展点: 可传自己的建图器类 |
+| 通信路径 | `KernelConfig.topo_urma` | MTE / URMA Layered 两套建图代码 |
+| 建图代码本身 | `MegaMoeShape.orchestration` | 扩展点: 可传自己的建图代码类 |
 | 相位流水 | `ModelOptions.pipeline` | load/cube/fix 相位拆分 + 每核队列深度 |
 | 跨卡搬运串行化 | `ModelOptions.serialize_dispatch_comm` | `DISPATCH_COMM` 独占资源 |
 
@@ -103,7 +103,7 @@ A 是 1B/元素。**改变它只有三条路**: 部分和降到 fp16 (比值减�
 ## 缺口 2: 角色分配不可配 — **已补齐 (2026-10-04)**, 但奖品不在这里
 
 原缺口: 资源名是建图代码里写死的 f-string (`f"AIV1:{core}"`), 所以"换个角色干这件事"
-问不出来。现在是 `ModelOptions.roles` (`config/roles.py` 的 `RoleAssignment`), 建图器一律
+问不出来。现在是 `ModelOptions.roles` (`config/roles.py` 的 `RoleAssignment`), 建图代码一律
 走 `options.role_resource(stage, core)`。
 
 能表达的编排:
@@ -134,7 +134,7 @@ RoleAssignment({"activation": "AIV1", "combine": "AIV0",
 | AIV0 | 509.2 | **5.8%** |
 | AIV1 | 463.8 | **5.2%** |
 
-两个向量核合起来利用率不到 6%, 看着有 8328 核·us 可捡。但**把 combine 挪到 AIV0 墙钟
+两个向量核合起来利用率不到 6%, 看着有 8328 核·us 可捡。但**把 combine 挪到 AIV0 总时长
 一点不变** (315.63 -> 315.63): 关键路径在 AIC 上, 在两个向量角色之间挪工作不碰它。
 
 所以"AIV0 闲着"这件事**不能靠重分角色回收** —— 能挪的工作本来就不在关键路径上, 而 AIC
@@ -176,14 +176,14 @@ res = m.simulate_routing_counts(..., options=options,
 
 6 个形状 (hidden 9216/14336/18432 x 专家 3/6) x 3 种 `dispatch_pacing` 下,
 AIC/AIV0/AIV1 的 `avoidable_idle_us` 全为 0; `busy` 与静态绑定逐位相同 (只换"哪个核做")。
-墙钟见 README 的空闲分解一节。缺省 `late_bind_pools=()` 保持静态绑定, 44 个 golden
+总时长见 README 的空闲分解一节。缺省 `late_bind_pools=()` 保持静态绑定, 44 个 golden
 用例逐位一致。
 
 ### 残留的保守之处
 
 1. **按核建的边在晚绑定后指向"原核号"**: `StageLink("gmm1","activation").depth` 产生的 L1 反压边
    (`activation -> gmm1`) 与 `dispatch_pacing="per_core"` 的配速边, 都按建图时的核号连,
-   而那个事件可能已落到别的核。这**不违反不变量** (那段等待计入 `forced`), 但墙钟略微
+   而那个事件可能已落到别的核。这**不违反不变量** (那段等待计入 `forced`), 但总时长略微
    高估。该类边占总边数 1.4%~3.0%。要彻底解决需要在调度过程中才知道的信息, 即用重构钩子
    表达。
 2. **与相位流水不可同用**: 相位拆分后 `.lg/.ld/fix` 自己不持核资源, 只靠带核号的队列 token
@@ -215,7 +215,7 @@ self._event("epilogue.unpermute",     (), unpermute_bytes / BW_UNPERMUTE_AGG, ..
 **主路径没有建模**:
 
 - A8W4 的权重反量化 prologue: AIV0 做 W4->W8 (`ShiftW4ToW8`), 再 `CopyUB2L1Weight8Bit`
-  直通配对 AIC 的 L1 —— 这条 UB->L1 通路在模型里没有对应的访存申报
+  直通配对 AIC 的 L1 —— 这条 UB->L1 通路在模型里没有对应的访存统计
 - A8W4 下激活核换到 AIV1 (`runsActivation = GetSubBlockIdx() == 1`), 依赖缺口 2
 - A4W4 的激活也是 4bit
 
@@ -287,7 +287,7 @@ self._event("epilogue.unpermute",     (), unpermute_bytes / BW_UNPERMUTE_AGG, ..
 - **波间全核对齐**: 下一波的任何事件都等上一波全部做完 (而不是现在的逐核排空)。
 
 要补: 一个"栅栏事件"原语 —— 零时长、依赖某组事件的全部、且后续某组事件全部依赖它。
-`DRAIN_STAGES` 那张表已经是现成的归集机制, 缺的是"把它升格成全核"的参数与建图器支持。
+`DRAIN_STAGES` 那张表已经是现成的归集机制, 缺的是"把它升格成全核"的参数与建图代码支持。
 注意这会与晚绑定叠加: 栅栏之后所有核重新开始, 晚绑定的收益可能被栅栏抵消 —— 正是值得
 量化的那件事。
 
@@ -355,14 +355,14 @@ bs36 -> bs128 是干净的单变量对比 (只有 m 从 72 变到 256), 实测�
 反过来 max 口径在 12 个 m-group 的 bs8192 上吻合得好得多。两个口径各自命中一半实测点,
 没有哪一个能同时解释三点 —— 要分开只能补一个扫 m 的 run (固定 m-group 数)。
 
-**连带影响**: 访存量申报 (`rank_results["traffic_bytes"]` 的 `gm_to_l1` 一项) 从 A+B 降为
+**连带影响**: 访存量统计 (`rank_results["traffic_bytes"]` 的 `gm_to_l1` 一项) 从 A+B 降为
 max(A,B) —— 它是按载入相位时长折算的。统计访存量时要记得这一点。
 
 ---
 
 ## 信道模型已停用 (2026-10-03)
 
-速率服务器那一层整体移除, 只保留 `Event.channel_bytes` 的字节申报 (汇总在
+速率服务器那一层整体移除, 只保留 `Event.channel_bytes` 的访存量统计 (汇总在
 `rank_results["traffic_bytes"]`, 不参与准入、不影响时长)。理由与影响见 README 的
 "带宽争用"一节。
 
@@ -423,7 +423,7 @@ dispatch 的名字去掉核号后仍然唯一, 因为行区间按核互不重叠
 就比 kernel 还快。**粒度本身是个要扫的维度**, 这是预切掩盖掉的东西。
 
 `"kernel"` 模式逐位复现: 40 个基准用例的事件名、起止时刻、落核完全一致 (指纹变化只来自
-建图序字段 `order`)。行守恒由建图器原有的 `contributed_rows == required_rows` 校验看着,
+建图序字段 `order`)。行守恒由建图代码原有的 `contributed_rows == required_rows` 校验看着,
 `tests/test_dispatch_partition.py` 把四种切法都约束。
 
 ---
@@ -463,7 +463,7 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 `.lg/.ld/.cb/fix` 几个相位事件。这些事件**不持核资源** —— 它们代表同一个核里不同引擎
 (MTE / Cube / Fixpipe) 的工作, 在时间上重叠, 各自独占核资源就等于没拆。它们"属于哪个核"
 靠名字里写死核号的按核计数信号量 (`QUEUE:mte_aic:c7`) 记着, 而晚绑定下核号到派发时刻
-才定, 于是回填不了 —— 工作在 3 号核跑、L1 槽从 7 号核扣, 约束悄悄失效 (墙钟偏快)。
+才定, 于是回填不了 —— 工作在 3 号核跑、L1 槽从 7 号核扣, 约束悄悄失效 (总时长偏快)。
 原先 `model.py` 直接拒绝两者同用, 于是"精细流水"与"有活不空闲"二选一。
 
 补齐方式: **核组** (`Event.core_group = (组名, 角色)`)。同一个 tile 的几个相位编成一组,
@@ -524,7 +524,7 @@ dispatch_partition="rows", t_call_oh_us=1.006:
     差的是**别的阶段有没有同时在挤带宽**。
 
 所以 COMBINE 时长的主要变化来自**带宽争用**, 不是落点跨度, 也不是 tile 的 m。本模型
-按资源独占排程、不建模带宽争用, 因此:
+按资源独占调度、不建模带宽争用, 因此:
 
   * tile 公式对标**最快**那条 tile (没被挤住的那条) —— `BW_REMOTE_WRITE` 就是这么从
     31000 (假设) 改到 8600 (实测反扣) 的, 见 `config/hardware.py`;
@@ -536,7 +536,7 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 
 ### 两处偏置, 别拿这个参数当免费收益
 
-1. 写侧系数不填, 两种布局的时长就完全一样 (只有申报的跨度不同)。按上面的修订这
+1. 写侧系数不填, 两种布局的时长就完全一样 (只有统计的跨度不同)。按上面的修订这
    **大概是对的**, 不再当作已知欠账。
 2. 读侧**完全没建模**: UNPERMUTE 现在是"字节量 / BW_UNPERMUTE_AGG"一个除法
    (`builders/base.py`), 与落点布局无关。所以填了系数之后 `expert_contiguous` 会显得
@@ -562,7 +562,7 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 
 实测 9216/3 专家/28 核 (规格 Cube 速率, 缺省晚绑定):
 
-| 粒度 | combine 事件数 | 忙碌合计 | 墙钟 |
+| 粒度 | combine 事件数 | 忙碌合计 | 总时长 |
 | --- | ---: | ---: | ---: |
 | `per_tile` | 60 | 305.34 us | **315.63 us** |
 | `per_expert` | 3 | 303.86 us (−0.5%) | 411.83 us (**+30.5%**) |
@@ -583,7 +583,7 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 
 ### 毛病出在哪
 
-粒度 (一个事件覆盖多少份该 stage 的自然工作单元) 是**五个 stage 共有**的编排维度。
+粒度 (一个事件覆盖多少份该 stage 的基本工作单元) 是**五个 stage 共有**的编排维度。
 补齐前它被拆成了五个各自为政、名字都不一样的东西, 而且其中三个根本没有:
 
 | stage | 补齐前由什么定 | 可配? |
@@ -595,7 +595,7 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 | combine | `combine_granularity` | 可配 |
 
 `combine_granularity` 是缺口 11 的产物 —— 为回答**一个具体问题** (combine 能不能挪到
-另一个向量角色、逐专家做一遍) 就地加的专用参数。dispatch 那三个更早, 为对齐 trace
+另一个向量角色、每个专家做一遍) 就地加的专用参数。dispatch 那三个更早, 为对齐 trace
 加的。GMM1 / ACT / GMM2 的粒度从来没人问过, 所以一直写死。
 
 这是"参数定义"那个毛病的另一种形态: 上一次是**用"等于某实现"定义取值**, 这一次是
@@ -645,7 +645,7 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 
 一个事件只能落一个核, 项数少于核数就有核闲着。确定性夹具 (28 核) 实测:
 
-| 粒度 | 事件数 (gmm1/act/gmm2/combine) | 墙钟 |
+| 粒度 | 事件数 (gmm1/act/gmm2/combine) | 总时长 |
 | --- | --- | --- |
 | 全 1 (缺省) | 40 / 40 / 240 / 120 | 245.967 |
 | gmm1=2 | 21 / 21 / 240 / 120 | 408.812 |
@@ -678,27 +678,27 @@ tile 数远多于核数) 上 `gmm2=2` 从 1751.48 快到 **1741.46** —— 省�
 | 物理事实 | 一次乘加占 Cube 一拍; 一个字节占带宽一次; 依赖链上的事不能并行 | 无关 |
 | 硬件事实 | 每核 Cube 速率、每核载入带宽、聚合 HBM、可用核数 (规格值) | 无关 |
 
-    墙钟 >= max(算力下界, 带宽下界, 依赖下界)
+    总时长 >= max(算力下界, 带宽下界, 依赖下界)
 
 带宽下界的速率取 `min(每核带宽 x 核数, 聚合 HBM)` —— 两个都是硬件规格, 谁小谁管。
 下界**不是预测**: 换编排它不变, 所以它是用来检查编排结果的尺子。
 
 ### 它立刻抓出两处漏账
 
-**漏账 1: GMM2 的权重流进了时长公式却没进字节申报。**
-`builders/gmm2.py` 只申报 `a_gm` (激活), 不申报 B 流 (`k2 x cols` 的权重);
-GMM1 两条都申报 (`a_bytes + b_bytes`)。于是 (examples/scenario_basic.toml):
+**漏账 1: GMM2 的权重流进了时长公式却没进访存量统计。**
+`builders/gmm2.py` 只统计 `a_gm` (激活), 不统计 B 流 (`k2 x cols` 的权重);
+GMM1 两条都统计 (`a_bytes + b_bytes`)。于是 (examples/scenario_basic.toml):
 
-    模型申报 gm_to_l1 = 1660.9 MB
+    模型统计 gm_to_l1 = 1660.9 MB
     算法必搬          = 2420.1 MB     差 759.2 MB (≈ GMM2 权重 805.3 MB)
 
-**申报量低于算法下界在物理上不可能**, 所以这是漏账, 不是口径差异。
+**统计量低于算法下界在物理上不可能**, 所以这是漏账, 不是口径差异。
 
 **漏账 2: 相位流水下载入相位不占任何资源。**
-信道模型 2026-10-03 停用后 `channel_bytes` 只做申报、不参与准入, 所以拆相位把载入从
+信道模型 2026-10-03 停用后 `channel_bytes` 只做统计、不参与准入, 所以拆相位把载入从
 Cube 的账上挪走, 却没挪到任何别的账上 —— 512 个载入可以无限并行:
 
-    rank0 墙钟 1221.797us 低于物理下界 1665.368us (26.6%), 被穿透的是 bandwidth 界
+    rank0 总时长 1221.797us 低于物理下界 1665.368us (26.6%), 被穿透的是 bandwidth 界
     (算力 25.6 / 带宽 1665.4 / 依赖 7.4)
 
 所以"相位流水省 30.24%"**不是收益, 是把搬运算成了免费**。golden 里
@@ -715,8 +715,8 @@ Cube 的账上挪走, 却没挪到任何别的账上 —— 512 个载入可以�
 
 ### 两处都已修掉 (2026-10-05)
 
-**漏账 1 的修法**: `builders/gmm2.py` 补上 B 流字节申报 (`b_gm = Σ k2·cols`), 与 GMM1
-对称。修后 scenario_basic 申报 2466.3MB >= 算法必搬 2420.1MB (比值 1.019 —— 高于下界是
+**漏账 1 的修法**: `builders/gmm2.py` 补上 B 流访存量统计 (`b_gm = Σ k2·cols`), 与 GMM1
+对称。修后 scenario_basic 统计 2466.3MB >= 算法必搬 2420.1MB (比值 1.019 —— 高于下界是
 对的: 模型按 tile 读权重, 多个 m-group 各读一次)。
 
 **漏账 2 的修法不是口径选择, 是补一条硬件事实**: **一个 AI Core 只有一条 MTE2 管道**
@@ -729,7 +729,7 @@ Cube 的账上挪走, 却没挪到任何别的账上 —— 512 个载入可以�
 
 两处都要占: GMM1 的 `.ld` (`pipeline_expand._expand_gmm1`) 与 GMM2 的载入份额
 (`_annotate` 现在拆出前置 `.ld`)。只修 GMM1 不够 —— GMM2 的载入原先整段裹在 AIC 事件里,
-等于给每个核**第二条载入管道**, 修完 GMM1 之后墙钟仍穿透 26.6%。
+等于给每个核**第二条载入管道**, 修完 GMM1 之后总时长仍穿透 26.6%。
 两处都占之后载入并发上限 = 核数, 聚合载入带宽自动不超过 `核数 x BW_L1_GM`,
 带宽下界由构造满足, **不需要恢复速率服务器**。
 
@@ -763,7 +763,7 @@ meta["compute_us"]、丢掉 gmm2_problem_startup_us"那一版的数。补回那�
 ## 顺带修掉的一个值: combine 的 metaInfo 字节
 
 原先写死 8B/行, 既不是算法下界也不是任何实现的取值 (同一个仓库里 dispatch 侧早就按 32B
-算了)。现在是申报参数 `KernelConfig.combine_meta_bytes_per_row`:
+算了)。现在是统计参数 `KernelConfig.combine_meta_bytes_per_row`:
 
 | 取值 | 含义 |
 | --- | --- |
@@ -783,7 +783,7 @@ meta["compute_us"]、丢掉 gmm2_problem_startup_us"那一版的数。补回那�
 1. **只有一条边真消费它。** 读它的只有 `builders/gmm2`(activation→gmm2)。
    `gmm1→activation` 上 `effective_gmm1_act_link` 把它透传, 但没有任何消费者 ——
    在那儿写非缺省值**静默无效**。实测: 固定形状静态钉核, 只改 gmm1→activation 的
-   readiness (0/1/2/5), 事件数恒 271、墙钟逐位相同; 改 activation→gmm2 则
+   readiness (0/1/2/5), 事件数恒 271、总时长逐位相同; 改 activation→gmm2 则
    0→943、2→367、5→655 个事件。
 2. **`0` 的语义与别的参数相反。** `granularity` 的 `0`=整片、`dispatch_rows_per_item`
    的 `0`=沿用 tiling, 而 readiness 的 `0`=最细。
@@ -800,7 +800,7 @@ meta["compute_us"]、丢掉 gmm2_problem_startup_us"那一版的数。补回那�
 `analysis/sensitivity.UNCERTAIN_INPUTS`。缺省 0 之下"分得越细越不差"是模型的结构偏置,
 与晚绑定不计取活开销 (R7) 同一类。
 
-### 墙钟对段数**不单调** —— 这是读 readiness 扫描结果的前提
+### 总时长对段数**不单调** —— 这是读 readiness 扫描结果的前提
 
 同一夹具 (uniform 2x4x128, aic=28), 只改 readiness:
 
@@ -811,22 +811,22 @@ meta["compute_us"]、丢掉 gmm2_problem_startup_us"那一版的数。补回那�
 
 两件事:
 
-- **静态钉核下七个档完全相等**: 墙钟由各核的工作量定, GMM2 的等待不在关键路径上 ——
+- **静态钉核下七个档完全相等**: 总时长由各核的工作量定, GMM2 的等待不在关键路径上 ——
   分段既不赚也不亏。所以"分段有收益"这个结论本身依赖晚绑定。
 - **晚绑定下均分 3 段比 2 段差 2.5us (+1.0%), 4 段又回到 2 段的值**。成因是贪心表调度
-  对事件集合的 Graham 异常 (同一现象: 给 `act_gmm2_ready_us` 加 0.01us 的扰动能让墙钟
+  对事件集合的 Graham 异常 (同一现象: 给 `act_gmm2_ready_us` 加 0.01us 的扰动能让总时长
   动 −2.81%), 不是分段本身有代价。**所以 readiness 扫出来的几个百分点, 只在同一绑定
   方式下、且差值大于这类抖动时才可读**; `WorkConservingCriticalPath` 下这类抖动消失。
 
-测试把这两条都约束了 (`tests/test_readiness.py`): 静态钉核断言"墙钟不增", 晚绑定那条
+测试把这两条都约束了 (`tests/test_readiness.py`): 静态钉核断言"总时长不增", 晚绑定那条
 只记事实 —— 断言 3 段确实比 2 段差, 以免哪天有人把它当成容差抹平。
 
 ---
 
-## 空约束: 一个改不了墙钟、却改得了"给模型打分的那个数"的机制 (2026-10-08)
+## 空约束: 一个改不了总时长、却改得了"给模型打分的那个数"的机制 (2026-10-08)
 
 起因是一个直接在调度器上做的实验: 自取自还的 token(同一个事件 acquire 又 release)
-容量 1 与 2,排程**逐位相同**;而跨事件持有的 token(A 取、B 还)容量 1 与 2 是
+容量 1 与 2,调度**逐位相同**;而跨事件持有的 token(A 取、B 还)容量 1 与 2 是
 25.0 vs 20.0,**真的咬**。
 
 ### 判据(一条定理,不是口味)
@@ -839,7 +839,7 @@ meta["compute_us"]、丢掉 gmm2_problem_startup_us"那一版的数。补回那�
 
 **第 2 条不能省。** `.ld` 相位(GM→L1 载入)也是自取自还的 `MTE2:c7`,但它
 `resources=()` —— 那一个是真约束,是"一个 AI Core 只有一条 MTE2"在图里的唯一表达,
-删掉载入就能无限并发,墙钟会低于带宽下界 26.6%(见本文件「下界与漏账」)。
+删掉载入就能无限并发,总时长会低于带宽下界 26.6%(见本文件「下界与漏账」)。
 只按"自取自还"删会把它一起删掉。
 
 分类(`tests/test_capacity_tokens.py` 逐条约束):
@@ -861,13 +861,13 @@ meta["compute_us"]、丢掉 gmm2_problem_startup_us"那一版的数。补回那�
 
 ### 为什么必须删,而不是留着当记账
 
-它改不了任何事件的起止(实测:把容量抬到 10⁹,四个配置排程逐位相同;删掉之后 40 个
+它改不了任何事件的起止(实测:把容量抬到 10⁹,四个配置调度逐位相同;删掉之后 40 个
 golden 指纹**零 diff**),却会改 `ScheduledEvent.actionable_us` —— engine 对带
 `acquires` 的事件要走 `capacity_feasible`,于是"等我自己的核空出来"从后门被算进了
 `actionable_us`。而 `actionable_us` 的契约是**不含**这一关(那一关正是
 `analysis/idle.py` 判 work-conservation 的依据)。后果:
 
-| uniform 2×4×128, aic=28 | 墙钟 | `R0.AIC` 的 `avoidable_idle_us` |
+| uniform 2×4×128, aic=28 | 总时长 | `R0.AIC` 的 `avoidable_idle_us` |
 | --- | ---: | ---: |
 | 静态钉核 · 删之前 | 289.065 | **0.0** |
 | 静态钉核 · 删之后 | 289.065(逐位相同) | **1454.67 核·µs** |

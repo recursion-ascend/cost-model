@@ -56,7 +56,7 @@ OBS, 没能直接打开官方 PDF。拿到原件请核对 Cube/Vector 的算力�
 | `TOTAL_L1_SIZE` / `TOTAL_L0C_SIZE` / `VEC_REG_WIDTH` | 容量检查走 `KernelConfig.l1_size` 等可覆盖字段 |
 | `T_INIT_US` / `T_INPUT_QUANT_FIXED_US` / `T_INPUT_QUANT_PER_TOKEN_US` / `T_CALL_OH` | 这些阶段不在 `kernel_total_us` 口径内 |
 | `T_FILL_GMM1` (=0) | `Calibration` 的同名字段 |
-| `BW_SCATTER` | 不进任何公式、不进任何申报, 只留复现记录 |
+| `BW_SCATTER` | 不进任何公式、不进任何统计, 只留复现记录 |
 
 **二、公式读不到, 但 `tools/compile_manifest.py --check` 读得到** —— 它们是对 C++ 源码的
 断言, 改了对账失配 (退出码 1):
@@ -71,5 +71,5 @@ OBS, 没能直接打开官方 PDF。拿到原件请核对 Cube/Vector 的算力�
 
 `SCALE_TRANSFER_BYTES` 进 `select_kl1` 的容量判据 (`units * scale_a <= SCALE_TRANSFER_BYTES`
 与同式的 `scale_b`)。改小它, 部分 tile 的 kL1 从 512 掉回 256 (`select_kl1(120, 2048)`),
-GMM2 沿 K 的分段数随之翻倍 —— 一个分段就绪的形状上事件数 563 → 947, 墙钟不变
+GMM2 沿 K 的分段数随之翻倍 —— 一个分段就绪的形状上事件数 563 → 947, 总时长不变
 (段多了但依赖都已满足)。后果在事件图里, 不在 `total_us` 上。

@@ -54,9 +54,9 @@ ok, t_cap = capacity_feasible(ev, t)
 槽)。所以 ③ 能造成真正的空闲, 而 ② 不能。
 
 **持核事件上自取自还的 token 与 ② 等价**, 不额外产生空闲 —— 那种 token 已由
-`scheduler/normalize.py` 在建图后删掉: 它改不了排程, 却会把"等我自己的核"算进
+`scheduler/normalize.py` 在建图后删掉: 它改不了调度, 却会把"等我自己的核"算进
 `actionable_us`, 于是本该算 avoidable 的空闲被算成 forced (2026-10-08 实测: 静态钉核
-28 核, R0.AIC 的 avoidable 由 0.0 变成 1454.67 核·µs, 排程逐位未变)。
+28 核, R0.AIC 的 avoidable 由 0.0 变成 1454.67 核·µs, 调度逐位未变)。
 所以 ③ 现在只由**真的**计数信号量造成: 跨事件持有的 `UB:gmm1act` / `QUEUE:mte_aic`,
 以及不持核资源的执行单元 `MTE2` / `FIXPIPE` / `MTE_AIV`。
 
@@ -196,6 +196,6 @@ GMM2 的 K 轴就是 GMM1 切分的那个 N 轴 (`k_gmm2 = hidden_dim / activati
 | 双池晚绑定 + 关键路径 | 5455.0 | 64.0% | 3071.7 | **0** | 304.5 us |
 
 `busy` 三行完全相同 —— 晚绑定只换"哪个核做", 不改工作量。`avoidable` 清零后它转成了
-`forced` (那段时间确实没有已就绪的活), 同时墙钟下降。
+`forced` (那段时间确实没有已就绪的活), 同时总时长下降。
 
 缺口编号见 `design_space_gaps.md`。

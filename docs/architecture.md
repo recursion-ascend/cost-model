@@ -29,14 +29,14 @@ Workload (token/专家/路由)
 
 仓内两份实现各有身份与**源码依据** (`source_refs` 指向真实文件, 有测试核对路径存在):
 
-| 实现 id | 源码 | 建图器 |
+| 实现 id | 源码 | 建图代码 |
 | --- | --- | --- |
 | `ascend950.megamoe.a8w8_wave.v1` | `mega_moe_wave_a8w8.h` | `builders/mte.py` |
 | `ascend950.megamoe.layered.v1` | `mega_moe_layered.h` | `builders/layered.py` |
 
 场景文件里 `orchestration = "ascend950.megamoe.layered.v1"` 或旧名 `"layered"` 都可以, 两种
-拼法现在**同值** —— 之前 `"layered"` 只换建图器而波计划仍按 `topo_urma` 分支, 得到"Layered
-建图器 + m-group 波宽"这种错配组合。
+拼法现在**同值** —— 之前 `"layered"` 只换建图代码而波计划仍按 `topo_urma` 分支, 得到"Layered
+建图代码 + m-group 波宽"这种错配组合。
 
 **每条结果自带身份**: `rank_results[i]["implementation"]` 给出实现 id、源码依据、编译指纹、
 编译点的一行描述、执行时间记到哪个 stage、以及运行拓扑。一个时长数字不再能脱离"哪份 kernel、
@@ -59,7 +59,7 @@ kernel 自己的 tiling key 只编码 5 个轴 (`mega_moe_tiling_key.h`), 而 `T
 |---|---|---|
 | `EPILOGUE_TILE_M = TopkWeightsPrefetch ? 128 : 256` | `mega_moe_arch35.h:161` | `config.hardware.epilogue_tile_m`; ACT 按行块拆成两个事件 |
 | AIC 落 GM + 置 `gmm1TileStatus`, AIV 等 GM 标志再 `CopyGM2UB` | `stage/mega_moe_gmm1_activation.h:618-645, 405-460` | `config.links.effective_gmm1_act_link`: 这条边 location="gm"、depth=0、同核不再是硬件强制 |
-| 每个行块一次 topk 权重 GM→UB 读 (m × `META_INFO_SIZE` × int32) | 同文件 349/419 | `AnalyticalActCosts.readback_bytes`, 申报到 `act_readback` 通路 |
+| 每个行块一次 topk 权重 GM→UB 读 (m × `META_INFO_SIZE` × int32) | 同文件 349/419 | `AnalyticalActCosts.readback_bytes`, 统计到 `act_readback` 通路 |
 
 行块减半的原因是 UB 容量: prefetch 要多留一块 topk 权重缓冲
 (`block_epilogue_activation_mx_quant.h:184` 的 `weightUb_`, 只在 prefetch 下分配)。
@@ -71,12 +71,12 @@ GMM2 按行相交把两个行块都取到。
 **时长口径**: 读回与向量计算串行相加 (kernel 在 `CopyGM2UB` 之后紧跟
 `SetFlag/WaitFlag<MTE2_V>` 才进 epilogue), 带宽取 `BW_LOCAL_GM`。**仓内没有 prefetch
 路径的实测**, 所以这一项是按物理口径算的, 不是标定值。GMM1 侧的 Fixpipe 写出在两种落点下
-都不进时长公式 —— 只申报字节, 不动时长。手工拼的 `PrimitiveCosts` 不描述读回时, 开 prefetch
+都不进时长公式 —— 只统计字节, 不动时长。手工拼的 `PrimitiveCosts` 不描述读回时, 开 prefetch
 会直接报错而不是按"读回免费"算。
 
 模型给出的差值 (golden 的 `mte_topk_prefetch` vs 同形状的 `mte_3wave_lag2`):
 
-| | 墙钟 | 事件数 | `hbm_write` | `act_readback` | AIC forced idle |
+| | 总时长 | 事件数 | `hbm_write` | `act_readback` | AIC forced idle |
 | --- | --- | --- | --- | --- | --- |
 | 关 | 600.93 µs | 1252 | 25.4 MB | — | 1669.2 核·µs |
 | 开 | 591.50 µs (−1.6%) | 1348 | 50.5 MB | 26.0 MB | 462.2 核·µs |
@@ -99,7 +99,7 @@ python tools/compile_manifest.py --check     # 失配则退出码 1
 
 为什么需要它: 注释与源码脱钩不会报错, 对账会。以 `BlockSchedulerSwizzle` 的模板实参为例,
 `common/mega_moe_gmm_common.h:33` 写的是 `<3, 0>`, 若 `KernelConfig.swizzle_direction` 与它
-不一致, m 组 > 1 时模型的 GMM tile 遍历顺序相对 kernel 是 M/N 转置的, 墙钟差 **+5.0%**。
+不一致, m 组 > 1 时模型的 GMM tile 遍历顺序相对 kernel 是 M/N 转置的, 总时长差 **+5.0%**。
 测试里有一条把源码树复制出去只改那一个模板实参, 断言对账能抓到。
 
 派生关系不丢: `L1_TILE_M_256 = MEGAMOE_TILE_M` 解到 256, `248U * 1024U` 折成 253952。
@@ -141,13 +141,13 @@ python tools/compare_trace_structure.py --run bs128
 `validation/invariants.py` 用 IR 的词表写了 7 条结构不变量 (缓冲槽取还配对且同核、执行单元
 容量为 1、共位同核、名字唯一/边存在/无自环、搬运两端已知、零时长不占执行单元), 每条都带
 **反例会怎样** —— 因为这些失效是静默的: 取还不配对会让台账漂, 约束悄悄失效, 表现是更快的
-排程而不是报错。每条都有反例测试, 两份实现的真实图都过。
+调度而不是报错。每条都有反例测试, 两份实现的真实图都过。
 
 `validation/trace.py` + `compare.py` 读实测 trace 并做**结构**对账。先说清能比什么:
 
 | 维度 | 能否比 |
 | --- | --- |
-| 波数 / 逐专家分布形状 / 核覆盖 / 条数比是否逐专家一致 | 能 |
+| 波数 / 每个专家分布形状 / 核覆盖 / 条数比是否每个专家一致 | 能 |
 | 搬运字节 | **不能** —— trace 的 args 只有 rank/local_id/payload/cycles/wave/expert |
 | buffer 生命周期 | **不能** —— 只有等待事件这个影子, 没有槽位取/还 |
 
@@ -156,7 +156,7 @@ python tools/compare_trace_structure.py --run bs128
 * **8 个 trace 文件被截断** (两个 bs8192 run 的全部 rank, 都在 7602176 字节处断在记录中间 ——
   同一个字节数, 是采集侧写入上限)。读取器按记录边界救回前面的完整记录并**标记**截断,
   否则"事件数比模型少"会被当成模型的问题。
-* **实测 tile 数是模型的 4 倍 (GMM1/ACT) 与 2 倍 (GMM2/COMBINE)**, 逐专家一致, 波数两边都对。
+* **实测 tile 数是模型的 4 倍 (GMM1/ACT) 与 2 倍 (GMM2/COMBINE)**, 每个专家一致, 波数两边都对。
   两边都按 tile 计数 (kernel 的 `MOE_PROFILE_BEGIN` 带 `ProfileTile(mLoc,nLoc)`), 而模型的
   每 m-group tile 数与 kernel 自己的公式**完全一致** (hidden=4608 时 GMM1 是 9, h=5120 时
   GMM2 是 20), 所以差在"每专家几个 m-group"。候选: 采集含多轮 (`config.json5` 里 warmup: 3,

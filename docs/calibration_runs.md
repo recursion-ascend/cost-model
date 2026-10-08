@@ -8,7 +8,7 @@
 * **一次只动一个变量。** 本仓在搬运口径上栽过两次 —— 先据 bs36 与 bs8192 把载入改成
   `max(A,B)`, 又被 bs128 推翻, 原因就是那两个 run 里 **m 与"每专家 m-group 数"一起变**。
   清单里每一项都显式写出"必须固定"的那些量。
-* **trace 要逐事件带 `dur`** (现有 20260930 的 run 就是这个格式: `GMM1·wN` / `GMM2·wN` /
+* **trace 要每个事件带 `dur`** (现有 20260930 的 run 就是这个格式: `GMM1·wN` / `GMM2·wN` /
   `ACT_QUANT·wN` / `COMBINE` / `DISPATCH_XFER` / `DISPATCH_LOCAL`, 以及 `WAIT_*`)。
   取**中位数**而不是均值, 并同时记 p10/p90 —— 首波常含流水填充, 要能看出来。
 * **记下并发核数。** 同一个量在不同并发下不是一个数 (见 R2), 所以每个 run 都要能数出
@@ -115,7 +115,7 @@
 
 实测这个偏置有多大 (examples/scenario_basic.toml, 28 核):
 
-| 取活开销 | 墙钟 | 对静态分核 |
+| 取活开销 | 总时长 | 对静态分核 |
 | --- | --- | --- |
 | 静态分核 | 1751.48 | +0.00% |
 | 0 (缺省) | 1727.97 | **-1.34%** |
@@ -135,7 +135,7 @@
 1. 静态分核版: 每核按 block 号算出自己的 tile 列表 (= 那份实现的 `startBlockIdx` 轮转);
 2. 动态取活版: 一个 GM 上的共享游标, 每核循环 `atomic_add(cursor, 1)` 取下一个 tile。
 
-两版的墙钟差 = (晚绑定省下的等待) - (取活开销 x 取活次数)。取活次数已知 (= tile 数),
+两版的总时长差 = (晚绑定省下的等待) - (取活开销 x 取活次数)。取活次数已知 (= tile 数),
 所以一次差分就能把 `late_bind_fetch_us` 反解出来。
 **要点**: 第 2 版必须跑在 tile 数远多于核数的形状上, 否则取活次数太少, 开销被噪声盖住。
 
@@ -164,16 +164,16 @@
   又会让这个本该与载荷无关的量带上尺寸依赖 (与 `PipelineConstraints.sync` 同一个坑);
 - 形状要选 K 块数远多于 1 的 (块数 = ceil(K / kL1)), 否则两版的段数一样, 差分为 0。
 
-反解: 墙钟差 = (细分段省下的等待) - segment_sync_us x (多出来的段数), 段数两版都已知。
+反解: 总时长差 = (细分段省下的等待) - segment_sync_us x (多出来的段数), 段数两版都已知。
 
 ---
 
 ## 做完之后怎么确认模型真的准了
 
-1. `python tools/compare_measured.py <run_dir> examples/<run>.toml` 逐 stage 看偏差
+1. `python tools/compare_measured.py <run_dir> examples/<run>.toml` 每个 stage 看偏差
    (两个都是位置参数, 没有 `--scenario`);
 2. 六个 `examples/*.toml` (现有三个 batch x shared/noshared) 全部跑一遍, 记下每个 stage 的
-   `stage_busy_us` 偏差与墙钟偏差;
+   `stage_busy_us` 偏差与总时长偏差;
 3. 偏差写进 `README.md` 的"精度边界"一节, **带上标定域** —— 域外的结论不作数。
 
 ## 现有六个 run 能定什么、不能定什么

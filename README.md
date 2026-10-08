@@ -17,7 +17,7 @@ profiler 的事。
 | 每核的执行单元 | 一个 AI Core 一条 MTE2 (GM→L1)、一条 Cube、一条 FixPipe; 一个 AIV 一条 MTE、一条 Vector。各为容量 1, 所以同核上这些单元不会被凭空并行 |
 | 片上容量 | L1 / UB / L0C 容量与缓冲槽数。GMM1 到激活的 UB 槽按"取了才能用、还了才空出来"记账: 槽没还回来, 新的 GMM1 落不进去, 即使核是空的 |
 | 搬运带宽 | 七条通路分开计时, 取值见下表 |
-| 跨卡通信 | dispatch 的窗口排空、combine 的跨卡写, 按字节与带宽计时; 通路可选串行化 |
+| 跨卡通信 | dispatch 的窗口排空、combine 的跨卡写, 按字节数与带宽计算时间; 通路可选串行化 |
 | 同步 | stage 之间三条依赖边上可填同步延迟; 片上缓冲的取与还跨事件持有 |
 | 工作到核的分配 | 编译期静态分核 (复现某实现的 `startBlockIdx` 轮转) 与派发时刻动态取活, 两种都能模拟 |
 | 波推进 | 分波、波偏移、波间配速、分段栅栏 |
@@ -117,11 +117,11 @@ colocate_with    必须与哪个具名事件落同一个核 (如 Fixpipe 直给�
 duration_us      时长, 由闭式物理公式给出
 ```
 
-这五样就是模拟器的表达能力上界: 表达不出来的约束, 它不声称。
+这五样就是模拟器能表达的全部约束 —— 表达不出来的东西, 它不声称自己算了。
 
 ### 一个事件代表多少工作
 
-这决定模拟能分辨到多细。缺省下一个事件 = 一个自然工作单元:
+这决定模拟能分辨到多细。缺省下一个事件 = 一个基本工作单元:
 
 | stage | 一个事件 | 缺省事件数来源 |
 | --- | --- | --- |
@@ -149,25 +149,25 @@ duration_us      时长, 由闭式物理公式给出
 具体写法)在这个模拟器上评估不出来 —— 它能分辨的最小差异是"某个 tile 的某个相位早了
 或晚了多少"。
 
-排程是贪心表调度。每个就绪事件先取 `max(前置都结束了, 我要的资源空出来了)`, 再沿信号量
-未来的归还时刻找最早可准入点, 从就绪集里取最早能开始的提交; 墙钟是最后一个事件的结束
+调度是贪心表调度。每个就绪事件先取 `max(前置都结束了, 我要的资源空出来了)`, 再沿信号量
+未来的归还时刻找最早能开始的时刻, 从就绪集里取最早能开始的提交; 总时长是最后一个事件的结束
 时刻。事件时长由公式给 (GMM tile = `max(载入, 计算)`), **与并发无关** —— 并发、排队、
-空闲全是排程的产物。
+空闲全是调度的产物。
 
 资源名里允许写池占位符, 这时具体哪个核在**提交那一刻**才定, 取"核空出来"与"该核的槽可用"
 两者取最小的那个核。这就是动态取活的模拟方式。
 
 每次运行同时做两项检查:
 
-- **物理下界**: 算力、带宽、最长依赖链三条取最大, 墙钟低于它直接抛 `BoundViolation`。
+- **物理下界**: 算力、带宽、最长依赖链三条取最大, 总时长低于它直接抛 `BoundViolation`。
   `examples/scenario_basic.toml` 上三条分别是 25.57 / 1665.37 / 68.06 µs, 带宽绑定,
   模拟结果 1751.48 µs。
 - **工作守恒**: 核空闲分成"没有就绪的活"与"有就绪的活却有核空着"。后者在动态取活下要求
   恒为 0; 不为 0 说明这个方案的时长偏慢, 该方案的收益不能与别的方案直接比。
 
-## 逐 stage 怎么建模
+## 每个 stage 怎么建模
 
-五个 stage 各自的时长公式、占用的资源、依赖的前置、申报的字节。公式在 `costs.py`,
+五个 stage 各自的时长公式、占用的资源、依赖的前置、统计的字节。公式在 `costs.py`,
 建图在 `builders/`。
 
 ### dispatch
@@ -179,7 +179,7 @@ duration_us      时长, 由闭式物理公式给出
 | 资源 | AIV1 的一个核 (角色可配); 开了 `serialize_dispatch_comm` 时还独占跨卡通道 |
 | 依赖 | 缺省无前置; `dispatch_pacing` 可让它等前 w 波的 combine |
 | 产出 | 每个 (波, 专家, m-group) 一个零时长的就绪标记, GMM1 依赖它 |
-| 申报字节 | `dispatch_read` / `dispatch_write`; 跨卡部分再记 `fab_src` / `fab_dst` |
+| 访存量统计 | `dispatch_read` / `dispatch_write`; 跨卡部分再记 `fab_src` / `fab_dst` |
 | 每核一次的开销 | `t_call_oh_us` 缺省 0 (实测参考 `T_CALL_OH` = 1.006 µs); 动态取活下由该核本波第一段承担 |
 
 ### GMM1
@@ -192,7 +192,7 @@ duration_us      时长, 由闭式物理公式给出
 | 资源 | AIC 的一个核 |
 | 容量 | 取一个 GMM1→激活的 UB 槽 (`StageLink.depth`), 由配对的激活事件归还 |
 | 依赖 | 该 (专家, m-group) 的 dispatch 就绪标记 |
-| 申报字节 | `gm_to_l1` (A 流 + B 流); 开了 topk 预取时再记 `hbm_write` (输出改落 GM) |
+| 访存量统计 | `gm_to_l1` (A 流 + B 流); 开了 topk 预取时再记 `hbm_write` (输出改落 GM) |
 
 ### 激活 (SwiGLU + MX 量化)
 
@@ -203,7 +203,7 @@ duration_us      时长, 由闭式物理公式给出
 | 资源 | AIV0 的一个核 (角色可配) |
 | 落核约束 | **必须与产它的 GMM1 同核** —— Fixpipe 的 L0C→UB 只在绑定对内存在。这条是硬件强制, 不是编排选择 |
 | 容量 | 归还 GMM1 取的那个 UB 槽 |
-| 申报字节 | `hbm_write` (量化输出写出); 开了 topk 预取时再记 `act_readback` (从 GM 读回 GMM1 输出 + 每行的路由元数据) |
+| 访存量统计 | `hbm_write` (量化输出写出); 开了 topk 预取时再记 `act_readback` (从 GM 读回 GMM1 输出 + 每行的路由元数据) |
 
 ### GMM2
 
@@ -213,7 +213,7 @@ duration_us      时长, 由闭式物理公式给出
 | 时长 | `max(载入, 计算)`。K = `hidden_dim / activation_n_half`; 载入 = B 流 `K2·cols` + A 流 `m·K2`(**A 流只在物化编排下存在**: 激活写 GM、GMM2 读回; 留片上时为 0); 计算 = `m·cols·K2 / cube_mac_per_us` |
 | 资源 | AIC 的一个核 |
 | 依赖 | 行范围相交、且列范围覆盖本段 K 的那些激活事件。建图时校验这些激活必须无缺口地覆盖整个 K, 否则报错 |
-| 申报字节 | `gm_to_l1`; 分段时按各段的 K 占比分摊 |
+| 访存量统计 | `gm_to_l1`; 分段时按各段的 K 占比分摊 |
 
 ### combine
 
@@ -223,12 +223,12 @@ duration_us      时长, 由闭式物理公式给出
 | 时长 | 三段相加: 读回 (整个 GMM2 tile 从 GM 读回 UB + 每行元数据, 走 `BW_LOCAL_GM`) + 本卡行写出 (`BW_LOCAL_GM`) + 跨卡行写出 (`BW_REMOTE_WRITE`); 跨卡行数由路由精确算出。落点跨度项 `scatter_us` 缺省系数 0 |
 | 资源 | AIV1 的一个核 (角色可配) |
 | 依赖 | 对应的 GMM2 末段; `per_expert` 下等该切片全部 GMM2 段 |
-| 申报字节 | `combine_read` (读回 + 元数据) + `hbm_write` (目的卡是本卡的行) + `fab_src` / `fab_dst` (跨卡) |
+| 访存量统计 | `combine_read` (读回 + 元数据) + `hbm_write` (目的卡是本卡的行) + `fab_src` / `fab_dst` (跨卡) |
 
 ### 尾段
 
 counts_export / core_sync / rank_sync / buffer_init / unpermute / finalize 都在事件图里
-照常排程并占资源, 但**不计入** `kernel_total_us`。共享专家的 GMM2 排在 core_sync 之后,
+照常调度并占资源, 但**不计入** `kernel_total_us`。共享专家的 GMM2 排在 core_sync 之后,
 因此也不在执行时间内。要含尾段看 `kernel_dag_end_us`。
 
 ## 输出解读
@@ -238,7 +238,7 @@ counts_export / core_sync / rank_sync / buffer_init / unpermute / finalize 都�
 | 字段 | 含义 |
 | --- | --- |
 | `kernel_total_us` | 最慢 rank 的执行时间, 记到最后一个 combine 结束 |
-| `kernel_dag_end_us` | 含尾段的结束时刻 (与实测整段墙钟对比时用) |
+| `kernel_dag_end_us` | 含尾段的结束时刻 (与实测整段总时长对比时用) |
 | `slowest_rank` / `scenario` | 最慢 rank 的号; 本次运行的场景对象 |
 | `provenance` | 全部常数的出处报告 |
 | `dispatch_ready_tiles` | 每个 (波, 专家, m-group) 的就绪时刻与依赖 |
@@ -247,7 +247,7 @@ counts_export / core_sync / rank_sync / buffer_init / unpermute / finalize 都�
 | `rank_results[r]["critical_path"]` | 关键路径事件链, 终点是最后一个 combine |
 | `rank_results[r]["bounds"]` | 三条下界、哪条绑定、`violation` |
 | `rank_results[r]["idle_decomposition"]` | 核空闲分解, 并逐段给出当时哪些核在空、哪些就绪事件在等 |
-| `rank_results[r]["traffic_bytes"]` | 逐通路访存量 |
+| `rank_results[r]["traffic_bytes"]` | 每条通路访存量 |
 | `rank_results[r]["stage_busy_us"]` | 各 stage 忙碌时长 |
 | `rank_results[r]["stage_dependency_wait_us"]` / `stage_resource_queue_us` | 各 stage 等数据 / 等引擎的时长 |
 | `rank_results[r]["stage_first_start_us"]` / `stage_last_end_us` | 各 stage 的首个开始 / 最后结束时刻 |
@@ -259,12 +259,12 @@ counts_export / core_sync / rank_sync / buffer_init / unpermute / finalize 都�
 | `rank_results[r]["implementation"]` | 这条结果的身份: 实现 id / 编译指纹 / 运行拓扑 / 计时终点 |
 
 执行时间不含尾段 (counts_export / core_sync / rank_sync / buffer_init / unpermute /
-finalize)。尾段事件仍在图里照常排程, 只是不计入。
+finalize)。尾段事件仍在图里照常调度, 只是不计入。
 
 通路名有语义, 不能混用: `gm_to_l1` 是 GMM 的 A 流 + B 流, `hbm_write` 是激活的量化输出
 与本卡 combine 行, `combine_read` 是 combine 读回 GMM2 tile 与路由元数据, `act_readback`
 只在开了 topk 预取时存在, `dispatch_read` / `dispatch_write` 是 dispatch 的本卡读写,
-`fab_src` / `fab_dst` 是片间。字节由建图器按算法逐项申报, **绝不从时长倒推**。
+`fab_src` / `fab_dst` 是片间。访存字节由建图代码按算法逐项累加, **绝不从时长倒推**。
 
 对比两个方案时: 先看 `kernel_total_us` 差值, 再看 `stage_busy_us` 哪个 stage 变了, 最后看
 `critical_path` 上卡在哪种等待。
@@ -297,14 +297,14 @@ python tools/compile_manifest.py --check     # 编译参数与 C++ 源码对账,
 
 | 手段 | 当前结果 |
 | --- | --- |
-| 与 profiler trace 的结构比对 | GMM1 54/54、激活 54/54、GMM2 60/60、combine 60/60, 条数比 1.00 且逐专家一致; 2/2 波、28/28 核 |
+| 与 profiler trace 的结构比对 | GMM1 54/54、激活 54/54、GMM2 60/60、combine 60/60, 条数比 1.00 且每个专家一致; 2/2 波、28/28 核 |
 | 编译参数与 C++ 源码对账 | 从 CMake、宏、`constexpr`、模板实参抽 23 项, 与模型侧对账 20 项 |
-| 时长误差 (标定域内 B≤128) | 逐 stage 忙碌 ±5%, 墙钟 −6% 至 −8% |
+| 时长误差 (标定域内 B≤128) | 每个 stage 忙碌 ±5%, 总时长 −6% 至 −8% |
 | 标定域外已知失效 | B=1024 时 combine 偏差 +114% 至 +246%, GMM1 高估 +4% 至 +10% |
-| 回归 | 40 个配置的调度指纹逐位锁定 (时长与排程、访存量、三条下界、常数出处), `python tools/gen_golden.py --check` 35 秒 |
+| 回归 | 40 个配置的调度指纹逐位锁定 (时长与调度、访存量、三条下界、常数出处), `python tools/gen_golden.py --check` 35 秒 |
 | 参数覆盖 | 每个可调参数在五个形状上分成生效 / 需对的形状 / 被拒 / 未建模, `python tools/knob_audit.py` |
 
-**一条方法限制**: 贪心表调度对输入不单调 —— 实测在一条依赖边上加 0.01 µs 让墙钟变化
+**一条方法限制**: 贪心表调度对输入不单调 —— 实测在一条依赖边上加 0.01 µs 让总时长变化
 −2.81%; 就绪粒度均分 3 段比 2 段差 1.0% 而 4 段又回到 2 段的值。所以**几个百分点以下的
 差值不能当有效差异读**, 必须同一绑定方式、同一调度策略, 且差值大于这类抖动。
 
@@ -389,7 +389,7 @@ moe-cost-model/
 │   │   ├── vocabulary.py        #   Engine / Pipe / MemorySpace / TokenKind / ...
 │   │   └── graph.py             #   classify_resource / classify_token / 图视图
 │   ├── validation/              # 校验与实测对账
-│   │   ├── invariants.py        #   7 条结构规则 (建图器必须满足的)
+│   │   ├── invariants.py        #   7 条结构规则 (建图代码必须满足的)
 │   │   ├── trace.py             #   Chrome Trace 读取 (容忍截断)
 │   │   └── compare.py           #   预测 DAG vs 实测 trace 的结构比对
 │   ├── model.py                 # 第 5 层: A8W8WaveCostModel 编排
