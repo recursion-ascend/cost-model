@@ -1263,6 +1263,10 @@ python tools/knob_audit.py --quiet    # 五个互补形状 x 全部旋钮
   信号量卡死 L1 缓冲深度)。证据: golden 的 `pipeline_engine_queue2` 与 `pipeline_split`
   指纹**逐位相同** —— 那个 case 从来什么都没测到。容量现在写死 1, 要表达"更深的队列"
   得先有发射开销这类物理后果, 模型里没有, 给个旋钮只会让扫描得出"深了也没用"的假结论。
+  **2026-10-08 补完了后一半**: 当时只删了旋钮, 没删那份空约束本身 —— 它改不了墙钟, 却
+  改了 `actionable_us`, 把静态钉核下 1454.67 核·µs 的可避免空闲报成了 forced。
+  现在由 `scheduler/normalize.py` 按一条定理无条件删掉 (判据、分类表与实测见
+  `docs/design_space_gaps.md` 的「空约束」一节)。
 * **`topk_weights_prefetch` 有两个出处, 其中一个没有读者。** 当时的处置是删掉
   `KernelConfig` 上那个 (硬门查的是 `ModelOptions` 的同名字段)。2026-10-06 改回来了,
   方向相反: 它是编译期宏 `MEGAMOE_TOPK_PREFETCH`, 本来就该待在编译点上, 而
@@ -1375,6 +1379,7 @@ moe-cost-model/
 │   ├── scheduler/               # 第 2 层: 通用离散事件调度引擎
 │   │   ├── events.py            #   Event / Channel / 速率服务器
 │   │   ├── engine.py            #   MultiResourceScheduler
+│   │   ├── normalize.py         #   删掉起不了约束的计数信号量 (判据是一条定理)
 │   │   └── policies.py          #   EarliestStart / WorkConservingCriticalPath / PriorityByStage
 │   ├── planning/                # 第 3 层: wave 规划 + tile 网格
 │   │   ├── waves.py             #   plan_waves / swizzle / Layered 波规划

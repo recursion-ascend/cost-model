@@ -25,6 +25,7 @@ from .guardrails import check_shape_conservation
 from .shape import (
     CursorTrace, MegaMoeShape, ModelOptions,
 )
+from .scheduler.normalize import prune_inert_semaphores
 from .planning.waves import (
     Wave, calc_m_groups_per_wave, plan_waves, plan_layered_waves,
 )
@@ -33,6 +34,8 @@ from .planning.waves import (
 #: 可晚绑定的角色池。moe_stage_done 之类"代表某个核"的零时长栅栏不参与。
 POOLABLE_ROLES = ("AIC", "AIV0", "AIV1")
 _CORE_SUFFIX = re.compile(r"c\d+$")
+#: 按核 token 的占位后缀 ("UB:gmm1act:c*")
+POOL_CORE = "c*"
 
 
 def _rewrite_for_late_binding(events: List[Event], roles: Sequence[str], aic_num: int,
@@ -41,8 +44,8 @@ def _rewrite_for_late_binding(events: List[Event], roles: Sequence[str], aic_num
     """把指定角色的核资源从"建图时定死"改成"派发时绑定最早空闲的核"。
 
     做法: 事件声明 "AIC:*" 而不是 "AIC:7", 调度器在准入那一刻挑成员 (engine 的
-    _candidates/_bind)。每核的自取自还队列信号量 (Q:aic:c7) 在独占核资源下是空约束,
-    直接去掉 (否则落到核 3 的 tile 会去扣核 7 的队列深度)。
+    _candidates/_bind)。剩下的按核 token 换成占位 c* 由派发时回填 —— 否则落到核 3 的
+    tile 会去扣核 7 的槽。(起不了约束的那些已在 prune_inert_semaphores 删掉。)
 
     **不删不改任何已有依赖边**: 事件名、deps、dep_latency 原样, 变的只有"哪个核来做"。
 
@@ -83,26 +86,23 @@ def _rewrite_for_late_binding(events: List[Event], roles: Sequence[str], aic_num
         ev.resources = tuple(new_res)
         core = ev.meta.get("core")
         if isinstance(core, int):
-            # 按核的计数信号量分两类:
+            # 剩下的按核 token 都是真约束 (UB:gmm1act:c7 —— GMM1 取、配对 ACT 还):
+            # 核号换成占位 c*, 由引擎在派发时回填 (_tok / _remap_tokens)。取与还必须
+            # 落同一个核号, 这由共位保证 (ACT 的 colocate_with 指向它的 GMM1)。
             #
-            # 1) 自取自还 (Q:aic:c7 之类的引擎队列): 事件同时独占该核资源, 同核在途数
-            #    恒 <= 1, 容量 1 就已经不起约束 (见下面声明容量处的说明)。
-            #    **去掉**, 语义不变, 也省掉一次核号解析。
-            # 2) 跨事件持有 (UB:gmm1act:c7 —— GMM1 取、配对 ACT 还): 真约束, 核号换成
-            #    占位 c*, 由引擎在派发时回填 (_tok / _remap_tokens)。取与还必须落同一个
-            #    核号, 这由共位保证 (ACT 的 colocate_with 指向它的 GMM1)。
-            self_paired = set(ev.acquires) & set(ev.releases)
-
+            # 起不了约束的那些 (Q:aic:c7 之类的引擎队列) 已经被
+            # scheduler/normalize.prune_inert_semaphores 在**进这里之前**删掉了 ——
+            # 2026-10-08 之前这一步在本函数里做, 于是只有晚绑定路径删, 静态钉核留着,
+            # 两种绑定方式拿到两张图、两把尺子 (静态那把松: 实测掩掉 1454.67 核·µs 的
+            # avoidable 空闲)。
             def _norm(tok):
                 t, k = tok
                 if not _CORE_SUFFIX.search(t):
                     return tok
                 return (_CORE_SUFFIX.sub("c*", t), k)
 
-            ev.acquires = tuple(_norm(a) for a in ev.acquires if a not in self_paired
-                                or not _CORE_SUFFIX.search(a[0]))
-            ev.releases = tuple(_norm(r) for r in ev.releases if r not in self_paired
-                                or not _CORE_SUFFIX.search(r[0]))
+            ev.acquires = tuple(_norm(a) for a in ev.acquires)
+            ev.releases = tuple(_norm(r) for r in ev.releases)
         if str(ev.meta.get("stage", "")) == "activation":
             anchor = next((d for d in ev.deps if stage_of.get(d) == "gmm1"), None)
             if anchor is not None:
@@ -133,6 +133,24 @@ def _rewrite_for_late_binding(events: List[Event], roles: Sequence[str], aic_num
     # 事件选定, 同组其余事件跟随 (Event.core_group, 引擎的 group_core)。为什么不能用
     # colocate_with: 它要求锚点先绑定, 而先跑的恰恰是不持核资源的那一相。
     _group_phase_events(events, pooled, pre)
+
+
+def _declared_and_acquired(capacities: Dict[str, int],
+                           events: Sequence[Event]) -> Dict[str, int]:
+    """只留下**真有人取**的容量声明.
+
+    声明了却没人取是另一种死声明: 读代码的人会以为那条约束还在图里。规范化
+    (prune_inert_semaphores) 删掉空约束之后, 对应的容量就该一起消失 —— 本函数让
+    "声明 <=> 被取用"由构造保证, 而不是靠记得去同步两处。
+
+    晚绑定下事件取的是占位 token ("...:c*"), 容量表是逐核声明的 ("...:c7"), 所以
+    占位要按前缀匹配 (与 engine 的静态校验同一个口径: c* 用 c0 代表全体)。
+    """
+    acquired = {tok for ev in events for tok, _ in ev.acquires}
+    bases = tuple(tok[:-1] for tok in acquired if tok.endswith(POOL_CORE))
+    return {k: v for k, v in capacities.items()
+            if k in acquired or (bases and k.startswith(bases)
+                                 and _CORE_SUFFIX.search(k))}
 
 
 def _group_phase_events(events: List[Event], pooled: Sequence[str], pre: str) -> None:
@@ -391,6 +409,10 @@ class A8W8WaveCostModel:
         for shape, events, caps, trace in per:
             pre = f"R{shape.rank_id}."
             pools: Dict[str, Tuple[str, ...]] = {}
+            # 去掉在这个事件代数里起不了约束的计数信号量 (scheduler/normalize)。
+            # 必须在晚绑定改写**之前**: 那时资源名还带具体核号, "共同独占一个资源"
+            # 这条判据不必跟池占位符纠缠; 两种绑定方式因此拿到同一张图。
+            prune_inert_semaphores(events)
             if late:
                 _rewrite_for_late_binding(
                     events, late, shape.aic_num, pre, pools,
@@ -410,12 +432,14 @@ class A8W8WaveCostModel:
                 ev.channel_bytes = tuple(
                     (c, b, rt) if c.startswith("fab_") else (pre + c, b, rt)
                     for c, b, rt in ev.channel_bytes)
-            # 每核引擎队列的容量恒为 1, 不设旋钮。原因是这个事件代数里 "更深的
-            # 队列" 没有可表达的后果: 持核事件独占 AIC/AIV0/AIV1, 同核在途数恒 <= 1,
-            # 所以容量 2 与 1 等价; 相位拆分后的 load 相位又刻意不继承 Q:* (继承会让
-            # 容量 1 的引擎信号量卡死 L1 缓冲深度, 见 pipeline_expand 的说明), 所以
-            # 拆相位也不会让它咬上。要表达 "更深的队列" 必须先有发射开销或在途计数的
-            # 物理后果, 模型里没有, 给个旋钮只会让扫描得到 "深了也没用" 的假结论。
+            # 每核引擎队列的容量恒为 1, 不设旋钮。在**持核事件**上它起不了约束
+            # (同核在途数恒 <= 1), 那一份已被 prune_inert_semaphores 从图里删掉;
+            # 这里仍然声明, 是因为同一个名字在**拆相位的 AIV 路径**上会变成跨事件
+            # 持有 (.ld 取、主事件还, 见 pipeline_expand._expand_aiv) —— 那时它是真
+            # 约束, 必须有容量。声明了而没人取的, 由下面那一步统一丢掉。
+            #
+            # 为什么深度不是旋钮: 要表达"更深的队列"必须先有发射开销或在途计数的物理
+            # 后果, 模型里没有, 给个旋钮只会让扫描得到"深了也没用"的假结论。
             # 2026-10-05 之前这里是 EngineQueueDepths(aic/vec0/aiv1): 四类形状逐个扫过,
             # 任何取值都与容量 1 逐位相同 (golden 的 pipeline_engine_queue2 与
             # pipeline_split 指纹全同可证), 所以它是个无法生效的旋钮, 已删。
@@ -430,6 +454,7 @@ class A8W8WaveCostModel:
                     capacities[pre + f"UB:gmm1act:c{core}"] = ub_depth
             for k, v in caps.items():
                 capacities[pre + k] = v
+            capacities = _declared_and_acquired(capacities, events)
             groups.append((events, capacities, pools))
 
         sched_pol = getattr(self, '_sched_policy', None)

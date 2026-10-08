@@ -161,6 +161,14 @@ class QueueDepths:
       mte_aiv  -> MTE_AIV:{eng}:c{core}   (AIV 侧 .ld; GM↔UB)
       cube     -> 无需另给: .cb 相位本身独占 AIC 核资源
       vec      -> 无需另给: ACT/COMBINE 主事件本身独占 AIV 核资源
+
+    **cube / vec 这两个深度在图里已经没有作用对象** (2026-10-08): 它们的 token
+    (``QUEUE:cube`` / ``QUEUE:vec``) 挂在持核事件上, 自取自还, 按
+    ``scheduler/normalize`` 的判据是空约束, 建图后即被删掉 —— 核的独占已经把
+    "同核在途数 <= 1" 表达完了。所以调这两个字段不会有任何后果; 要让它们有后果,
+    得先把"攒几笔"变成可观测的东西 (发射开销 / 在途计数), 模型里还没有。
+    另外三个 (mte_aic / fix / mte_aiv) 是真的: 它们的 token 由不持核资源的相位事件
+    持有或跨事件持有, 见 ``tests/test_capacity_tokens.py`` 的分类。
     """
     mte_aic: int = 1    # AIC MTE1/MTE2 的 L1 缓冲槽数 (GM→L1 载入能攒几笔)
     cube: int = 1       # Cube MMAD 能攒几笔

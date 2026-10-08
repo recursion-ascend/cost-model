@@ -191,7 +191,8 @@ python tools/knob_audit.py --quiet  # 只列非"每个形状都生效"的
 
 这一层 2026-10-05 建立时抓到三件事, 都是它要防的那一类:
 
-* `EngineQueueDepths` (引擎 FIFO 深度) **任何取值都无后果** —— 持核事件独占该核,
+* `EngineQueueDepths` (引擎 FIFO 深度) **任何取值都无后果** (旋钮已删, 2026-10-08
+  起那份空约束本身也由 `scheduler/normalize.py` 删掉) —— 持核事件独占该核,
   同核在途数恒 ≤ 1; 相位拆分后的 load 相位又刻意不继承 `Q:*`。旋钮已删 (容量写死 1),
   连带删掉的 golden case `pipeline_engine_queue2` 与 `pipeline_split` 指纹**逐位相同**,
   即它从来什么都没测到。

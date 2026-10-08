@@ -47,16 +47,19 @@ res_ready = max((resource_free.get(r, 0.0) for r in ev.resources), default=0.0)
 ok, t_cap = capacity_feasible(ev, t)
 ```
 
-`Q:aic:c{core}` 的容量被占满 -> 推迟到下一个归还时刻。该容量恒为 1, 没有旋钮:
-持核事件独占该核, 同核在途数恒 ≤ 1, 所以更深的队列在这个事件代数里没有可表达
-的后果 (旧的 `EngineQueueDepths` 旋钮因此在 2026-10-05 删除)。
+`UB:gmm1act:c{core}` 这类计数信号量的容量被占满 -> 推迟到下一个归还时刻。
 
 与 ② 的区别在**持有时长**: `resources` 严格只占事件自身这一段; `acquires/releases`
 可以**跨事件持有** (例如 `QUEUE:mte_aic` 由 load 相位取、fix 相位还, 表达的是一块 L1 缓冲
 槽)。所以 ③ 能造成真正的空闲, 而 ② 不能。
 
-**容量 1 且持核事件独占核资源, 所以对持核事件这条与 ② 等价**, 不额外产生空闲。
-真正会咬的是跨事件持有的那类 token (`QUEUE:mte_aic` / `UB:gmm1act`)。(晚绑定会把这类自取自还的按核 token 直接去掉, 见下。)
+**持核事件上自取自还的 token 与 ② 等价**, 不额外产生空闲 —— 那种 token 已由
+`scheduler/normalize.py` 在建图后删掉: 它改不了排程, 却会把"等我自己的核"算进
+`actionable_us`, 于是本该算 avoidable 的空闲被算成 forced (2026-10-08 实测: 静态钉核
+28 核, R0.AIC 的 avoidable 由 0.0 变成 1454.67 核·µs, 排程逐位未变)。
+所以 ③ 现在只由**真的**计数信号量造成: 跨事件持有的 `UB:gmm1act` / `QUEUE:mte_aic`,
+以及不持核资源的执行单元 `MTE2` / `FIXPIPE` / `MTE_AIV`。
+
 
 ### ④ 信道带宽不足 —— **已不存在 (2026-10-03 停用信道模型)**
 
