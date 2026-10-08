@@ -36,3 +36,6 @@ Thumbs.db
 
 # 根目录项目的旧副本, 不上库
 /moe-cost-model/
+
+# 工作流/子代理的临时 git worktree, 不入库
+.claude/worktrees/
