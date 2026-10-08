@@ -72,7 +72,7 @@ def test_work_conserving_positive_case():
 
 
 def test_work_conserving_negative_case():
-    """两个事件都钉在 AIC:0, AIC:1 全程空着 -> 第二个事件就绪却等着, 必须判违规."""
+    """两个事件都固定在 AIC:0, AIC:1 全程空着 -> 第二个事件就绪却等着, 必须判违规."""
     evs = [Event("a", ("AIC:0",), 10.0, order=0, meta={"stage": "gmm1"}),
            Event("b", ("AIC:0",), 10.0, order=1, meta={"stage": "gmm1"}),
            Event("filler", ("AIC:1",), 1.0, order=2, meta={"stage": "gmm1"})]

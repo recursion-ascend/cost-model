@@ -47,7 +47,7 @@ class Engine(str, Enum):
 
 
 class Pipe(str, Enum):
-    """核内的搬运/计算管道. 每核每种一条, 容量恒 1 —— 这是硬件事实, 不是旋钮.
+    """核内的搬运/计算管道. 每核每种一条, 容量恒 1 —— 这是硬件事实, 不是参数.
 
     与 Engine 的区别: Engine 是"谁在算", Pipe 是"哪条通路在搬"。一个事件可以占着
     AIC 同时让 MTE2 搬下一块 (相位拆分表达的正是这个重叠)。
@@ -76,7 +76,7 @@ class TokenKind(str, Enum):
     EXECUTION_UNIT  执行单元: 容量恒 1 的硬件事实 (MTE2 / FIXPIPE / MTE_AIV)。
     BUFFER_SLOT     缓冲槽: 容量是**编排选择** (L1 缓冲块数 / UB 槽数)。
     ENGINE_QUEUE    每核引擎队列: 在本模型里恒为空约束 (持核事件独占该核),
-                    容量写死 1 且不设旋钮 —— 见 model.py 声明容量处的说明。
+                    容量写死 1 且不设参数 —— 见 model.py 声明容量处的说明。
     """
 
     EXECUTION_UNIT = "execution_unit"

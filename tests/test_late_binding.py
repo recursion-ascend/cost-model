@@ -39,11 +39,11 @@ def _aic(rank_result):
 
 
 def test_aic_late_binding_is_work_conserving():
-    """静态发牌会把已就绪的 tile 困在忙核上; 晚绑定把这类空闲清零.
+    """静态分核会把已就绪的 tile 困在忙核上; 晚绑定把这类空闲清零.
 
     基线取 GMM2 两段就绪 (MEGAMOE_A8W8 的取值): 本形状上缺省的"等齐一段"结构下,
     静态轮转恰好也是工作守恒的 (违规 0), 没有可观测的违规就证明不了什么。
-    两段时静态发牌的违规是 10.10 核·us。
+    两段时静态分核的违规是 10.10 核·us。
     """
     static = _rank(9216, 3, (), k_segments="first_chunk")
     late = _rank(9216, 3, ("AIC",), k_segments="first_chunk")

@@ -1,6 +1,6 @@
 """stage 之间那条边: 消费者等多少、中间结果放哪、片上能存几块.
 
-为什么收成一个概念: 原先这三件事是三个各自为政的旋钮
+为什么收成一个概念: 原先这三件事是三个各自为政的参数
 (`gmm2_k_segments` / `act_to_gmm2` / `InstancePolicy.gmm1_activation_depth`),
 名字只对一条特定的边说话。可它们问的是同一组问题, 对**任意**一条生产者->消费者的
 边都成立:
@@ -20,7 +20,7 @@ readiness 与 granularity 的分工 (两者都"看起来在切事件", 必须分
 分段, 互不干涉。而 gmm2->combine 这条边的共享轴**就是** combine 的打包单元,
 在那儿分段等于少打包 —— 该用 granularity, 所以 readiness 在那条边上被拒绝。
 
-算子工程师拿它做什么: 一条边一行, 改一个字段跑一次, 差值就是那个选择值多少钱。
+算子工程师拿它做什么: 一条边一行, 改一个字段跑一次, 差值就是那个选择的代价是多少。
 见 analysis.design_space。
 """
 from __future__ import annotations
@@ -63,7 +63,7 @@ class SharedAxis:
         if self.segmentable and not self.consumed_by:
             raise ValueError(
                 f"共享轴 {self.axis!r} 声称可分段, 但没写谁消费 —— "
-                "可写而无人读的旋钮等于没有")
+                "可写而无人读的参数等于没有")
 
 
 #: 本模型的四条 stage 边各自的共享轴。表里没有的边, links 里写它就报错 ——
@@ -107,7 +107,7 @@ class StageLink:
         "gm"     物化。生产者写回 GM, 消费者读回来。tile->核 自由。
         "onchip" 不物化。留在产它的那个核的片上 (硬件有 UB->L1 通路), 不付 GM 字节,
                  代价是消费者必须与生产者同核 —— 消费者要吃整条共享轴时, 这会把
-                 一整组工作钉在一个核上, 并行度上限掉到"组数"。
+                 一整组工作固定在一个核上, 并行度上限掉到"组数"。
     depth: 片上能同时存几块 (计数信号量; location="gm" 时无意义)
         0 = 不建这个约束 (假设不构成瓶颈 —— 是上界, 不是物理)
     colocated_by_hardware: 同核是**硬件强制**, 不是 location 推出来的选择。
@@ -236,7 +236,7 @@ def effective_gmm1_act_link(links: Sequence[StageLink], kernel) -> StageLink:
       * readiness 照抄: 这条边上它只能是 "whole" (1:1, validate_links 拦住别的),
         所以"照抄"不会把一个没人读的取值带进图里。
 
-    为什么不是旋钮: 这是编译期模板参数的后果, 不是算法工程师在 links 里能另选的
+    为什么不是参数: 这是编译期模板参数的后果, 不是算法工程师在 links 里能另选的
     编排。给了 location="onchip" 又开 prefetch, 两种说法会同时出现在一张图里。
     """
     base = resolve_link(links, "gmm1", "activation")

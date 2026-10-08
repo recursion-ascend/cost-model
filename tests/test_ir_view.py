@@ -50,7 +50,7 @@ def test_token_kinds_separate_hardware_facts_from_orchestration_choices():
     """执行单元 (容量恒 1 的硬件事实) 与缓冲槽 (编排选择) 必须分型.
 
     两者用的是**同一个** acquires/releases 机制, 所以不分型就没法说"这个容量能不能调"
-    —— 而这正是 EngineQueueDepths 当初被当成旋钮的根因 (它其实是空约束)。
+    —— 而这正是 EngineQueueDepths 当初被当成参数的根因 (它其实是空约束)。
     """
     unit = classify_token("R0.MTE2:c3")
     slot = classify_token("R0.QUEUE:mte_aic:c3")
@@ -191,7 +191,7 @@ def test_unrepresentable_things_are_declared_not_silent():
 
 
 def test_event_still_has_no_issue_duration_field():
-    """钉住现状: Event 只有一个时长字段.
+    """约束现状: Event 只有一个时长字段.
 
     哪天真加了 issue_duration, 这条会红 —— 提醒把 UNREPRESENTABLE 里那条删掉, 并且
     重新生成 golden (拆分持有区间会改排程, 不是纯标注)。

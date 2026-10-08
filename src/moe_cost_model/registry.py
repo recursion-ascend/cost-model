@@ -120,7 +120,7 @@ def resolve(kind: str, spec, where: str = ""):
     where = where or kind
     if kind == "orchestration":
         # 实现 id 原样传下去 (它对应适配器, 不是建图器类): builder_class 对这类名字返回
-        # None, 若在这里就把 None 存进 shape, "指定实现"这个旋钮会被静默忽略 —— 场景里
+        # None, 若在这里就把 None 存进 shape, "指定实现"这个参数会被静默忽略 —— 场景里
         # 写了 orchestration = "ascend950.megamoe.layered.v1" 却照跑 a8w8。
         from .implementations.megamoe import ADAPTERS, ALIASES
         if isinstance(spec, str) and (spec in ADAPTERS or spec in ALIASES):

@@ -212,9 +212,9 @@ class A8W4WaveV1Declared(_MegaMoeAdapterBase):
       * B 矩阵的分形与布局都不同: C0_SIZE_B = 32 (A8W8 走 AuxGetC0Size<ElementB>),
         LayoutB = Te::ZNLayoutPtn —— common/mega_moe_gmm_common.h:76, 87
       * 角色分工不同: AIV0 跑 prologue、AIV1 跑 combine (mega_moe_wave_a8w4.h:149-150),
-        而模型的角色表把 activation 钉在 AIV0、通信钉在 AIV1 (config/roles.py)
+        而模型的角色表把 activation 固定在 AIV0、通信固定在 AIV1 (config/roles.py)
 
-    **差的是一个量, 不是一个旋钮**: WeightAntiQuantComputeNzNk 的向量吞吐 (每 µs 能展开多少
+    **差的是一个量, 不是一个参数**: WeightAntiQuantComputeNzNk 的向量吞吐 (每 µs 能展开多少
     字节权重)。它的地位与 ACT 的 ACT_BYTES_PER_VEC / BW_UB 相同 —— 那两个也是实测+源码计数
     定下来的, 不是算出来的。仓内没有这条路径的任何打点 (data/ 下六个 run 全是 A8W8,
     config.json5 的 dtype 都是 fp8_e5m2), 所以现在给不出。
@@ -242,7 +242,7 @@ class A8W4WaveV1Declared(_MegaMoeAdapterBase):
          "仓内没有 A8W4 的打点 (data/ 下六个 run 的 dtype 都是 fp8_e5m2)"),
         ("prologue_stage_in_role_table",
          "角色表要按实现给: A8W4 的 AIV0 跑 prologue、AIV1 跑 combine, 而 config/roles.py "
-         "的 DEFAULT_STAGE_ROLES 把 activation 钉在 AIV0、通信钉在 AIV1 —— 这张表现在是全局的"),
+         "的 DEFAULT_STAGE_ROLES 把 activation 固定在 AIV0、通信固定在 AIV1 —— 这张表现在是全局的"),
     )
 
     def accepts(self, compile_cfg: CompileConfig, options: Any) -> None:

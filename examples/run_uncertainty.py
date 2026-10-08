@@ -3,7 +3,7 @@
 
 运行: python examples/run_uncertainty.py
 
-模型吐出"换这个旋钮省 0.57%"看起来像结论, 但它下面垫着几个没标定到点的输入。
+模型吐出"换这个参数省 0.57%"看起来像结论, 但它下面垫着几个没标定到点的输入。
 这张表把它们的区间推到每个 Δ 上: **区间跨 0 = 不可判定**, 别拿去做决策;
 依赖"连范围都没有"的输入 = 区间本身不完整, 更不能用。
 """
@@ -18,7 +18,7 @@ from moe_cost_model.analysis.sensitivity import (RANGED,          # noqa: E402
 
 SCENARIO = Path(__file__).with_name("scenario_basic.toml")
 
-#: 每个方案: 旋钮覆盖 + 它依赖哪些"连范围都没有"的输入
+#: 每个方案: 参数覆盖 + 它依赖哪些"连范围都没有"的输入
 POINTS = {
     "GMM2 攒 2 个 tile": ({"options.granularity": {"gmm2": 2}}, ()),
     "combine 逐专家 (整片)": ({"options.granularity": {"combine": 0}}, ()),

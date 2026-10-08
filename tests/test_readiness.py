@@ -128,7 +128,7 @@ def test_non_whole_readiness_on_an_unsegmentable_edge_is_refused(producer, consu
 
 
 def test_gmm2_combine_points_at_granularity():
-    """这条边的共享轴就是 combine 的打包单元, 报错要指向正确的旋钮."""
+    """这条边的共享轴就是 combine 的打包单元, 报错要指向正确的参数."""
     with pytest.raises(ValueError, match=r'granularity\["combine"\]'):
         m.ModelOptions(links=(m.StageLink("gmm2", "combine", readiness=4),))
 

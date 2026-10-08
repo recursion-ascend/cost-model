@@ -145,10 +145,10 @@ class QueueDepths:
     **这不是"同时能跑几笔"。** 两件事必须分开, 混在一起是 2026-10-05 那个 bug 的根源:
 
       队列深度 (本类)   能提前多少发起 —— 由缓冲槽数决定 (L1 槽、UB 槽), 是编排/
-                        编译期选择, 所以它是旋钮。
+                        编译期选择, 所以它是参数。
       执行单元数        同时能跑几笔 —— **硬件事实**, 每核每种单元恒为 1
                         (一个 AIC 一条 MTE2、一条 Cube、一条 FixPipe;
-                         一个 AIV 一条 MTE、一条 Vector)。不是旋钮。
+                         一个 AIV 一条 MTE、一条 Vector)。不是参数。
 
     深度恒为 1 时两者重合, 所以缺省下看不出区别。深度 >1 时, 只有队列深度、没有执行
     单元约束, 等于给每个核凭空多出几条管道 —— 实测后果: 载入可无限并行, 墙钟低于
@@ -188,7 +188,7 @@ class PhaseRates:
     # 不计, 所以 fix 相位时长恒为 0, 见 builders/pipeline_expand.py 的 fix 相位。
     # 字段保留以备改口径, 但**给了值会直接报错而不是静默无效** ——
     # 2026-10-05 审计发现它是全项目唯一"声明了却没有读者"的参数, 一个会静默吞掉
-    # 用户输入的旋钮比没有这个旋钮更糟 (与 weight_nz 必须显式给 NZ 带宽同一个道理)。
+    # 用户输入的参数比没有这个参数更糟 (与 weight_nz 必须显式给 NZ 带宽同一个道理)。
     fix_bw_bytes_per_us: Optional[float] = None
     act_load_bw_bytes_per_us: Optional[float] = None  # ACT GM→UB 读带宽
     combine_load_bw_bytes_per_us: Optional[float] = None  # COMBINE GM 读带宽

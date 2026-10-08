@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""流水编排效率: 一个形状上, 每个流水旋钮值多少钱, 以及卡在什么上.
+"""流水编排效率: 一个形状上, 每个流水参数的代价是多少, 以及卡在什么上.
 
 运行: python examples/run_pipeline_study.py
 
 这张表回答的是"流水编排"那一类问题, 不是"算得快不算得快":
   * 五个 stage 之间怎么搭流水 (就绪粒度 / 片上驻留 / 槽数 / 波偏移)
   * 单核内部 load/cube/fix 三个相位怎么重叠 (相位流水 + 引擎队列深度)
-  * 工作怎么落到核上 (晚绑定 vs 静态发牌 / 事件粒度)
+  * 工作怎么落到核上 (晚绑定 vs 静态分核 / 事件粒度)
   * 融合还是分段 (波间栅栏)
 
 读表的方法 (每一列都要能说出因果, 说不出的收益不敢用):
@@ -86,7 +86,7 @@ def _row(label, res, base_us):
 def main() -> int:
     base_scenario = m.load_scenario(SCENARIO)
     base_us = None
-    print(f"场景: {SCENARIO.name}  (每一行只改一个旋钮)\n")
+    print(f"场景: {SCENARIO.name}  (每一行只改一个参数)\n")
     for label, overrides in POINTS.items():
         try:
             res = m.simulate(base_scenario.with_overrides(overrides))

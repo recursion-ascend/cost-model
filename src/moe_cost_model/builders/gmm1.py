@@ -151,7 +151,7 @@ def add_gmm1_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             act_batch.add(builder, ctx, w, si, sl, t, label, ntile, core,
                           global_group, gname, out_div,
                           ub_slot if act_depth > 0 else None)
-        # 攒批不跨切片: ctx.activation_ready 以 (专家, m-group) 为键, 而 GMM2 按这个
+        # 合并不跨切片: ctx.activation_ready 以 (专家, m-group) 为键, 而 GMM2 按这个
         # 键取依赖 —— 跨切片攒会让依赖指错专家。
         act_batch.flush_all(builder, ctx, w, si, sl)
 

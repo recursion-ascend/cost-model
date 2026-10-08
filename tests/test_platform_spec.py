@@ -1,7 +1,7 @@
 """硬件规格 (spec) 与实测 (measured) 分开记.
 
 规格是峰值 -> 用它算出的是时间**下界**, 该配效率系数; 实测已含争用, 不该再乘。
-本文件钉住两件事: 单位换算 (FLOPS -> MAC) 与聚合带宽上限。
+本文件约束两件事: 单位换算 (FLOPS -> MAC) 与聚合带宽上限。
 """
 import pytest
 
@@ -47,7 +47,7 @@ def test_aggregate_hbm_caps_the_per_core_bandwidth():
     # 28 核 (本卡真实可用核数): 两档都不受限
     assert pr.gm_bw_per_core(28, per_core) == per_core
     assert dt.gm_bw_per_core(28, per_core) == per_core
-    # 但 950PR 在 28 核已经吃掉聚合的 91%, 32 核就超了
+    # 但 950PR 在 28 核已经抵消聚合的 91%, 32 核就超了
     assert 0.90 < pr.hbm_utilisation(28, per_core) < 0.92
     assert pr.hbm_utilisation(32, per_core) > 1.0
     assert pr.gm_bw_per_core(32, per_core) < per_core          # 被压到 50000

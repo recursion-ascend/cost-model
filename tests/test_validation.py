@@ -131,7 +131,7 @@ def test_a_truncated_trace_is_recovered_and_flagged():
 
 @pytest.mark.skipif(not DATA.exists(), reason="缺打点数据")
 def test_the_trace_corpus_state_is_what_the_code_assumes():
-    """钉住数据现状: 16 个文件完整, 8 个截断 (两个 bs8192 run 的全部 rank).
+    """约束数据现状: 16 个文件完整, 8 个截断 (两个 bs8192 run 的全部 rank).
 
     哪天数据补齐或重采, 这里会红 —— 那是好事: validation/trace 的说明与比对工具的措辞都
     建立在这个事实上, 事实变了说明也要改。

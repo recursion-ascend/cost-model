@@ -32,7 +32,7 @@ def test_meta_bytes_is_declared_not_hardcoded():
 
 
 def test_kernel_declaration_reaches_the_formula():
-    """KernelConfig 的申报要真的进到公式里 (否则这个旋钮是装饰)."""
+    """KernelConfig 的申报要真的进到公式里 (否则这个参数是装饰)."""
     def tile(meta):
         c = m.build_analytical_costs(
             h=5120, kernel=m.KernelConfig(combine_meta_bytes_per_row=meta),
@@ -105,7 +105,7 @@ def test_only_one_combine_orchestration_is_expressible():
 
     combine 现在恒是"AIV1 与 GMM2 tile 1:1 配对同核"; 另一种 (放另一个向量角色、
     逐专家独立一遍、挂在整波之后) 表达不出来。所以 combine_quant_mode 只改字节,
-    事件图不变 —— 这是**对的**(格式与编排无因果), 缺的是那个独立的编排旋钮。
+    事件图不变 —— 这是**对的**(格式与编排无因果), 缺的是那个独立的编排参数。
     """
     W, PER, LOCAL = 4, 18, 3
     rc = [[[PER] * W for _ in range(LOCAL)] for _ in range(W)]

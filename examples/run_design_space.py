@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""扫一遍 stage 边的编排选择, 看每个选择值多少钱.
+"""扫一遍 stage 边的编排选择, 看每个编排选择的代价.
 
 运行: python examples/run_design_space.py
 
@@ -66,7 +66,7 @@ def main() -> int:
         "UB 不设限 (上界)": OPT(links=edges(0)),
         "ACT 不物化 (留片上)": OPT(links=edges(location="onchip")),
         "波间全核对齐": OPT(barriers=("wave",)),
-        "静态发牌": OPT(late_bind_pools=()),
+        "静态分核": OPT(late_bind_pools=()),
         # 事件粒度 (缺口 12): 一个事件覆盖几份工作 —— 同步点密度 <-> 并行度的交换。
         # 粗粒度不是收益开关: 项数少于核数就有核闲着, 这一列会直接看见。
         "GMM1 攒 2 个 tile": OPT(granularity={"gmm1": 2}),
@@ -75,7 +75,7 @@ def main() -> int:
         "combine 逐专家 (整片)": OPT(granularity={"combine": 0}),
         # ACT 粒度要"喂它的 GMM1 tile 同核且 n 相邻" (Fixpipe 强制同核), 这个夹具用
         # 轮转分核, 相邻 n-tile 落在不同核上 -> **这一行与"UB 深度 2"完全相同, 是空操作**。
-        # 留在表里是为了让这件事看得见: 粒度旋钮会静默无效, 要配按块分核才生效。
+        # 留在表里是为了让这件事看得见: 粒度参数会静默无效, 要配按块分核才生效。
         "ACT 攒 2 个 (轮转下空操作)": OPT(granularity={"activation": 2},
                                           links=edges(2)),
         "那份实现 (MEGAMOE_A8W8)": m.MEGAMOE_A8W8.options,

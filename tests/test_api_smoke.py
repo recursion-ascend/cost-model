@@ -142,9 +142,9 @@ def test_default_pin():
 
 
 def test_gmm2_lag_waves_override():
-    """gmm2_lag_waves 旋钮: 滞后波数显式覆盖阈值两档, 结构守恒, 缺省不变.
+    """gmm2_lag_waves 参数: 滞后波数显式覆盖阈值两档, 结构守恒, 缺省不变.
 
-    kernel 实例只用 0/1 两档 (token 阈值切换); 旋钮允许任意波数,
+    kernel 实例只用 0/1 两档 (token 阈值切换); 参数允许任意波数,
     属于 kernel 未使用的模型取值. 2 波用例中 lag1 与 lag2 同为
     "全部 GMM2 后移", 时长相等是正确行为, 分化断言用 3 波用例.
     """
@@ -197,7 +197,7 @@ def test_gmm2_lag_waves_override():
         return [(t.gmm1_wave, t.gmm2_wave)
                 for t in res["rank_results"][0]["cursor_trace"]]
 
-    # 滞后语义直接钉在轨迹上: lag L = GMM2 波号后移 L 轮, 最后 L 波循环外补跑
+    # 滞后语义直接固定在轨迹上: lag L = GMM2 波号后移 L 轮, 最后 L 波循环外补跑
     assert wave_pairs(r0) == [(0, 0), (1, 1), (2, 2)]
     assert wave_pairs(r1) == [(0, None), (1, 0), (2, 1), (None, 2)]
     assert wave_pairs(r2) == [(0, None), (1, None), (2, 0), (None, 1), (None, 2)]
@@ -207,7 +207,7 @@ def test_gmm2_act_edges_by_ntile():
     """ACT→GMM2 按 ntile 建边: head 只等覆盖 [0,kL1) 的 ACT, tail 等覆盖 [kL1,K) 的.
 
     多组 slice (mgw=4) 触发蛇形反转, 旧实现按列表位置挂 ready[0]/ready[-1]
-    会等错 K 块; 本测试钉死按 ntile 选择的语义.
+    会等错 K 块; 本测试固定按 ntile 选择的语义.
     """
     from moe_cost_model.model import A8W8WaveCostModel
     from moe_cost_model.shape import MegaMoeShape

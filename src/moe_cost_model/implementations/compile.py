@@ -120,7 +120,7 @@ class CompileConfig:
                            provenance: str = "KernelConfig") -> "CompileConfig":
         """从现有的 KernelConfig 取编译轴.
 
-        KernelConfig 混着编译轴与建模旋钮 (gmm1_b_reuse_frac 是后者, l1_size 是硬件),
+        KernelConfig 混着编译轴与建模参数 (gmm1_b_reuse_frac 是后者, l1_size 是硬件),
         所以这里**只取**编译轴, 不是逐字段搬。topo_urma 在 KernelConfig 里是布尔, 在
         kernel 里是 tiling key 的一个轴, 映射成 comm_mode 的两个取值。
         """

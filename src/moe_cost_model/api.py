@@ -13,11 +13,11 @@ from .config.provenance import run_provenance
 
 
 def _rebind_costs_to_kernel(costs: PrimitiveCosts, kernel) -> PrimitiveCosts:
-    """编译期旋钮以 KernelConfig 为唯一事实源, 公式自动重绑.
+    """编译期参数以 KernelConfig 为唯一事实源, 公式自动重绑.
 
     l1_buf_num / l1_tile_k / combine_quant_mode 影响公式结构, 手工拼装
     Analytical* 时公式类看不到 KernelConfig. 此处在入口按 kernel 重建
-    公式 (标定参数 — 带宽/速率/重启停顿 — 保留公式自身的), 三个旋钮
+    公式 (标定参数 — 带宽/速率/重启停顿 — 保留公式自身的), 三个参数
     因此在任何拼装方式下都生效.
 
     自定义 callable 无法内省, 原样使用 (调用方自行保证一致).

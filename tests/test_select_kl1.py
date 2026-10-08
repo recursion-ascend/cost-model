@@ -8,7 +8,7 @@ kernel 的 `CalcAdaptiveL1Params` (common/mega_moe_gmm_common.h) 里:
 2026-10-06 之前 Python 把 `KernelConfig.l1_buf_num` 当成那个倍数传进容量判据
 (`select_kl1(n_windows=km.l1_buf_num)`)。缺省值恰好都是 2, 所以缺省配置下两种写法同值 ——
 这也是它一直没被 golden 抓到的原因 (唯一一个 l1_buf_num=1 的 case 走的是提前返回那条分支)。
-一旦扫这个旋钮, 旧写法会改 kL1 而 kernel 不会: 模型里那个旋钮多了一份 kernel 没有的后果。
+一旦扫这个参数, 旧写法会改 kL1 而 kernel 不会: 模型里那个参数多了一份 kernel 没有的后果。
 """
 import pytest
 
@@ -79,7 +79,7 @@ def test_the_buffer_count_no_longer_changes_kl1():
 def test_l1_buf_num_still_has_its_real_effect_elsewhere():
     """l1_buf_num 仍然有后果, 只是在别处: 单缓冲 (=1) 让 GMM 走串行换块.
 
-    把它从 kL1 判据里拿掉, 不等于把这个旋钮变成装饰 —— 它在 AnalyticalGmmCosts 里控制
+    把它从 kL1 判据里拿掉, 不等于把这个参数变成装饰 —— 它在 AnalyticalGmmCosts 里控制
     serial, 那才是 kernel 里 l1BufNum 真正管的事。
     """
     import moe_cost_model as m

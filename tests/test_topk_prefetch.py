@@ -11,7 +11,7 @@ kernel 里这个编译期模板参数有三个确定的后果 (都不是时长�
      UB ping-pong 槽位约束不再适用;
   3. 每个行块多一次 topk 权重的 GM->UB 读 (m x META_INFO_SIZE x int32)。
 
-本文件逐条钉住这三点, 并钉住"不开 prefetch 时一切不变"。
+本文件逐条约束这三点, 并约束"不开 prefetch 时一切不变"。
 """
 import pytest
 
@@ -208,7 +208,7 @@ def test_a_costs_object_without_the_prefetch_path_fails_loudly():
 # ---- 6. 它必须真的改变评估结果 ----
 
 def test_turning_it_on_changes_the_estimate():
-    """多搬一遍 GMM1 的输出不可能免费 —— 否则这个轴就是个无法生效的旋钮."""
+    """多搬一遍 GMM1 的输出不可能免费 —— 否则这个轴就是个无法生效的参数."""
     plain, pf = KernelConfig(), KernelConfig(topk_weights_prefetch=True)
     a = A8W8WaveCostModel(_costs(plain), ModelOptions()).simulate(_shape(plain))
     b = A8W8WaveCostModel(_costs(pf), ModelOptions()).simulate(_shape(pf))

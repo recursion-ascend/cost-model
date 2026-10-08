@@ -1,6 +1,6 @@
 """第 4 层: activation stage — ACT 事件 (SwiGLU + MX 量化).
 
-ACT 钉在产它的 GMM1 同核的向量角色上 (L0C->UB 的 Fixpipe 是物理约束), 数据经核内
+ACT 固定在产它的 GMM1 同核的向量角色上 (L0C->UB 的 Fixpipe 是物理约束), 数据经核内
 UB 传递。
 
 **事件粒度** (ModelOptions.granularity 的 "activation"): 一个 ACT 事件可以覆盖
@@ -54,7 +54,7 @@ class _Pending:
                 and out_begin == self.out_end)
 
 class ActBatcher:
-    """按事件粒度攒 ACT. 粒度 1 时每来一项立刻发 (与攒批前逐字节等价)."""
+    """按事件粒度攒 ACT. 粒度 1 时每来一项立刻发 (与合并前逐字节等价)."""
 
     def __init__(self, items_per_event: int, ub_depth: int,
                  epilogue_rows: int = 0, prefetch: bool = False):
@@ -108,7 +108,7 @@ class ActBatcher:
               prefetch=self.prefetch)
 
     def flush_all(self, builder, ctx, w, si, sl) -> None:
-        """切片收尾: 攒批不跨切片 (ctx.activation_ready 以 (专家, m-group) 为键)."""
+        """切片收尾: 合并不跨切片 (ctx.activation_ready 以 (专家, m-group) 为键)."""
         for core in list(self._pending):
             self.flush_core(builder, ctx, w, si, sl, core)
 

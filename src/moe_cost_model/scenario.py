@@ -1,9 +1,9 @@
-"""统一入口: 一个 Scenario 承载全部旋钮, simulate(scenario) 算出执行时间.
+"""统一入口: 一个 Scenario 承载全部参数, simulate(scenario) 算出执行时间.
 
 三种用法:
   Python   Scenario(workload=Workload(...), policy=InstancePolicy(gmm2_lag_waves=2))
   文件     load_scenario("base.toml")
-  改旋钮   base.with_overrides({"policy.gmm2_lag_waves": 2, "kernel.tile_n": 128})
+  改参数   base.with_overrides({"policy.gmm2_lag_waves": 2, "kernel.tile_n": 128})
 
 字段路径与对象属性同名: 文件里的 [policy] 表、with_overrides 的 "policy.xxx"、
 Python 里的 scenario.policy.xxx 是同一个东西. 未知字段与类型错误立即报错.
@@ -265,7 +265,7 @@ class Scenario:
         return _build(cls, data, "", base=_profile_base(data.get("profile")))
 
     def with_overrides(self, overrides: Mapping[str, object]) -> "Scenario":
-        """按点分路径改旋钮, 返回新场景. 例: {"policy.gmm2_lag_waves": 2}."""
+        """按点分路径改参数, 返回新场景. 例: {"policy.gmm2_lag_waves": 2}."""
         scenario = self
         for path, value in overrides.items():
             scenario = _set_path(scenario, path.split("."), value, "")
@@ -480,12 +480,12 @@ _MAP_NESTED = {
 # 与 granularity 同形 (每 stage 一个取值), 只是取值是角色名而不是整数。
 # 2026-10-05 之前 options.roles 在场景文件/with_overrides 这条日常路径上**根本写不出来**
 # (会报"应为数值"), 于是"哪个 stage 跑在哪个核上"这一类编排只能在 Python 里构造对象 ——
-# 一个在日常路径上写不出的旋钮等于没有。epilogue_overheads 同病, 它走 _NESTED。
+# 一个在日常路径上写不出的参数等于没有。epilogue_overheads 同病, 它走 _NESTED。
 _MAP_STR_NESTED = {
     (ModelOptions, "roles"): lambda v: RoleAssignment(overrides=dict(v or {})),
 }
 # 值为"字符串元组"的字段: 场景文件里写 late_bind_pools = ["AIC"] 或 barriers = ["wave"]。
-# 这两个都是编排旋钮 (晚绑定池 / 分段栅栏), 日常路径是场景文件, 在那儿写不出等于没有。
+# 这两个都是编排参数 (晚绑定池 / 分段栅栏), 日常路径是场景文件, 在那儿写不出等于没有。
 _SEQ_STR = {
     (ModelOptions, "late_bind_pools"),
     (ModelOptions, "barriers"),

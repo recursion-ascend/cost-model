@@ -25,7 +25,7 @@ class InstancePolicy:
 
 
     def effective_gmm2_lag(self, token_num: int) -> int:
-        """GMM2 滞后波数: 显式旋钮优先, 缺省按 token 阈值两档 (0/1)."""
+        """GMM2 滞后波数: 显式参数优先, 缺省按 token 阈值两档 (0/1)."""
         if self.gmm2_lag_waves is not None:
             return max(0, int(self.gmm2_lag_waves))
         return 1 if token_num >= self.gmm2_lag_threshold else 0

@@ -3,7 +3,7 @@
 原先资源名是建图代码里写死的 f-string ("AIV1:7"), 于是"换个角色干这件事"问不出来。
 现在是 ModelOptions.roles (config/roles.py 的 RoleAssignment)。
 
-本文件钉三件事: 物理边界不许被改掉 / 换角色真的改事件落点 / 以及**它值多少钱**
+本文件钉三件事: 物理边界不许被改掉 / 换角色真的改事件落点 / 以及**它的代价是多少**
 (答案是在 A8W8 主路径上几乎不值钱, 原因见 test_moving_work_between_vector_roles_... )。
 """
 import pytest
@@ -106,7 +106,7 @@ def test_late_binding_follows_the_assignment():
 
 
 # ---------------------------------------------------------------------------
-# 它值多少钱
+# 它的代价是多少
 # ---------------------------------------------------------------------------
 
 def test_moving_work_between_vector_roles_buys_nothing_here():
@@ -127,7 +127,7 @@ def test_moving_work_between_vector_roles_buys_nothing_here():
 
 
 def test_collapsing_two_vector_roles_into_one_does_cost():
-    """把全部向量工作挤到一个角色上会变慢 —— 旋钮是活的, 不是装饰.
+    """把全部向量工作挤到一个角色上会变慢 —— 参数是活的, 不是装饰.
 
     实测 2048/8专家/2核: 3861.56 -> 3924.70 (+1.6%)。两个向量角色对称
     (挤到 AIV0 与挤到 AIV1 同值), 这也是个合理性校验。

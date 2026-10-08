@@ -69,7 +69,7 @@ ok, t_cap = capacity_feasible(ev, t)
 
 ### ⑤ 这个核根本没被分到活
 
-建图时静态发牌 (`shape.py` 的 `BlockCursor.owners`) 没给它事件。n-tile 数 18 发给 28 核时,
+建图时静态分核 (`shape.py` 的 `BlockCursor.owners`) 没给它事件。n-tile 数 18 发给 28 核时,
 10 个核对这个专家就是这种情况。
 
 **这是 `avoidable_idle_us` 的唯一来源**, 也是唯一纯粹由编排选择造成的 —— 其余六条都有物理
@@ -154,7 +154,7 @@ end_by_name[d] + edge_latency(ev, d) > t
 2. **跨波**: 下一波的 GMM1 要等它的 `dispatch_ready`, 也就是**下一个专家的 token 已经被
    dispatch 完**。这是条件 ①, 物理必然, 不能绕过 —— 但可以通过加深
    `WaveOffsets.dispatch` 让 dispatch 提前跑, 把这段等待缩短。
-3. **绑定**: 即使活已就绪, 静态绑定也会把它钉在某个忙核上。这是条件 ⑤, 晚绑定解决。
+3. **绑定**: 即使活已就绪, 静态绑定也会把它固定在某个忙核上。这是条件 ⑤, 晚绑定解决。
 
 ---
 

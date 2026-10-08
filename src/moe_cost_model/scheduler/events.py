@@ -75,7 +75,7 @@ class Event:
     core_group: Optional[Tuple[str, str]] = None
     #: (键, us): 同一键在同一核号上只计一次 —— 本事件若是该核上第一个带此键的,
     #: 时长加 us。用于每核一次的开销 (如每波每核的 dispatch 调用开销), 让开销落在
-    #: 真正干活的核上, 而不必把事件钉死在某个核。仅晚绑定下生效。
+    #: 真正干活的核上, 而不必把事件固定在某个核。仅晚绑定下生效。
     once_per_core: Optional[Tuple[str, float]] = None
 
 

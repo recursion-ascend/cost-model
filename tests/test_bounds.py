@@ -1,7 +1,7 @@
 """下界: 墙钟在物理上不可能低于 算法事实 + 硬件规格 推出的那条线.
 
 这组测试有两个职责:
-  1. 钉住下界本身只用算法事实 (换编排不变, 换形状才变);
+  1. 约束下界本身只用算法事实 (换编排不变, 换形状才变);
   2. **把两处已知漏账钉成测试** —— 它们现在确实会穿透带宽下界, 修好之前这两条
      测试断言"能被检出", 修好之后要改成断言"不再穿透"。
 """
@@ -168,7 +168,7 @@ def test_load_phase_holds_the_cores_mte2_pipe():
     不占的话载入并发只受 L1 槽数限制 (28 核 x d 笔同时满带宽), 聚合载入带宽会超过
     核数 x BW_L1_GM 这条硬件规格。
     写成计数信号量 (容量 1) 而不是独占资源, 是为了走 late-bind 的 "c*" 占位重映射 ——
-    独占资源会把 .ld 钉在建图时的占位核号上, 与它所在相位组绑定的核冲突。
+    独占资源会把 .ld 固定在建图时的占位核号上, 与它所在相位组绑定的核冲突。
     """
     base = m.load_scenario(SCENARIO)
     r = m.simulate(base.with_overrides(PIPE))
@@ -248,7 +248,7 @@ def test_execution_units_stay_at_one_even_when_queue_depths_are_raised():
     这两件事混在一起就是 2026-10-05 那个 bug 的根源: 只有队列深度、没有执行单元约束,
     等于给每个核凭空多出几条管道 (载入可无限并行, 墙钟低于带宽下界 26.6%)。
     当时只补了 mte_aic 的 MTE2; fix 与 mte_aiv 的单元是后补的 —— 这条测试把三个
-    一起钉住, 且**把深度都调到 >1**, 否则深度 1 下两者重合, 测不出区别。
+    一起约束, 且**把深度都调到 >1**, 否则深度 1 下两者重合, 测不出区别。
     """
     sc = m.load_scenario(SCENARIO).with_overrides({
         "options.pipeline": {
@@ -269,7 +269,7 @@ def test_dead_parameter_fails_loudly_instead_of_silently():
     """fix_bw_bytes_per_us 没有任何读者 —— 给了值要报错, 不能静默吞掉.
 
     2026-10-05 审计: 它是全项目唯一"声明了却没有读者"的参数。一个会静默吞掉用户输入
-    的旋钮比没有这个旋钮更糟 —— 用户会以为自己标定了某个东西。
+    的参数比没有这个参数更糟 —— 用户会以为自己标定了某个东西。
     """
     m.PipelineConstraints()                                  # 缺省可用
     m.PipelineConstraints(phases=m.PhaseRates(act_load_bw_bytes_per_us=1.0))
@@ -295,7 +295,7 @@ def test_fixpipe_unit_is_declared_but_currently_dormant():
     相位), 所以 fix 相位时长恒为 0。PhaseRates.fix_bw_bytes_per_us 现在给了值会直接
     报错 (见 test_dead_parameter_fails_loudly_instead_of_silently), 不再静默无效。
     于是 FIXPIPE 是一条**预置的护栏**: 不花代价, 等口径改了自动生效。
-    这条测试钉住"它确实被申报了"与"它现在确实是空操作"两件事, 避免把它当成已验证的约束。
+    这条测试约束"它确实被申报了"与"它现在确实是空操作"两件事, 避免把它当成已验证的约束。
     """
     sc = m.load_scenario(SCENARIO).with_overrides({
         "options.pipeline": {"queues": {"mte_aic": 2, "cube": 2, "fix": 4}}})
@@ -320,7 +320,7 @@ def test_fixpipe_unit_is_declared_but_currently_dormant():
 def test_declared_bytes_do_not_depend_on_phase_pipelining(extra, label):
     """开不开相位流水, 申报的 GM→L1 字节必须**逐位相同**.
 
-    相位流水是编排旋钮, 它改变的是"什么时候搬", 不是"搬多少"。
+    相位流水是编排参数, 它改变的是"什么时候搬", 不是"搬多少"。
     2026-10-05 之前三处都从时长倒推字节 (时长 x 名义带宽), 于是拆相位会改变申报量:
       COMBINE  base_dur x BW_SCATTER   —— 连常数都标着"已不用" (已删)
       GMM1     load_us x BW_L1_GM      —— max 口径下只拿到较大那一股 (已改为透传)
@@ -337,7 +337,7 @@ def test_declared_bytes_do_not_depend_on_phase_pipelining(extra, label):
     for k in a:
         assert a[k] == pytest.approx(b[k], rel=1e-12), (
             f"{label}: 拆相位把 {k} 从 {a[k]:.0f} 改成了 {b[k]:.0f} —— "
-            "字节不该随编排旋钮变")
+            "字节不该随编排参数变")
 
 
 def test_per_core_bandwidth_is_capped_by_aggregate_spec():

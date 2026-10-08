@@ -11,7 +11,7 @@
 事件只能落一个核, 粒度越粗可参与的核越少) 与更晚的下游就绪。这笔交换该由算子
 工程师来扫, 所以它是参数。
 
-2026-10-04 之前只有 ``combine_granularity`` 一个旋钮 (缺口 11 的产物, 为回答一个
+2026-10-04 之前只有 ``combine_granularity`` 一个参数 (缺口 11 的产物, 为回答一个
 具体问题就地加的), dispatch 的粒度叫 ``dispatch_rows_per_item``, 而 GMM1 / SwiGLU /
 GMM2 的粒度写死为 1。那是提问历史留下的洞, 不是物理。本模块把这个维度统一起来。
 
@@ -60,7 +60,7 @@ class StageGranularity:
     """一个 stage 的事件粒度.
 
     items_per_event: 一个事件覆盖多少个单元。1 = 最细 (缺省, 最少假设:
-        不预设任何攒批)。0 = 整个专家切片。>1 = 攒这么多再发一次。
+        不预设任何合并)。0 = 整个专家切片。>1 = 攒这么多再发一次。
     """
 
     stage: str
@@ -81,7 +81,7 @@ class StageGranularity:
 #: 缺省粒度. 四个计算/通信 stage 最细 (1 个单元一个事件 = 最少假设);
 #: dispatch 取 0 = "沿用 tiling 算出的 routeItemsPerBatch" —— dispatch 的单元是行,
 #: 一行一个事件既不是任何实现的做法也不是合理缺省, 所以这里的 0 不表示"整片",
-#: 而表示"没有覆盖, 用 tiling 的值" (与历史旋钮 dispatch_rows_per_item 同义)。
+#: 而表示"没有覆盖, 用 tiling 的值" (与历史参数 dispatch_rows_per_item 同义)。
 DEFAULT_GRANULARITY: Tuple[StageGranularity, ...] = (
     StageGranularity("dispatch", 0),
     StageGranularity("gmm1", 1),

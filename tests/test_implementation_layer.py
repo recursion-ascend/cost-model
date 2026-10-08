@@ -109,7 +109,7 @@ def test_compile_config_default_matches_the_in_tree_kernel():
 def test_compile_config_reads_the_axes_out_of_kernel_config():
     """从 KernelConfig 取**编译轴**, 不是逐字段搬.
 
-    KernelConfig 混着三类东西: 编译轴 (tile_m)、建模旋钮 (gmm1_b_reuse_frac)、
+    KernelConfig 混着三类东西: 编译轴 (tile_m)、建模参数 (gmm1_b_reuse_frac)、
     硬件容量 (l1_size)。只有第一类属于编译点, 所以后两类不得影响指纹。
     """
     k = m.KernelConfig()

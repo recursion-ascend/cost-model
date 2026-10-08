@@ -2,7 +2,7 @@
 
 两种都是合理编排:
   "per_tile"   与每个 GMM2 tile 1:1 配对、紧跟其后 —— 延迟低、能与计算交错
-  "per_expert" 一个专家切片一个事件、等该切片全部 GMM2 段做完 —— 攒批
+  "per_expert" 一个专家切片一个事件、等该切片全部 GMM2 段做完 —— 合并
 
 粒度与**角色** (ModelOptions.roles) 正交: 前者管"一个事件覆盖多少工作", 后者管"跑在哪"。
 参考实现把粒度与量化模板参数绑在一起, 那是它的耦合 (见 docs 缺口 11)。
@@ -48,7 +48,7 @@ def test_per_expert_covers_the_whole_width_and_all_rows():
 
 
 def test_per_expert_waits_for_its_whole_slice():
-    """它等**自己那个切片**全部 GMM2 段做完 —— 这就是攒批的代价.
+    """它等**自己那个切片**全部 GMM2 段做完 —— 这就是合并的代价.
 
     注意是按切片而不是按波: 专家 0 的 combine 不等专家 2 的 GMM2。
     """
@@ -73,7 +73,7 @@ def test_per_tile_interleaves_with_compute():
 
 
 def test_batching_saves_metadata_bytes_but_loses_the_pipelining():
-    """攒批省的是元数据 (每行读一次 vs 每个 n-tile 读一遍), 丢的是流水交错.
+    """合并省的是元数据 (每行读一次 vs 每个 n-tile 读一遍), 丢的是流水交错.
 
     实测 9216/3 专家/28 核: combine 忙碌合计 305.34 -> 303.86 (省 0.5%),
     墙钟 315.63 -> 411.83 (**+30.5%**)。省下的字节远不抵丢掉的交错。
@@ -90,7 +90,7 @@ def test_the_model_cannot_show_per_expert_s_main_upside():
     """诚实声明: per_expert 的主要好处 (写侧落点跨度更可控) 模型**算不出来**.
 
     跨度不在模型里 (docs 缺口 10), 所以这里只看得见它的代价 (丢交错) 与一点字节收益。
-    等缺口 10 补上, 这个对比才有意义 —— 现在不要据此下"攒批没用"的结论。
+    等缺口 10 补上, 这个对比才有意义 —— 现在不要据此下"合并没用"的结论。
     """
     tile, expert = _run("per_tile"), _run("per_expert")
     # 两种粒度写出的总字节一致 (同样的行 x 同样的列), 差别只在元数据与事件切分

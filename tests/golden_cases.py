@@ -106,7 +106,7 @@ def run_api(routing, token_num, *, costs=None, aic_num=AIC, p1=2, p2=1, **kw):
 def run_shapes(routing, token_num, *, costs=None, aic_num=AIC, p1=2, p2=1,
                kernel=None, policy=None, options=None, restructure=None,
                **shape_kw) -> Dict[str, object]:
-    """经 MegaMoeShape 直达 model: 覆盖 api 入口未暴露的策略旋钮
+    """经 MegaMoeShape 直达 model: 覆盖 api 入口未暴露的策略参数
     (scheduling_policy / core_assignment / wave_packing)."""
     kernel = kernel if kernel is not None else P.kernel
     costs = _rebind_costs_to_kernel(costs if costs is not None else manual_costs(), kernel)
@@ -170,7 +170,7 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
     c["mte_shared_expert"] = lambda: run_api(sk(), SK_TOKENS, shared_expert_num=1)
     c["mte_aic16"] = lambda: run_api(w3(), W3_TOKENS, aic_num=16)
 
-    # ---- MTE 路径: 流控与编译期旋钮 ----
+    # ---- MTE 路径: 流控与编译期参数 ----
     c["mte_act_depth2_credit2"] = lambda: run_api(
         w3(), W3_TOKENS, policy=pol(gmm2_combine_credit=2),
         options=P.with_options(links=(
@@ -193,7 +193,7 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
     c["mte_b_reuse"] = lambda: run_api(w3(), W3_TOKENS, kernel=kc(gmm1_b_reuse_frac=0.53))
     c["mte_gmm2_kl1_256"] = lambda: run_api(sk(), SK_TOKENS, options=P.with_options(gmm2_kl1=256))
 
-    # ---- 策略旋钮 (经 MegaMoeShape) ----
+    # ---- 策略参数 (经 MegaMoeShape) ----
     c["policy_priority_by_stage"] = lambda: run_shapes(
         w3(), W3_TOKENS, scheduling_policy=m.PriorityByStage())
     c["policy_critical_path_first"] = lambda: run_shapes(
@@ -239,8 +239,8 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
         sk(), SK_TOKENS, options=_pipeline(queues=m.QueueDepths(mte_aic=2)))
     # 2026-10-05 审计: 这里原有 pipeline_engine_queue2 = pipeline_split +
     # engine_queue_depths(aic/vec0/aiv1=2)。两者指纹**逐位相同** —— 每核引擎队列在
-    # 持核事件独占该核时恒不起约束, 相位拆分又刻意不继承 Q:*, 所以那个旋钮任何取值
-    # 都无后果。旋钮已删 (model.py 把容量写死 1), case 一并去掉: 留着也只是第二份
+    # 持核事件独占该核时恒不起约束, 相位拆分又刻意不继承 Q:*, 所以那个参数任何取值
+    # 都无后果。参数已删 (model.py 把容量写死 1), case 一并去掉: 留着也只是第二份
     # pipeline_split。
     # 1024 token x top-8 = 每源 rank 8192 行 = 4 卡 x 64 专家 x 32。2026-10-05 之前
     # 路由给的是 x 8 (2048 行) 配 1024 token —— 不守恒。p1=0 由 token 数自动取档,

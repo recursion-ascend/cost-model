@@ -221,7 +221,7 @@ class PrimitiveCosts:
     # COUNTS_EXPORT -> 首个 dispatch 的门 (T_COUNT_GATE = 53.9 µs) **没有建模**:
     # 2026-10-05 之前这里有个 count_table_prepare_us 字段承接它, 但 builders/ 与
     # model.py 里**没有任何读者** —— 53.9 µs 被存进来又丢掉, 而 Calibration 还给它开了
-    # 一个旋钮 (改了什么都不会发生)。字段与旋钮都已删, 常数留在 config/hardware.py
+    # 一个参数 (改了什么都不会发生)。字段与参数都已删, 常数留在 config/hardware.py
     # 作复现记录 (provenance 的 measured 桶里)。要建模这道门, 应当在尾段发一个真实事件。
 
     # 晚绑定 (ModelOptions.late_bind_pools 非空) 下每取一次活的开销: 真实 kernel 要做

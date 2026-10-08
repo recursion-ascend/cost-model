@@ -5,7 +5,7 @@
 多少字节、哪些核在空转。
 
 用途是让算子工程师**自己把参数调出来** —— 不上板、不等编译、不排队占机器。一次运行 0.2
-到 4 秒, 所以可以一口气扫几十组参数。它不是用来解释某一次已有运行为什么慢的, 那是
+到 4 秒, 所以可以一次扫几十组参数。它不是用来解释某一次已有运行为什么慢的, 那是
 profiler 的事。
 
 ## 它模拟了哪些硬件条件
@@ -49,7 +49,7 @@ profiler 的事。
 | --- | --- | --- |
 | GMM1 的片上缓冲单槽改双槽 | `StageLink("gmm1","activation", depth=2)` | 326.64 → 296.34 µs (−9.3%): GMM1 少等 75.8, GMM2 多花 45.5 |
 | GMM2 不等齐整个 K 就开工 | `StageLink("activation","gmm2", readiness="per_chunk")` | 326.64 → 315.87 µs (−3.3%); 换成 hidden=18432 逐块反而比 3 段差, 事件数 240→4320 后排队成了新瓶颈 |
-| 激活结果不落 GM、留片上 | `location="onchip"` | 少搬 70.78 MB, 但 2017 µs (+517%): 消费者被迫与生产者同核, 一组工作钉在一个核上 |
+| 激活结果不落 GM、留片上 | `location="onchip"` | 少搬 70.78 MB, 但 2017 µs (+517%): 消费者被迫与生产者同核, 一组工作固定在一个核上 |
 | 工作到核改成运行时抢活 | `late_bind_pools=("AIC","AIV1")` | 1754.94 → 1737.51 µs; 静态分核下有 1729 核·µs 的工作已就绪却没核接, 动态取活后归 0 |
 | 权重走 NZ 格式 / B 流复用 | `weight_nz` / `gmm1_b_reuse_frac=0.53` | 同一个 tile 90.917 → 69.627 (−23%) / 62.430 µs (−31%) |
 | 开 topk 权重预取 | `topk_weights_prefetch=True` | 591.50 vs 600.93 µs; AIC 的被迫空闲 1669 → 462 核·µs, 代价是 HBM 写 25.4 → 50.5 MB |
@@ -59,7 +59,7 @@ profiler 的事。
 
 ```bash
 pip install -e .                      # 或直接 pytest (pyproject 已配 pythonpath)
-python examples/run_scenario.py       # 场景文件 + 改旋钮对比 (日常入口)
+python examples/run_scenario.py       # 场景文件 + 改参数对比 (日常入口)
 python examples/run_design_space.py   # 一次扫一组编排, 每个方案一行
 python examples/run_pipeline_study.py # 同上, 按"单核内 / stage 之间 / 波之间 / 工作落核"分组
 python examples/run_uncertainty.py    # 每条结论标成稳定或不可判定
@@ -95,7 +95,7 @@ readiness = "per_chunk"      # whole (缺省) / N>=2 均分 / per_chunk / first_
 
 | 文档 | 内容 |
 | --- | --- |
-| [`docs/USAGE.md`](docs/USAGE.md) | 场景文件怎么写、旋钮速查、完整示例 |
+| [`docs/USAGE.md`](docs/USAGE.md) | 场景文件怎么写、参数速查、完整示例 |
 | [`docs/knobs.md`](docs/knobs.md) | 全部可调参数的清单与判定 (生效 / 需对的形状 / 被拒 / 未建模) |
 | [`docs/modelling.md`](docs/modelling.md) | 逐个编排维度的语义、物理耦合、实测收益 |
 | [`docs/architecture.md`](docs/architecture.md) | 实现身份、编译指纹、与 C++ 源码对账、类型化事件图 |
@@ -206,7 +206,7 @@ python tools/compile_manifest.py --check     # 编译参数与 C++ 源码对账,
 | 时长误差 (标定域内 B≤128) | 逐 stage 忙碌 ±5%, 墙钟 −6% 至 −8% |
 | 标定域外已知失效 | B=1024 时 combine 偏差 +114% 至 +246%, GMM1 高估 +4% 至 +10% |
 | 回归 | 40 个配置的调度指纹逐位锁定 (时长与排程、访存量、三条下界、常数出处), `python tools/gen_golden.py --check` 35 秒 |
-| 旋钮覆盖 | 每个可调参数在五个形状上分成生效 / 需对的形状 / 被拒 / 未建模, `python tools/knob_audit.py` |
+| 参数覆盖 | 每个可调参数在五个形状上分成生效 / 需对的形状 / 被拒 / 未建模, `python tools/knob_audit.py` |
 
 **一条方法限制**: 贪心表调度对输入不单调 —— 实测在一条依赖边上加 0.01 µs 让墙钟变化
 −2.81%; 就绪粒度均分 3 段比 2 段差 1.0% 而 4 段又回到 2 段的值。所以**几个百分点以下的
@@ -278,7 +278,7 @@ moe-cost-model/
 │   │   ├── base.py              #   公共基类 (_event / 共享专家 / 尾段)
 │   │   ├── context.py           #   BuildContext: 各 stage 之间的共享状态
 │   │   ├── gmm1.py              #   GMM1 tile (ACT 由 activation.ActBatcher 一起发)
-│   │   ├── activation.py        #   ACT tile: 攒批 + epilogue 行块拆分
+│   │   ├── activation.py        #   ACT tile: 合并 + epilogue 行块拆分
 │   │   ├── gmm2.py              #   GMM2 head/tail + K 段就绪
 │   │   ├── tiling.py            #   tile 合并 (事件粒度) 与标签
 │   │   ├── barriers.py          #   全核栅栏 (融合 vs 分段)
@@ -306,5 +306,5 @@ moe-cost-model/
 │       └── sensitivity.py       #   标定值不确定度 -> 结论区间
 ├── tests/                       # 42 个文件 / 547 项 (引擎 / 建图 / 实现层 / IR / 校验 / golden / 场景)
 ├── examples/                    # 场景文件 + 六个实测 run 的复现脚本 + 设计空间扫描
-└── tools/                       # 16 个脚本: 清单对账 / 标定域 / 旋钮审计 / trace 比对 / golden / 报告
+└── tools/                       # 16 个脚本: 清单对账 / 标定域 / 参数审计 / trace 比对 / golden / 报告
 ```

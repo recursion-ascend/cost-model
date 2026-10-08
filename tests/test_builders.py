@@ -171,8 +171,8 @@ def test_idle_core_stealing_active_and_effective():
     """idle_core_stealing 经 model 生效 (rank 前缀剥离) 且确定."""
     world, local, per = 2, 4, 1024
     C = [[[per] * world for _ in range(local)] for _ in range(world)]
-    # 转移钩子修的是静态发牌的空闲; 缺省晚绑定下没有可转移的东西 (见 test_scenario)。
-    # 用 MEGAMOE_A8W8 那组编排 (含静态发牌): 钩子的判据与注入量是按这种结构调的。
+    # 转移钩子修的是静态分核的空闲; 缺省晚绑定下没有可转移的东西 (见 test_scenario)。
+    # 用 MEGAMOE_A8W8 那组编排 (含静态分核): 钩子的判据与注入量是按这种结构调的。
     kw = dict(token_num_per_rank=1024, h=6144, hidden_dim=4096, aic_num=28,
               costs=_costs(), topk=8, p1_override=2, p2_override=1,
               options=m.MEGAMOE_A8W8.options)

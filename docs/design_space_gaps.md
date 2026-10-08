@@ -13,7 +13,7 @@
 跟着变)。
 
 **stage 边收成一个概念** (2026-10): `gmm2_k_segments` / `act_to_gmm2` /
-`InstancePolicy.gmm1_activation_depth` 三个旋钮合并为 `ModelOptions.links`
+`InstancePolicy.gmm1_activation_depth` 三个参数合并为 `ModelOptions.links`
 (一条边一个 `StageLink`, 见 `config/links.py`)。旧名字已移除 —— 留着等于保留两套说法。
 
 **取值的含义不引用实现** (2026-10 分层): 缺省值一律是"最少假设", 某一版实现的取值集中在
@@ -22,7 +22,7 @@
 
 ## 速查: 哪些编排已经能表达
 
-| 维度 | 旋钮 | 备注 |
+| 维度 | 参数 | 备注 |
 | --- | --- | --- |
 | wave 打包 | `wave_packing` | SequentialGreedy / LongestExpertFirst / BalancedWaves, 可自定义 |
 | wave 容量 | `p1_override` / `p2_override` | 经 `calc_m_groups_per_wave` |
@@ -53,7 +53,7 @@
 | 相位流水 | `ModelOptions.pipeline` | load/cube/fix 相位拆分 + 每核队列深度 |
 | 跨卡搬运串行化 | `ModelOptions.serialize_dispatch_comm` | `DISPATCH_COMM` 独占资源 |
 
-**只有旋钮、但缺省标定下是空操作的**: `KernelConfig.l1_buf_num` (只在
+**只有参数、但缺省标定下是空操作的**: `KernelConfig.l1_buf_num` (只在
 `gmm1_tile_restart_us > 0` 时生效, 缺省 0)、`KernelConfig.weight_nz` (开启需显式给 NZ
 带宽, 否则直接报错)。
 
@@ -141,7 +141,7 @@ RoleAssignment({"activation": "AIV1", "combine": "AIV0",
 上的矩阵乘没有别处可去。要用上空闲的向量核, 得给它们**新的**工作 (例如跨核 K-split 的
 归约、或把 GMM 尾段的一部分搬过去), 那是另一个问题。
 
-旋钮确实是活的 (不是装饰): 把全部向量工作挤到一个角色上会变慢 —— 2048/8 专家/2 核
+参数确实是活的 (不是装饰): 把全部向量工作挤到一个角色上会变慢 —— 2048/8 专家/2 核
 3861.56 -> 3924.70 (+1.6%), 且挤到 AIV0 与挤到 AIV1 同值 (两个向量角色对称, 合理性校验)。
 
 补齐它顺带解锁: 缺口 11 (combine 换角色/粒度) 的角色那一半、缺口 5 的 A8W4 角色互换。
@@ -231,7 +231,7 @@ self._event("epilogue.unpermute",     (), unpermute_bytes / BW_UNPERMUTE_AGG, ..
 | `("wave",)` | 波间全核对齐 —— 下一波的任何事件都等上一波全做完 |
 | `("stage",)` | 波内每个 stage 之后对齐 (dispatch→gmm1→act→gmm2→combine) = 最彻底的**分段式执行** |
 
-实测"融合值多少" (两边同为片上槽数 0 —— 当时的旋钮名是 `gmm1_activation_depth`,
+实测"融合值多少" (两边同为片上槽数 0 —— 当时的参数名是 `gmm1_activation_depth`,
 现在是 `StageLink("gmm1","activation").depth`; 公平对比):
 
 | 形状 | 融合 | 波间栅栏 | 分段栅栏 |
@@ -287,8 +287,8 @@ self._event("epilogue.unpermute",     (), unpermute_bytes / BW_UNPERMUTE_AGG, ..
 - **波间全核对齐**: 下一波的任何事件都等上一波全部做完 (而不是现在的逐核排空)。
 
 要补: 一个"栅栏事件"原语 —— 零时长、依赖某组事件的全部、且后续某组事件全部依赖它。
-`DRAIN_STAGES` 那张表已经是现成的归集机制, 缺的是"把它升格成全核"的旋钮与建图器支持。
-注意这会与晚绑定叠加: 栅栏之后所有核重新开始, 晚绑定的收益可能被栅栏吃掉 —— 正是值得
+`DRAIN_STAGES` 那张表已经是现成的归集机制, 缺的是"把它升格成全核"的参数与建图器支持。
+注意这会与晚绑定叠加: 栅栏之后所有核重新开始, 晚绑定的收益可能被栅栏抵消 —— 正是值得
 量化的那件事。
 
 ---
@@ -410,7 +410,7 @@ dispatch 的名字去掉核号后仍然唯一, 因为行区间按核互不重叠
 | `"kernel"` (缺省) | 先按核预切, 再切批 —— 复现 kernel, `compare_measured` 用它对齐实测 trace |
 | `"rows"` | 不预切, 只按 `dispatch_rows_per_item` 切整个切片; 核号只是轮转占位, AIV1 入池后由调度器决定 |
 
-`ModelOptions.dispatch_rows_per_item` 把工作项的行粒度变成旋钮 (0 = 用 tiling 的
+`ModelOptions.dispatch_rows_per_item` 把工作项的行粒度变成参数 (0 = 用 tiling 的
 `routeItemsPerBatch`)。实测 9216/3:
 
 | 配置 | 工作项 | 用到的核 | dag_end |
@@ -424,7 +424,7 @@ dispatch 的名字去掉核号后仍然唯一, 因为行区间按核互不重叠
 
 `"kernel"` 模式逐位复现: 40 个基准用例的事件名、起止时刻、落核完全一致 (指纹变化只来自
 建图序字段 `order`)。行守恒由建图器原有的 `contributed_rows == required_rows` 校验看着,
-`tests/test_dispatch_partition.py` 把四种切法都钉住。
+`tests/test_dispatch_partition.py` 把四种切法都约束。
 
 ---
 
@@ -534,7 +534,7 @@ dispatch_partition="rows", t_call_oh_us=1.006:
   * 结构保留是有意义的: 布局 -> 跨度这条链算得出来并进了 meta, 将来真有证据时只填系数,
     不动建图。
 
-### 两处偏置, 别拿这个旋钮当免费收益
+### 两处偏置, 别拿这个参数当免费收益
 
 1. 写侧系数不填, 两种布局的时长就完全一样 (只有申报的跨度不同)。按上面的修订这
    **大概是对的**, 不再当作已知欠账。
@@ -550,7 +550,7 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 原缺口: combine 只能是一种编排 —— AIV1 上与 GMM2 tile 1:1 配对同核。两个维度现在都可配,
 而且**彼此正交** (参考实现把它们绑在同一个量化模板参数上, 那是它的耦合, 不是物理):
 
-| 维度 | 旋钮 | 取值 |
+| 维度 | 参数 | 取值 |
 | --- | --- | --- |
 | 跑在哪个角色 | `ModelOptions.roles` | 见缺口 2 |
 | 一个事件覆盖多少工作 | `ModelOptions.combine_granularity` | `"per_tile"` (缺省) / `"per_expert"` |
@@ -558,7 +558,7 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 `"per_expert"`: 一个专家切片一个 combine 事件, 等**自己那个切片**全部 GMM2 段做完
 (不是等整波 —— 专家 0 的 combine 不等专家 2 的 GMM2)。
 
-### 量出来: 攒批省的字节远不抵丢掉的交错
+### 量出来: 合并省的字节远不抵丢掉的交错
 
 实测 9216/3 专家/28 核 (规格 Cube 速率, 缺省晚绑定):
 
@@ -575,7 +575,7 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 
 `per_expert` 真正的卖点是**写侧落点跨度更可控** (一次写整片 h 列, 而不是按 n-tile 分 20 次
 散射)。跨度不在模型里 (缺口 10), 所以现在这个对比只看得见它的代价。
-**不要据上表下"攒批没用"的结论** —— 等缺口 10 补上才有意义。
+**不要据上表下"合并没用"的结论** —— 等缺口 10 补上才有意义。
 
 ---
 
@@ -595,7 +595,7 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 | combine | `combine_granularity` | 可配 |
 
 `combine_granularity` 是缺口 11 的产物 —— 为回答**一个具体问题** (combine 能不能挪到
-另一个向量角色、逐专家做一遍) 就地加的专用旋钮。dispatch 那三个更早, 为对齐 trace
+另一个向量角色、逐专家做一遍) 就地加的专用参数。dispatch 那三个更早, 为对齐 trace
 加的。GMM1 / ACT / GMM2 的粒度从来没人问过, 所以一直写死。
 
 这是"参数定义"那个毛病的另一种形态: 上一次是**用"等于某实现"定义取值**, 这一次是
@@ -628,18 +628,18 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 
 ### 三条必须写下来的耦合
 
-1. **ACT 的粒度不是自由旋钮。** ACT 必须与产它的 GMM1 同核 (L0C→UB 的 Fixpipe),
+1. **ACT 的粒度不是自由参数。** ACT 必须与产它的 GMM1 同核 (L0C→UB 的 Fixpipe),
    所以 g>1 只在"喂它的 GMM1 tile 既同核又 n 相邻"时才生效。轮转/贪心分核把相邻
    n-tile 散到不同核, 这时 g>1 是**空操作**。实测 (4 核 16 tile 夹具):
    `StaticRoundRobin` 下 act=2 仍是 16 个 ACT 事件, `ContiguousBlock` 下合成 8 个。
-   这是物理与分核策略的耦合, 不是 bug —— 但它意味着这个旋钮会**静默无效**,
+   这是物理与分核策略的耦合, 不是 bug —— 但它意味着这个参数会**静默无效**,
    所以每个 ACT 事件的 meta 里记了 `gmm1_events_in_event`, 用来看它到底有没有生效。
 2. **ACT 粒度 g 要求 UB 槽数 >= g** (或 0 = 不设限): g 个 GMM1 各占一个槽, 要等齐才
    发 ACT, 槽不够直接死锁。`ActBatcher` 构造时就拒绝, 报错里给出三种改法。
-3. **combine 的攒批不按核分组。** combine 从 GM 读 GMM2 的输出
+3. **combine 的合并不按核分组。** combine 从 GM 读 GMM2 的输出
    (`StageLink("activation","gmm2").location == "gm"` 之后那一段同理), 与 GMM2 同核
    **不是**物理约束, 所以一个 combine 事件可以吃不同核产的 tile。按核分组会让这个
-   旋钮在轮转/晚绑定下静默失效 —— 第一版就踩了这个坑。
+   参数在轮转/晚绑定下静默失效 —— 第一版就踩了这个坑。
 
 ### 粗粒度不是免费的, 模型要能算出它变差
 
@@ -660,7 +660,7 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 tile 数远多于核数) 上 `gmm2=2` 从 1751.48 快到 **1741.46** —— 省下的同步点这次赚回来了。
 
 所以这不是收益开关, 是一笔交换, 而且**符号随形状翻转**: 必须扫, 不能照搬取值。
-两条测试分别钉住两个方向 (`test_coarse_granularity_costs_parallelism_not_just_saves_sync`
+两条测试分别约束两个方向 (`test_coarse_granularity_costs_parallelism_not_just_saves_sync`
 与 `test_scenario_file_can_set_granularity_per_stage`)。
 
 ---
@@ -709,7 +709,7 @@ Cube 的账上挪走, 却没挪到任何别的账上 —— 512 个载入可以�
 1. `scenario_basic.toml` 这个形状**不是 Cube 绑定, 是带宽绑定**。先前拿
    `AIC busy / 核数 = 1697.12us` 当"算力界", 但 `busy` 含载入时间, 那不是算力。
    按算法事实: 算力下界 25.57us (夹具 Cube 速率 2.7e7), 带宽下界 1665.37us。
-2. 可挖空间不是 3.2% 而是 **5.2%** (1751.48 对 1665.37)。那些 ±0.3% 的旋钮抢的是这
+2. 可挖空间不是 3.2% 而是 **5.2%** (1751.48 对 1665.37)。那些 ±0.3% 的参数抢的是这
    5.2% 里的几个百分点; 1665us 那部分只能靠**少搬字节**降 (换 dtype、提高 L2 复用、
    改物化编排), 编排碰不到。
 
@@ -785,7 +785,7 @@ meta["compute_us"]、丢掉 gmm2_problem_startup_us"那一版的数。补回那�
    在那儿写非缺省值**静默无效**。实测: 固定形状静态钉核, 只改 gmm1→activation 的
    readiness (0/1/2/5), 事件数恒 271、墙钟逐位相同; 改 activation→gmm2 则
    0→943、2→367、5→655 个事件。
-2. **`0` 的语义与别的旋钮相反。** `granularity` 的 `0`=整片、`dispatch_rows_per_item`
+2. **`0` 的语义与别的参数相反。** `granularity` 的 `0`=整片、`dispatch_rows_per_item`
    的 `0`=沿用 tiling, 而 readiness 的 `0`=最细。
 
 现在: 语义先定成物理量 ("消费者沿共享轴分 S 段独立就绪, 第 j 段只挂覆盖第 j 段范围的
@@ -818,7 +818,7 @@ meta["compute_us"]、丢掉 gmm2_problem_startup_us"那一版的数。补回那�
   动 −2.81%), 不是分段本身有代价。**所以 readiness 扫出来的几个百分点, 只在同一绑定
   方式下、且差值大于这类抖动时才可读**; `WorkConservingCriticalPath` 下这类抖动消失。
 
-测试把这两条都钉住了 (`tests/test_readiness.py`): 静态钉核断言"墙钟不增", 晚绑定那条
+测试把这两条都约束了 (`tests/test_readiness.py`): 静态钉核断言"墙钟不增", 晚绑定那条
 只记事实 —— 断言 3 段确实比 2 段差, 以免哪天有人把它当成容差抹平。
 
 ---
@@ -842,7 +842,7 @@ meta["compute_us"]、丢掉 gmm2_problem_startup_us"那一版的数。补回那�
 删掉载入就能无限并发,墙钟会低于带宽下界 26.6%(见本文件「下界与漏账」)。
 只按"自取自还"删会把它一起删掉。
 
-分类(`tests/test_capacity_tokens.py` 逐条钉住):
+分类(`tests/test_capacity_tokens.py` 逐条约束):
 
 | token | 取/还 | 持有者有独占资源 | 结论 |
 | --- | --- | --- | --- |

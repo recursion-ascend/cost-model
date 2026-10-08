@@ -1,4 +1,4 @@
-"""场景文件 → 执行时间 (到最后一个 COMBINE 结束) → 改旋钮对比.
+"""场景文件 → 执行时间 (到最后一个 COMBINE 结束) → 改参数对比.
 
 运行: python examples/run_scenario.py
 """

@@ -131,7 +131,7 @@ class ModelOptions:
     pipeline: Optional[PipelineConstraints] = None
     gmm2_kl1: Optional[int] = None
     # stage 之间那条边: 消费者等多少 / 中间结果放哪 / 片上存几块。
-    # 一条边一个 StageLink, 见 config/links.py。取代原先三个各自为政的旋钮
+    # 一条边一个 StageLink, 见 config/links.py。取代原先三个各自为政的参数
     # (gmm2_k_segments / act_to_gmm2 / InstancePolicy.gmm1_activation_depth)。
     links: Tuple[object, ...] = DEFAULT_LINKS     # config.links.StageLink
     # 哪个 stage 跑在哪个执行角色上 (AIC / AIV0 / AIV1), 见 config/roles.py。
@@ -142,7 +142,7 @@ class ModelOptions:
     # 每个 stage 的**事件粒度** (一个事件覆盖多少份该 stage 的自然工作单元),
     # 见 config/granularity.py。与 links (每 stage 一条边)、roles (每 stage 一个角色)
     # 平行 —— 粒度是五个 stage 共有的维度, 不是 combine 的特性。
-    # 缺省全 1 = 最细 = 最少假设 (不预设任何攒批)。
+    # 缺省全 1 = 最细 = 最少假设 (不预设任何合并)。
     # 下面 combine_granularity / dispatch_rows_per_item 是它的**兼容视图**,
     # __post_init__ 会把两边对齐, 冲突直接报错 —— 只允许一个真相。
     granularity: object = DEFAULT_GRANULARITIES    # config.granularity.GranularityAssignment
@@ -150,7 +150,7 @@ class ModelOptions:
     #   "per_tile" (缺省) 与每个 GMM2 tile 1:1 配对, 紧跟其后 —— 延迟低, 但每个
     #       n-tile 都要把本窗 m 行的路由元数据读一遍 (读 n_tile 次)。
     #   "per_expert" 一个专家切片一个 combine 事件, 等该切片**全部** GMM2 段做完 ——
-    #       攒批: 元数据每行只读一次, 写侧落点跨度也更可控; 代价是等整片。
+    #       合并: 元数据每行只读一次, 写侧落点跨度也更可控; 代价是等整片。
     # 两种都是合理编排; 参考实现把它与量化模板参数绑在一起, 那是它的耦合 (见 docs 缺口 11)。
     combine_granularity: str = "per_tile"
     # combine 写出的**落点布局**: 这 m 行写到目的卡窗口的哪里。
@@ -199,7 +199,7 @@ class ModelOptions:
         validate_links(self.links, self.granularity)
 
     def _reconcile_granularity_views(self) -> None:
-        """把两个历史旋钮折进统一的 granularity, 保证只有一个真相.
+        """把两个历史参数折进统一的 granularity, 保证只有一个真相.
 
         combine_granularity: "per_tile" <-> combine 粒度 1; "per_expert" <-> 0 (整片)。
         dispatch_rows_per_item: 就是 dispatch 的粒度 (0 = 用 tiling 的 routeItemsPerBatch)。

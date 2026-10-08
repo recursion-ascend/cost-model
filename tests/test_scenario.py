@@ -92,7 +92,7 @@ def test_stealing_by_name():
 def test_stealing_is_a_no_op_under_late_binding():
     """晚绑定下 idle_core_stealing 没有可转移的东西 —— 它修的问题不存在.
 
-    这不是钩子坏了: 它的存在意义就是补静态发牌的空闲, 而缺省调度已经不产生
+    这不是钩子坏了: 它的存在意义就是补静态分核的空闲, 而缺省调度已经不产生
     那种空闲 (analysis/idle.py 的 avoidable_idle_us == 0)。
     """
     def make(restructure, late):
@@ -226,7 +226,7 @@ def test_bad_scenario_file_is_rejected(tmp_path, text, fragment):
 
 
 # ---------------------------------------------------------------------------
-# 改旋钮
+# 改参数
 # ---------------------------------------------------------------------------
 
 def test_with_overrides():

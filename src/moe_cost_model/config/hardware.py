@@ -44,7 +44,7 @@ BW_WINDOW = SourcedValue(33000.0, 'measured:跨卡读数据的片间带宽, disp
 # 跨卡行写按 BW_REMOTE_WRITE 计, 本常数不再进 COMBINE 公式 (留给旧标定复现).
 # 2026-10-05: 确认**真的没有任何公式再用它**。此前标着"已不用", 但
 # builders/pipeline_expand.py 还在用 "base_dur x BW_SCATTER" 从时长倒推 COMBINE 的
-# hbm_write 字节 —— 方向反了, 而且那股字节只在开相位流水时出现 (换编排旋钮不该改变
+# hbm_write 字节 —— 方向反了, 而且那股字节只在开相位流水时出现 (换编排参数不该改变
 # 搬了多少字节)。现在 COMBINE 的本卡读回与本卡行写由 builders/comm/mte.py 按字节直接
 # 申报, 这个常数只作为旧标定的复现记录保留, 不进任何公式、不进任何申报。
 BW_SCATTER = SourcedValue(139500.0, 'measured:COMBINE 散射写带宽 (旧口径); 域受限 (B=64 随机路由标定); 已退役, 不进任何公式, 仅留复现记录')
@@ -263,7 +263,7 @@ def select_kl1(m_rows: int, k: int, override=None, tile_m: int = TILE_M,
     **一次都没出现** —— 它只进 `L1Params{.l1BufNum = ...}`, 管的是 ping-pong 的缓冲块数
     (模型侧对应 AnalyticalGmmCosts 的 serial: l1_buf_num==1 时单缓冲, 换块要停顿)。
     缺省值恰好都是 2, 所以缺省配置下两种写法同值; 一旦扫 l1_buf_num, 旧写法会改 kL1 而
-    kernel 不会 —— 那个旋钮于是在模型里多了一份 kernel 没有的后果。
+    kernel 不会 —— 那个参数于是在模型里多了一份 kernel 没有的后果。
     """
     if override is not None:
         return override
@@ -348,7 +348,7 @@ BW_UNPERMUTE_AGG = SourcedValue(950000.0, 'measured:UNPERMUTE 阶段读加写的
 
 # ---------------------------------------------------------------------------
 # kernel 编译期参数 (CMake cost-sweep knobs / 模板参数), Python 可设
-# 对应 kernel 工程的 CMake 编译旋钮
+# 对应 kernel 工程的 CMake 编译参数
 # ---------------------------------------------------------------------------
 
 
@@ -421,7 +421,7 @@ class KernelConfig:
     #   bs8192 m=256,12 个 m-group, 28 核: 53.80 us   <- 几何相同, 只差 m-group 数
     # 反解每 tile 的 B 流只有整份的 56.5%; 按"首个付整份、其余各付 f"算, G=12 时
     # f ≈ 0.53。**一个点不是规律** (f 可能随 G、随列块数变), 所以缺省不声称复用。
-    # 注意: 每专家只有 1 个 m-group 时本旋钮无效 (没有可复用的对象)。
+    # 注意: 每专家只有 1 个 m-group 时本参数无效 (没有可复用的对象)。
     gmm1_b_reuse_frac: float = 1.0
     combine_quant_mode: int = 0       # CombineQuantMode: 0=NO_QUANT, 1=QUANT(FP8+scale)。
                                       # 只管**数据格式**; combine 跑在哪个角色/什么粒度
@@ -435,7 +435,7 @@ class KernelConfig:
     l1_size: int = 512 * 1024         # DAV_3510 平台
     # 核数 aic_num 是可调场景输入 (MegaMoeShape.aic_num); 向量核数恒为 2×aic_num
     # (每 block 1 AIC + 2 AIV, 平台结构常数), 模型以每核 AIV0/AIV1 两角色表达,
-    # 不设独立旋钮。
+    # 不设独立参数。
 
     @property
     def epilogue_tile_m(self) -> int:

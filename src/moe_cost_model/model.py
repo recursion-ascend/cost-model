@@ -245,7 +245,7 @@ def _apply_onchip_act_to_gmm2(events: List[Event], pooled: Sequence[str]) -> Non
         raise ValueError(
             'StageLink("activation","gmm2", location="onchip") 需要 late_bind_pools '
             '含 "AIC": 共位靠派发时刻绑定表达, 建图时静态钉核无从表达 '
-            "(钉死的核号本来就各不相同)")
+            "(固定的核号本来就各不相同)")
     anchor: Dict[tuple, str] = {}
     for ev in events:
         stage = str(ev.meta.get("stage", ""))
@@ -432,17 +432,17 @@ class A8W8WaveCostModel:
                 ev.channel_bytes = tuple(
                     (c, b, rt) if c.startswith("fab_") else (pre + c, b, rt)
                     for c, b, rt in ev.channel_bytes)
-            # 每核引擎队列的容量恒为 1, 不设旋钮。在**持核事件**上它起不了约束
+            # 每核引擎队列的容量恒为 1, 不设参数。在**持核事件**上它起不了约束
             # (同核在途数恒 <= 1), 那一份已被 prune_inert_semaphores 从图里删掉;
             # 这里仍然声明, 是因为同一个名字在**拆相位的 AIV 路径**上会变成跨事件
             # 持有 (.ld 取、主事件还, 见 pipeline_expand._expand_aiv) —— 那时它是真
             # 约束, 必须有容量。声明了而没人取的, 由下面那一步统一丢掉。
             #
-            # 为什么深度不是旋钮: 要表达"更深的队列"必须先有发射开销或在途计数的物理
-            # 后果, 模型里没有, 给个旋钮只会让扫描得到"深了也没用"的假结论。
+            # 为什么深度不是参数: 要表达"更深的队列"必须先有发射开销或在途计数的物理
+            # 后果, 模型里没有, 给个参数只会让扫描得到"深了也没用"的假结论。
             # 2026-10-05 之前这里是 EngineQueueDepths(aic/vec0/aiv1): 四类形状逐个扫过,
             # 任何取值都与容量 1 逐位相同 (golden 的 pipeline_engine_queue2 与
-            # pipeline_split 指纹全同可证), 所以它是个无法生效的旋钮, 已删。
+            # pipeline_split 指纹全同可证), 所以它是个无法生效的参数, 已删。
             ub_depth = self.options.gmm1_act_link(shape.kernel).depth
             for core in range(shape.aic_num):
                 capacities[pre + f"Q:aic:c{core}"] = 1

@@ -168,7 +168,7 @@ def test_a8w4_is_declared_and_refuses_with_the_missing_facts():
 
     三种答案信息量不同: 没有这个名字 (像没想过)、有名字但凭空给数 (最坏)、有名字且说清
     差什么 (可以照着补)。这里是第三种。差的是一个**量** (4bit->8bit 展开的向量吞吐),
-    不是一个旋钮 —— 仓内没有 A8W4 的打点。
+    不是一个参数 —— 仓内没有 A8W4 的打点。
     """
     adapter = A8W4WaveV1Declared()
     assert adapter.identity().key == "ascend950.megamoe.a8w4_wave.v1"

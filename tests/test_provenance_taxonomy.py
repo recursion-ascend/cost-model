@@ -90,7 +90,7 @@ def test_model_default_has_zero_epilogue_overheads_profile_carries_them():
 
     2026-10-05: EpilogueOverheads 的 docstring 原先写"缺省沿用实测值, 这样默认结果不变"
     —— 那句描述的是本类自己 (literal=False) 的行为, 却会被读成"模型缺省沿用实测值"。
-    这条测试把两个缺省的区别钉死, 免得文档再把人 (包括我) 带偏。
+    这条测试把两个缺省的区别固定, 免得文档再把人 (包括我) 带偏。
     """
     import moe_cost_model as m
     d = m.ModelOptions().epilogue_overheads

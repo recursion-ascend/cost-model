@@ -59,7 +59,7 @@ def test_path_attribution_explains_a_change():
 
 
 def test_invariant_guard_flags_the_static_implementation():
-    """护栏列: 那份实现是静态发牌, 有可避免空闲 -> 该行的收益不能当准数看."""
+    """护栏列: 那份实现是静态分核, 有可避免空闲 -> 该行的收益不能当准数看."""
     rows = {r["name"]: r for r in _rows()}
     assert rows["基线"]["invariant_ok"]
     assert not rows["那份实现"]["invariant_ok"]

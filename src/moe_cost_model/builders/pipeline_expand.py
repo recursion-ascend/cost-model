@@ -8,10 +8,10 @@
   2. serial 口径下 load_us 还含 chunk_restart, 那不是字节;
   3. weight_nz 时 B 流用的是 bw_b 而不是 BW_L1_GM, 两个常数不同。
 更要命的是: 倒推只发生在拆相位这条路径上, 于是**开不开相位流水会改变"搬了多少
-字节"** —— 换一个编排旋钮不该改变算法必搬的量。
+字节"** —— 换一个编排参数不该改变算法必搬的量。
 COMBINE 那条 (base_dur x BW_SCATTER) 已于 2026-10-05 删除, GMM1/GMM2 这两条同日改成
 原样透传。tests/test_bounds.py::test_declared_bytes_do_not_depend_on_phase_pipelining
-把这条不变量钉住。
+把这条不变量约束。
 L0/L1/L2 流水线约束施加器.
 
 输入 build_events 产出的事件表, 输出 (事件表, 容量表, 信道表) 供调度器.
@@ -145,7 +145,7 @@ def apply_pipeline(
             used.add(res)
     for res in used:
         if res.startswith(("MTE2:", "FIXPIPE:", "MTE_AIV:")):
-            # **执行单元**, 容量恒为 1 —— 这是硬件事实, 不是旋钮:
+            # **执行单元**, 容量恒为 1 —— 这是硬件事实, 不是参数:
             #   MTE2     一个 AIC 一条 (GM→L1 搬运)
             #   FIXPIPE  一个 AIC 一条 (L0C→UB/GM 搬出)
             #   MTE_AIV  一个 AIV 一条 (GM↔UB 搬运); 名字带 aiv0/aiv1 是因为
@@ -156,7 +156,7 @@ def apply_pipeline(
             #
             # 用计数信号量而不是独占资源, 是为了走 late-bind 的 "c*" 占位重映射
             # (model._rewrite_for_late_binding 只改写 acquires/releases 的核后缀) ——
-            # 写成独占资源会把相位钉在建图时的占位核号上, 与它所在相位组绑定的核冲突。
+            # 写成独占资源会把相位固定在建图时的占位核号上, 与它所在相位组绑定的核冲突。
             capacities[res] = 1
         if res.startswith("QUEUE:mte_aic:"):
             capacities[res] = cons.queues.mte_aic
@@ -393,7 +393,7 @@ def _expand_aiv(
     # 建图器自己申报的字节原样保留 (ACT 的 GM 写出、COMBINE 的片间写与本卡读写)。
     # 2026-10-05 之前这里还会**追加** (CH_HBM_WRITE, base_dur x BW_SCATTER) ——
     # 从时长倒推字节, 方向是反的; 用的 BW_SCATTER 自己标着"旧口径, 已不用";
-    # 而且它只在开了相位流水时出现 —— 换一个编排旋钮不该改变搬了多少字节。
+    # 而且它只在开了相位流水时出现 —— 换一个编排参数不该改变搬了多少字节。
     # COMBINE 的本卡读回与本卡行写现在由 builders/comm/mte.py 按字节直接申报。
     ch = ev.channel_bytes
 

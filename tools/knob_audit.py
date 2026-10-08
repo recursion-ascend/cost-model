@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""旋钮覆盖审计: 每一个可调参数, 模型到底看不看得见.
+"""参数覆盖审计: 每一个可调参数, 模型到底看不看得见.
 
 动机 —— 算法工程师改编排 / 编译期 / 运行期参数时, 一个 "0 收益" 有四种意思, 它们
 对下一步的指示完全相反, 所以必须分开:
@@ -14,16 +14,16 @@
 扫法三条:
   1. 从**本场景的生效值**出发扰动, 不是从 dataclass 缺省值出发 —— 场景带 profile 时
      两者不同, 拿缺省值当基线会把 "值根本没变" 误判成 "没有读者"。
-  2. 一个旋钮给**一串**候选取值, 任一取值动了就算生效 —— 翻倍常落在无语义的档上
+  2. 一个参数给**一串**候选取值, 任一取值动了就算生效 —— 翻倍常落在无语义的档上
      (l1_buf_num 2->4 与 2 同构, 2->1 才是关 ping-pong)。
-  3. 有**前置条件**的旋钮带 CONTEXT: 它的杠杆依赖另一个旋钮。前置条件同时加到基线与
+  3. 有**前置条件**的参数带 CONTEXT: 它的作用对象依赖另一个参数。前置条件同时加到基线与
      扰动上, 比的是同一前提下的两个点。(当前为空 —— 唯一用过它的
      EngineQueueDepths 已经因为"在这个事件代数里无可表达的后果"被删掉。)
 
 比对五项: 墙钟 / 事件数 / 事件名集合 / 逐事件时长 / 逐信道字节。五项全同 = 没动静。
 
-判定钉在 EXPECTED 里, tests/test_knob_coverage.py 守它: 新旋钮忘接线、老旋钮被改没了、
-"动不了"的声明过期了, 三种都会红。旋钮树自动走 (dataclasses.fields + scenario._NESTED),
+判定固定在 EXPECTED 里, tests/test_knob_coverage.py 守它: 新参数忘接线、老参数被改没了、
+"动不了"的声明过期了, 三种都会红。参数树自动走 (dataclasses.fields + scenario._NESTED),
 所以新字段自动进审计。
 
 运行: python tools/knob_audit.py            全量 (五形状, 分钟级)
@@ -45,7 +45,7 @@ from moe_cost_model.scenario import _NESTED                       # noqa: E402
 
 SCENARIO = Path(__file__).resolve().parents[1] / "examples" / "scenario_basic.toml"
 
-#: 五个互补形状。每个都给某一类旋钮作用对象, 合起来覆盖"波 / 组 / tile / K 块 / 核"
+#: 五个互补形状。每个都给某一类参数作用对象, 合起来覆盖"波 / 组 / tile / K 块 / 核"
 #: 这五个维度的多与少。hidden_dim=2048 -> GMM2 的 K=1024, 4 个 kL1 块 (逐块就绪有对象)。
 SHAPES = {
     "多波核紧": {"workload.tokens": 1024, "workload.world": 2,
@@ -108,11 +108,11 @@ CANDIDATES = {
     "options.epilogue_overheads": [{"literal": True}, {"counts_export_us": 5.0}],
 }
 
-#: 前置条件: 这个旋钮的杠杆依赖另一个旋钮。同时加到基线与扰动上。
+#: 前置条件: 这个参数的作用对象依赖另一个参数。同时加到基线与扰动上。
 CONTEXT = {}
 
-#: 已核实"模型里动不了"的旋钮 -> 理由。审计的硬判据: 可疑集合必须是它的子集,
-#: 多出来一个就是新的死旋钮 (或者某个形状不再给它杠杆了), 两种都要人看。
+#: 已核实"模型里动不了"的参数 -> 理由。审计的硬判据: 可疑集合必须是它的子集,
+#: 多出来一个就是新的无作用的参数 (或者某个形状不再给它作用对象了), 两种都要人看。
 DECLARED_UNREAD = {
     # 写侧: 布局只经 spread_slots 进 AnalyticalCombineCosts.scatter_us, 而那里
     #   额外时长 = m · scatter_us_per_row · (spread_slots/m) ** scatter_exponent。
@@ -121,12 +121,12 @@ DECLARED_UNREAD = {
     #   AnalyticalCombineCosts 文档: bs128 与 bs8192 跨度差 64 倍而更稀的那个反而快一倍)。
     # 读侧: UNPERMUTE 从顺序读变 gather 的代价**完全没建模** (字节 / BW_UNPERMUTE_AGG
     #   一个除法, 与落点无关) —— 见 docs/design_space_gaps.md 缺口 10。
-    # 所以扫这个旋钮只会得到 0, 那是模型的空白, 不是硬件上没有差别。
+    # 所以扫这个参数只会得到 0, 那是模型的空白, 不是硬件上没有差别。
     "options.combine_layout": "写侧要 scatter_exponent>0 (实测已否掉该机制), "
                               "读侧 UNPERMUTE gather 未建模 (缺口 10)",
 }
 
-#: 全量扫描 (五个形状) 的判定, 钉在这里。tools/knob_audit.py --emit 重新生成。
+#: 全量扫描 (五个形状) 的判定, 固定在这里。tools/knob_audit.py --emit 重新生成。
 #:   "生效"   每个形状上都动 —— 它与形状无关
 #:   "生效*"  至少一个形状上动 —— 需要对的形状才有作用对象 (见 SHAPES 的注释)
 #:   "被拒"   候选取值被模型显式拒绝 (缺标定 / 这条路径没实现)
@@ -173,7 +173,7 @@ EXPECTED = {
     "wave_packing": "生效*",
 }
 
-#: 不参与审计: 不是旋钮 (标定常数 / 输入形状 / 真值文件 / 直接给对象)。
+#: 不参与审计: 不是参数 (标定常数 / 输入形状 / 真值文件 / 直接给对象)。
 SKIP_PREFIX = ("calibration.", "workload.", "tiling.", "costs")
 SKIP = {"name", "profile", "platform", "h", "hidden_dim", "aic_num", "tiling",
         "p1_override", "p2_override", "restructure", "tile_grid", "orchestration"}
@@ -191,7 +191,7 @@ def auto_candidates(value):
 
 
 def knobs(obj, prefix="", out=None):
-    """走旋钮树, 收 (点分路径, 生效值)。嵌套对象按 scenario._NESTED 下探,
+    """走参数树, 收 (点分路径, 生效值)。嵌套对象按 scenario._NESTED 下探,
     但带 CANDIDATES 的整体换掉 (links / pipeline 这种要整个对象一起给)。"""
     out = [] if out is None else out
     for f in dc.fields(obj):
@@ -282,8 +282,8 @@ def verdict_of(cells):
     return "未建模(疑)"
 
 
-#: 旋钮表里一行的"管什么": 路径 -> 一句话。缺了就在 --markdown 时报错 ——
-#: README 的表由代码生成, 新旋钮必须在这里给一句说明, 否则表里会出现空格子。
+#: 参数表里一行的"作用": 路径 -> 一句话。缺了就在 --markdown 时报错 ——
+#: README 的表由代码生成, 新参数必须在这里给一句说明, 否则表里会出现空格子。
 WHAT = {
     "core_assignment": "tile 分给哪个核 (三种策略)",
     "scheduling_policy": "就绪集里谁先跑 (三种策略)",
@@ -328,14 +328,14 @@ WHAT = {
 
 
 def markdown_table() -> str:
-    """按 EXPECTED 生成 README 里那张旋钮表 (代码是唯一来源)."""
+    """按 EXPECTED 生成 README 里那张参数表 (代码是唯一来源)."""
     missing = sorted(set(EXPECTED) - set(WHAT))
     if missing:
-        raise SystemExit(f"knob_audit.WHAT 缺这些旋钮的说明: {missing}")
+        raise SystemExit(f"knob_audit.WHAT 缺这些参数的说明: {missing}")
     stale = sorted(set(WHAT) - set(EXPECTED))
     if stale:
-        raise SystemExit(f"knob_audit.WHAT 里有已不存在的旋钮: {stale}")
-    out = ["| 旋钮 | 判定 | 管什么 |", "| --- | --- | --- |"]
+        raise SystemExit(f"knob_audit.WHAT 里有已不存在的参数: {stale}")
+    out = ["| 参数 | 判定 | 作用 |", "| --- | --- | --- |"]
     for path in sorted(EXPECTED):
         out.append(f"| `{path}` | {EXPECTED[path]} | {WHAT[path]} |")
     return "\n".join(out)
@@ -357,7 +357,7 @@ def main(argv):
         base, results[tag] = audit_shape(scenario, SHAPES[tag])
         print(f"# 形状 {tag}: 墙钟 {base[0]:.1f} µs, {base[1]} 事件")
     paths = sorted(set().union(*(r.keys() for r in results.values())))
-    print("\n" + "旋钮".ljust(44) + "".join(t.ljust(26) for t in tags) + "判定")
+    print("\n" + "参数".ljust(44) + "".join(t.ljust(26) for t in tags) + "判定")
     suspect, emitted = [], {}
     for p in paths:
         cells = [results[t].get(p, ("—", "")) for t in tags]
@@ -381,7 +381,7 @@ def main(argv):
                   for p in set(emitted) | set(EXPECTED)
                   if emitted.get(p) != EXPECTED.get(p)}
     if mismatched:
-        print("\n与钉住的 EXPECTED 不符 (新旋钮 / 删掉的旋钮 / 判定变了):")
+        print("\n与约束的 EXPECTED 不符 (新参数 / 删掉的参数 / 判定变了):")
         for p, (now, was) in sorted(mismatched.items()):
             print(f"   {p}: 现在 {now!r}, 钉的是 {was!r}")
     undeclared = [p for p in suspect if p not in DECLARED_UNREAD]

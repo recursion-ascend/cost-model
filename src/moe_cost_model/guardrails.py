@@ -88,7 +88,7 @@ TILING_KEY_ROUTE_ITEMS = "dispatchRouteItemsPerBatch"
 #: tiling 键 -> 该直接采用的 kernel 真值 (不是标定值, 没有"域"的问题)。
 #: [tiling] adopt=true 时 scenario 从 tiling 文件取这些键, 见 scenario.build_costs /
 #: build_dispatch_layout; 测试 test_guardrails.test_tiling_adopt_supplies_kernel_truths
-#: 钉住"表里每个键都真有读者"。
+#: 约束"表里每个键都真有读者"。
 TILING_ADOPT = {
     TILING_KEY_BUFFER_COUNT: "dispatch 行级软流水槽数 (buffer_count)",
     TILING_KEY_ROUTE_ITEMS: "dispatch 路由批大小 (route_items_per_batch)",

@@ -234,7 +234,7 @@ class MteCombine(CombineTransport):
         #: 攒 N 个 n-tile 的粒度 (>=2) 下累计待批: (si, expert, 行范围) -> 正在攒的那一项。
         #: **不按核分组**: combine 从 GM 读 GMM2 的输出 (StageLink location="gm"),
         #: 与 GMM2 同核不是物理约束, 所以一个 combine 事件可以吃不同核产的 tile。
-        #: 按核分组会让这个旋钮失效 —— 轮转/晚绑定下同一个核拿到的是**不相邻**的 n-tile。
+        #: 按核分组会让这个参数失效 —— 轮转/晚绑定下同一个核拿到的是**不相邻**的 n-tile。
         self._runs = {}
 
     def on_gmm2_tile(self, builder, ctx: BuildContext, w, shape, si, sl, t, label,
@@ -329,7 +329,7 @@ class MteCombine(CombineTransport):
         # 2026-10-05 之前这两股没申报, 而相位流水那条路径反而用
         # "base_dur x BW_SCATTER" 从**时长**倒推出一个 hbm_write 字节数 —— 方向是反的,
         # 用的还是标着"旧口径, 已不用"的常数, 而且只在开了相位流水时才出现
-        # (换一个编排旋钮不该改变搬了多少字节)。现在按字节直接申报。
+        # (换一个编排参数不该改变搬了多少字节)。现在按字节直接申报。
         local_rows = rows - remote_rows
         # combine_read_bytes 是 PrimitiveCosts 的必填字段, 所以这里直接调 ——
         # 原先有个 getattr 兜底, 那正是让两条入口静默分叉的东西。

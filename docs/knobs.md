@@ -1,21 +1,21 @@
-# 可调的旋钮与覆盖审计
+# 可调的参数与覆盖审计
 
 全部可调参数的清单与判定 (生效 / 需对的形状 / 被拒 / 未建模)。表由 `tools/knob_audit.py --markdown` 生成, 有测试核对粘贴的那份没有过期。
 
 
-## 可调的旋钮与覆盖审计
+## 可调的参数与覆盖审计
 
-### 可调的全部旋钮
+### 可调的全部参数
 
 (数据源: `knob_audit.EXPECTED` + `knob_audit.WHAT`), `tests/test_knob_coverage.py`
 核对 README 里这份与生成结果逐字一致, 所以它不会和代码分叉。
 
 判定的含义: **生效** = 五个形状上都动了模型; **生效\*** = 只在有作用对象的形状上动
 (只有一波就谈不上超前几波); **被拒** = 模型显式拒绝该取值 (缺标定常数); **动不了** =
-有旋钮但当前建模下没有可表达的后果。
+有参数但当前建模下没有可表达的后果。
 
 <!-- BEGIN knob-table (generated: python tools/knob_audit.py --markdown) -->
-| 旋钮 | 判定 | 管什么 |
+| 参数 | 判定 | 作用 |
 | --- | --- | --- |
 | `core_assignment` | 生效* | tile 分给哪个核 (三种策略) |
 | `kernel.activation_n_half` | 生效 | SwiGLU 的投影数 (gate+up) |
@@ -59,13 +59,13 @@
 <!-- END knob-table -->
 
 ```bash
-python tools/knob_audit.py          # 五个形状逐旋钮扫一遍, 打印判定与差值
+python tools/knob_audit.py          # 五个形状逐参数扫一遍, 打印判定与差值
 python tools/knob_audit.py --emit   # 重新生成 EXPECTED
 ```
 
-**`topo_urma` 不是平级旋钮，是结构分叉。** 切换后波粒度从 256 行 m-group 变为专家范围，dispatch 从源推变为目的拉，combine 从配对 tile 变为批量 PUT。
+**`topo_urma` 不是平级参数，是结构分叉。** 切换后波粒度从 256 行 m-group 变为专家范围，dispatch 从源推变为目的拉，combine 从配对 tile 变为批量 PUT。
 
-| 旋钮                                                     | MTE 路径           | Layered 路径                              |
+| 参数                                                     | MTE 路径           | Layered 路径                              |
 | -------------------------------------------------------- | ------------------ | ----------------------------------------- |
 | `p1_override` / `p2_override`                        | 生效，决定每波组数 | 失效，Layered 按专家数和 token 数自定波数 |
 | `wave_packing`                                         | 生效，三种策略     | 失效，Layered 有自己的波规划              |
@@ -82,16 +82,16 @@ python tools/knob_audit.py --emit   # 重新生成 EXPECTED
 `ModelOptions.combine_granularity` 给。参考实现把数据格式与这两件事绑在同一个模板参数上,
 那是那份实现的耦合, 不是物理。
 
-`KernelConfig` 的编译期旋钮（`l1_buf_num`、`l1_tile_k`、`combine_quant_mode`）以 `KernelConfig` 为唯一事实源。手工拼 `PrimitiveCosts` 时入口自动按 kernel 重绑公式，任何拼法都生效。
+`KernelConfig` 的编译期参数（`l1_buf_num`、`l1_tile_k`、`combine_quant_mode`）以 `KernelConfig` 为唯一事实源。手工拼 `PrimitiveCosts` 时入口自动按 kernel 重绑公式，任何拼法都生效。
 
 权重 (B 流) 是载入项里**更大**的那一股 (`b_load = wb·K·cols / bw_b`), 所以
 `weight_nz` 与 `gmm1_b_reuse_frac` 都显著改时长。同一个 tile (m=256, K=6144, cols=256)
 实测: 基线 90.917 µs; `weight_nz` 配 NZ 带宽 80000 得 **69.627 µs (−23%)**;
 `gmm1_b_reuse_frac=0.53` 得 **62.430 µs (−31%)**。`gmm1_b_reuse_frac` 是比例, 不是布尔。
 
-策略旋钮用名字引用：
+策略参数用名字引用：
 
-| 旋钮                  | 可选名字                                                          | 管什么                   |
+| 参数                  | 可选名字                                                          | 作用                   |
 | --------------------- | ----------------------------------------------------------------- | ------------------------ |
 | `tile_grid`         | `row_major` (缺省) / `swizzled` / `split_rows`                   | GMM1/GMM2 的 tile 怎么切 |
 | `wave_packing`      | `sequential_greedy` / `longest_expert_first` / `balanced_waves` | 专家怎么组成波           |
@@ -102,9 +102,9 @@ python tools/knob_audit.py --emit   # 重新生成 EXPECTED
 
 带参数时写成表：`{name = "split_rows", parts = 2}`。自定义策略用 `moe_cost_model.register(类别, 名字, 构造函数)` 注册。
 
-### 覆盖审计: 每个旋钮都必须能动模型
+### 覆盖审计: 每个参数都必须能动模型
 
-这个项目是给算子工程师改**编排 / 编译期 / 运行期**参数用的, 所以一个旋钮扫出
+这个项目是给算子工程师改**编排 / 编译期 / 运行期**参数用的, 所以一个参数扫出
 **0 收益**必须能分清是哪一种 0。四种意思, 指示完全相反:
 
 | 判定 | 意思 | 下一步 |
@@ -115,25 +115,25 @@ python tools/knob_audit.py --emit   # 重新生成 EXPECTED
 | 动不了 | 模型里**没有可表达的后果** | **最需要分辨的一类**: 这个 0 是模型的空白, 不是硬件的事实 |
 
 ```bash
-python tools/knob_audit.py --quiet    # 五个互补形状 x 全部旋钮
+python tools/knob_audit.py --quiet    # 五个互补形状 x 全部参数
 ```
 
-旋钮树自动走 (`dataclasses.fields` + `scenario._NESTED`), 所以**新加的字段自动进审计**;
-全量判定钉在 `knob_audit.EXPECTED`, `tests/test_knob_coverage.py` 守着它:
-新旋钮忘了接线、老旋钮被改没了、"动不了"的声明过期了, 三种都会红。
+参数树自动走 (`dataclasses.fields` + `scenario._NESTED`), 所以**新加的字段自动进审计**;
+全量判定固定在 `knob_audit.EXPECTED`, `tests/test_knob_coverage.py` 守着它:
+新参数忘了接线、老参数被改没了、"动不了"的声明过期了, 三种都会红。
 
 扫法三条 (为什么结论能信):
 
 1. 从**本场景的生效值**出发扰动, 不是从 dataclass 缺省值出发 —— 场景带 `profile` 时
    两者不同, 拿缺省值当基线会把"值根本没变"误判成"没有读者"。
-2. 一个旋钮给**一串**候选取值 —— 翻倍常落在无语义的档上 (`l1_buf_num` 2→4 与 2 同构,
+2. 一个参数给**一串**候选取值 —— 翻倍常落在无语义的档上 (`l1_buf_num` 2→4 与 2 同构,
    2→1 才是关 ping-pong; `swizzle_direction` 只有 0/1 两档)。
 3. 比对五项: 墙钟 / 事件数 / 事件名集合 / 逐事件时长 / 逐信道字节。只看墙钟会把
    "结构变了而两边恰好等长"当成没动。
 
 审计当前给出的几项判定:
 
-* **引擎队列深度不是旋钮。** 持核事件独占 AIC/AIV0/AIV1, 同核在途数恒 ≤ 1, 所以每核
+* **引擎队列深度不是参数。** 持核事件独占 AIC/AIV0/AIV1, 同核在途数恒 ≤ 1, 所以每核
   引擎队列的容量固定为 1; 相位拆分后的载入相位刻意不继承 `Q:*`, 否则容量 1 的引擎信号量
   会限制 L1 缓冲深度。要表达"更深的队列"必须先有发射开销这类可观测的物理后果, 模型里
   没有。图里起不了约束的计数信号量由 `scheduler/normalize.py` 按一条定理删掉 —— 判据、

@@ -106,7 +106,7 @@ def test_every_declared_adopt_key_has_a_reader():
 
     2026-10-06 之前这张表**没有任何读者** —— scenario.py 两处各写了一遍键名字面量。
     于是表和代码是两份真相: 往表里加一行不会生效, 改掉字面量表就过期。现在键名只在
-    guardrails 里写一次, 本测试钉住"表里的键 = scenario 实际取的键"。
+    guardrails 里写一次, 本测试约束"表里的键 = scenario 实际取的键"。
     """
     from moe_cost_model import guardrails
     src = Path(scenario_module.__file__).read_text(encoding="utf-8")

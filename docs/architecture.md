@@ -85,7 +85,7 @@ GMM2 按行相交把两个行块都取到。
 时长上不计**, 因为带宽争用不建模。所以 −1.6% 是解耦收益的上界, 不是对实测的预测;
 要收紧它需要整卡访存带宽与 prefetch 路径的实测, 两者仓内都没有。
 
-`tests/test_topk_prefetch.py` 的 15 个测试钉住这条路。
+`tests/test_topk_prefetch.py` 的 15 个测试约束这条路。
 
 ### 编译清单: 与 C++ 源码对账
 
@@ -205,7 +205,7 @@ topk=8) 跑在全部带宽常数的标定域之外** —— 实测都是在 h=51
 种子数据里的一个坑也是这层自己照出来的: 语料的编译指纹最初按模型缺省的
 `combine_meta_bytes_per_row=16` 登记, 而打点跑的是 kernel (搬满 `META_INFO_SIZE` 8 个 int32
 = 32B), 于是"复现那份实现"的场景查标定时全部报 `wrong_key`。现在语料按 32 登记, 与
-`profiles.MEGAMOE_A8W8` 的指纹一致, 有测试钉住。
+`profiles.MEGAMOE_A8W8` 的指纹一致, 有测试约束。
 
 ### 第三份实现: 声明了, 但会拒绝
 
@@ -222,7 +222,7 @@ topk=8) 跑在全部带宽常数的标定域之外** —— 实测都是在 h=51
 * B 矩阵分形与布局都不同 (`C0_SIZE_B = 32`, `LayoutB = Te::ZNLayoutPtn`);
 * 角色分工不同 (AIV0 跑 prologue、AIV1 跑 combine), 而模型的角色表是全局的。
 
-**差的是一个量, 不是一个旋钮**: `WeightAntiQuantComputeNzNk` 的向量吞吐。它的地位与 ACT 的
+**差的是一个量, 不是一个参数**: `WeightAntiQuantComputeNzNk` 的向量吞吐。它的地位与 ACT 的
 `ACT_BYTES_PER_VEC` / `BW_UB` 相同 —— 要实测。仓内没有 A8W4 的打点 (`data/` 下六个 run 的
 `dtype` 都是 `fp8_e5m2`), 所以现在给不出。
 

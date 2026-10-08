@@ -1,6 +1,6 @@
 # 使用方法
 
-本文件是**操作手册**: 装上、跑起来、看懂输出、改旋钮。
+本文件是**操作手册**: 装上、跑起来、看懂输出、改参数。
 为什么这样建模、每个常数是谁定的, 看 `README.md`;
 哪些编排表达得出、哪些还表达不出, 看 `docs/design_space_gaps.md`;
 哪些系数还要上板测才能定, 看 `docs/calibration_runs.md`。
@@ -24,8 +24,8 @@ pytest tests/ -q          # 327 项 (5 项需 tiling 真值), 约 15 分钟
 | 你想干什么 | 用哪个 | 一句话 |
 | --- | --- | --- |
 | 看一个形状跑多久 | `examples/run_basic.py` | 最底层: 直接给形状 + 代价公式 |
-| 把场景写进文件, 改旋钮对比 | `examples/run_scenario.py` + `.toml` | **日常用这个** |
-| 扫一片编排选择, 看每个值多少钱 | `examples/run_design_space.py` | 出一张对比表 |
+| 把场景写进文件, 改参数对比 | `examples/run_scenario.py` + `.toml` | **日常用这个** |
+| 扫一片编排选择, 看每个的代价是多少 | `examples/run_design_space.py` | 出一张对比表 |
 | 和一次实测 run 逐 stage 对账 | `tools/compare_measured.py` | 需要 trace + tiling 工件 |
 
 ```bash
@@ -69,7 +69,7 @@ dispatch_lookahead = 2
 # combine = 0                # 一个 combine 事件覆盖整个专家切片
 ```
 
-跑它并改旋钮:
+跑它并改参数:
 
 ```python
 from pathlib import Path
@@ -105,7 +105,7 @@ for label, ov in {
 
 每个事件的 `meta` 里有 `stage / wave / expert / mgroup / ntile / core /
 row_begin..row_end / col_begin..col_end`, 粗粒度事件还有 `tiles_in_event`
-(或 ACT 的 `gmm1_events_in_event`) —— 用来确认粒度旋钮**到底有没有生效**。
+(或 ACT 的 `gmm1_events_in_event`) —— 用来确认粒度参数**到底有没有生效**。
 
 护栏工具:
 
@@ -118,7 +118,7 @@ python tools/diagnose.py data/<run_dir>   # 六问诊断: 瓶颈/归因/改什�
 
 ---
 
-## 4. 旋钮速查: 想换什么就改哪一个
+## 4. 参数速查: 想换什么就改哪一个
 
 完整表在 `docs/design_space_gaps.md` 的"速查: 哪些编排已经能表达"。最常用的:
 
@@ -156,18 +156,18 @@ OPT(granularity={"gmm1": 2, "gmm2": 2, "combine": 0})
      全部变慢, `combine=0` 从 245.97 慢到 596.47;
    * tile 数**远多于**核数时变快 —— `examples/scenario_basic.toml` (4 卡 x 64 专家,
      28 核) 上 `gmm2=2` 从 1751.48 快到 **1741.46**。
-   所以这个旋钮要**扫**, 不能照搬别人的取值。
+   所以这个参数要**扫**, 不能照搬别人的取值。
 
 ---
 
-## 4c. 旋钮覆盖: 这个旋钮到底接没接上线
+## 4c. 参数覆盖: 这个参数到底接没接上线
 
 ```
-python tools/knob_audit.py          # 全量 (五个形状 x 全部旋钮, 分钟级)
+python tools/knob_audit.py          # 全量 (五个形状 x 全部参数, 分钟级)
 python tools/knob_audit.py --quiet  # 只列非"每个形状都生效"的
 ```
 
-扫一个旋钮扫出 **0 收益**, 有四种意思, 指示完全相反。审计把它们分开:
+扫一个参数扫出 **0 收益**, 有四种意思, 指示完全相反。审计把它们分开:
 
 | 判定 | 意思 | 下一步 |
 | --- | --- | --- |
@@ -180,20 +180,20 @@ python tools/knob_audit.py --quiet  # 只列非"每个形状都生效"的
 
 1. 从**本场景的生效值**出发扰动, 不是从 dataclass 缺省值出发 —— 场景带 `profile` 时
    两者不同, 拿缺省值当基线会把"值根本没变"误判成"没有读者"。
-2. 一个旋钮给**一串**候选取值 —— 翻倍常落在无语义的档上 (`l1_buf_num` 2→4 与 2 同构,
+2. 一个参数给**一串**候选取值 —— 翻倍常落在无语义的档上 (`l1_buf_num` 2→4 与 2 同构,
    2→1 才是关 ping-pong)。
 3. 比对五项: 墙钟 / 事件数 / 事件名集合 / 逐事件时长 / 逐信道字节。只看墙钟会把
    "结构变了但两边等长"当成没动。
 
-全量判定钉在 `knob_audit.EXPECTED` 里, `tests/test_knob_coverage.py` 守它:
-新加一个旋钮忘了接线、老旋钮被改没了、或者"动不了"的声明过期了, 都会红。
-旋钮树是自动走出来的 (`dataclasses.fields` + `scenario._NESTED`), 所以新字段自动进审计。
+全量判定固定在 `knob_audit.EXPECTED` 里, `tests/test_knob_coverage.py` 守它:
+新加一个参数忘了接线、老参数被改没了、或者"动不了"的声明过期了, 都会红。
+参数树是自动走出来的 (`dataclasses.fields` + `scenario._NESTED`), 所以新字段自动进审计。
 
 这一层 2026-10-05 建立时抓到三件事, 都是它要防的那一类:
 
-* `EngineQueueDepths` (引擎 FIFO 深度) **任何取值都无后果** (旋钮已删, 2026-10-08
+* `EngineQueueDepths` (引擎 FIFO 深度) **任何取值都无后果** (参数已删, 2026-10-08
   起那份空约束本身也由 `scheduler/normalize.py` 删掉) —— 持核事件独占该核,
-  同核在途数恒 ≤ 1; 相位拆分后的 load 相位又刻意不继承 `Q:*`。旋钮已删 (容量写死 1),
+  同核在途数恒 ≤ 1; 相位拆分后的 load 相位又刻意不继承 `Q:*`。参数已删 (容量写死 1),
   连带删掉的 golden case `pipeline_engine_queue2` 与 `pipeline_split` 指纹**逐位相同**,
   即它从来什么都没测到。
 * `topk_weights_prefetch` 有**两个出处**, 其中 `KernelConfig` 上那个没有读者。
@@ -210,7 +210,7 @@ python tools/knob_audit.py --quiet  # 只列非"每个形状都生效"的
 
 ## 4b. 流水编排效率怎么看
 
-`python examples/run_pipeline_study.py` 在一个形状上逐个旋钮给出:
+`python examples/run_pipeline_study.py` 在一个形状上逐个参数给出:
 墙钟、Δ%、AIC 忙碌%、**不可免空闲** (DAG 逼出来的) / **可避免空闲** (有活却空着,
 护栏), 以及关键路径按 `critical_reason` 的归类 (`resource` = 等核, `dependency` =
 等上游数据, `capacity` = 等信号量/槽位)。
@@ -313,7 +313,7 @@ print(m.format_design_space(rows))
 
 ## 场景文件: 完整示例
 
-一个场景文件承载全部旋钮, 改一个旋钮跑一次, 对比差值就是收益或代价。
+一个场景文件承载全部参数, 改一个参数跑一次, 对比差值就是收益或代价。
 
 ```bash
 python examples/run_scenario.py

@@ -35,7 +35,7 @@ def _rows_per_group(rr):
 
 
 def test_every_partition_conserves_every_row():
-    """换切法不能漏行也不能重复取 —— 建图器本来就有这条守恒校验, 这里显式钉住."""
+    """换切法不能漏行也不能重复取 —— 建图器本来就有这条守恒校验, 这里显式约束."""
     for mode, rpi in (("precut", 0), ("pooled", 0), ("pooled", 64), ("pooled", 16)):
         for expert_group, (got, need) in _rows_per_group(_run(mode, rpi)).items():
             assert got == need, (mode, rpi, expert_group, got, need)

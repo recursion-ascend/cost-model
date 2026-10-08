@@ -67,7 +67,7 @@ def test_every_stage_has_a_granularity():
 
 
 def test_default_is_finest_and_is_a_no_op():
-    """缺省 = 最细 = 最少假设: 不预设任何攒批."""
+    """缺省 = 最细 = 最少假设: 不预设任何合并."""
     g = GranularityAssignment()
     assert g.coarser_than_default() == ()
     for s in ("gmm1", "activation", "gmm2", "combine"):
@@ -93,7 +93,7 @@ def test_resolve_accepts_mapping_and_sequence():
     assert resolve_granularity(None).items("gmm1") == 1
 
 
-# ------------------------------------------------------- 两个历史旋钮是视图
+# ------------------------------------------------------- 两个历史参数是视图
 
 def test_combine_granularity_is_a_view_on_the_unified_field():
     """combine_granularity / dispatch_rows_per_item 折进 granularity, 只有一个真相."""
@@ -153,9 +153,9 @@ def test_coarser_gmm1_and_gmm2_fold_events():
 
 
 def test_coarser_combine_folds_events_and_does_not_need_the_same_core():
-    """combine 从 GM 读 GMM2 的输出, 与 GMM2 同核不是物理约束 —— 所以攒批不按核分组.
+    """combine 从 GM 读 GMM2 的输出, 与 GMM2 同核不是物理约束 —— 所以合并不按核分组.
 
-    按核分组会让这个旋钮失效: 轮转/晚绑定下同一个核拿到的 n-tile 不相邻。
+    按核分组会让这个参数失效: 轮转/晚绑定下同一个核拿到的 n-tile 不相邻。
     """
     base = _stage_counts(_run())
     assert _stage_counts(_run({"combine": 2}))["combine"] < base["combine"]
@@ -163,11 +163,11 @@ def test_coarser_combine_folds_events_and_does_not_need_the_same_core():
 
 
 def test_act_granularity_needs_the_feeding_gmm1_tiles_on_one_core():
-    """ACT 的粒度不是自由旋钮: ACT 必须与产它的 GMM1 同核 (L0C->UB 的 Fixpipe).
+    """ACT 的粒度不是自由参数: ACT 必须与产它的 GMM1 同核 (L0C->UB 的 Fixpipe).
 
     于是 g>1 只在"喂它的 GMM1 tile 既同核又 n 相邻"时才生效。轮转分核把相邻
     n-tile 散到不同核, 这时 g>1 是**空操作** —— 这是物理与分核策略的耦合, 不是 bug,
-    所以这里把两种分核策略下的差别钉住。
+    所以这里把两种分核策略下的差别约束。
     """
     rr = _stage_counts(_run({"activation": 2}))
     assert rr["activation"] == _stage_counts(_run())["activation"]   # 空操作
@@ -190,7 +190,7 @@ def test_act_granularity_beyond_ub_depth_is_a_deadlock_and_is_refused():
 def test_coarse_granularity_costs_parallelism_not_just_saves_sync():
     """粗粒度不是免费的: 一个事件只能落一个核, 项数少于核数就有核闲着.
 
-    这正是这个旋钮要让算子工程师看见的交换 —— 所以模型必须能算出它变差。
+    这正是这个参数要让算子工程师看见的交换 —— 所以模型必须能算出它变差。
     """
     fine = _run(aic_num=28)["kernel_total_us"]
     coarse = _run({"gmm1": 4, "gmm2": 4}, aic_num=28)["kernel_total_us"]
@@ -207,7 +207,7 @@ def test_profile_declares_its_own_granularity():
 # ------------------------------------------------------ 场景文件也要能给粒度
 
 def test_scenario_file_can_set_granularity_per_stage():
-    """日常路径是场景文件 —— 旋钮必须在 toml 里写得出, 否则等于没有."""
+    """日常路径是场景文件 —— 参数必须在 toml 里写得出, 否则等于没有."""
     from pathlib import Path
 
     import moe_cost_model as mm
@@ -217,7 +217,7 @@ def test_scenario_file_can_set_granularity_per_stage():
         base.with_overrides({"options.granularity": {"gmm2": 2}}))["kernel_total_us"]
     assert coarse != fine
     # 这个形状 tile 数远多于核数, 粗粒度是**收益** —— 与 28 核夹具上全部变慢相反,
-    # 正好说明这个旋钮必须扫, 不能照搬取值。
+    # 正好说明这个参数必须扫, 不能照搬取值。
     assert coarse < fine
 
 
@@ -233,9 +233,9 @@ def test_scenario_rejects_non_integer_and_unknown_stage():
 
 
 def test_scenario_file_can_set_string_tuple_orchestration_knobs():
-    """late_bind_pools / barriers 也是编排旋钮, 场景文件里写不出等于没有.
+    """late_bind_pools / barriers 也是编排参数, 场景文件里写不出等于没有.
 
-    空数组 [] 表示关掉 —— 这是"静态发牌"与"不加栅栏"的写法。
+    空数组 [] 表示关掉 —— 这是"静态分核"与"不加栅栏"的写法。
     """
     from pathlib import Path
 

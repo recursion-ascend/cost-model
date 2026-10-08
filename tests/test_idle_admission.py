@@ -91,9 +91,9 @@ def test_rule_holds_across_shapes_and_pacings():
 
 
 def test_static_binding_still_reports_real_violations():
-    """静态发牌的违规是真的 —— 修度量不能把它一起抹掉.
+    """静态分核的违规是真的 —— 修度量不能把它一起抹掉.
 
-    静态发牌是某实现的分核方式 (缺省已是晚绑定), 所以这里显式给 ()。
+    静态分核是某实现的分核方式 (缺省已是晚绑定), 所以这里显式给 ()。
     """
     rr = _run(6, 9216, options=m.ModelOptions(late_bind_pools=(), links=links(readiness="first_chunk")))
     assert _avoid(rr, "AIC") > 1.0

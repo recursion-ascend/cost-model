@@ -1,6 +1,6 @@
 """第 6 层: 运行时图重构策略 — 空闲核任务转移.
 
-kernel 的静态发牌 (startBlockIdx 旋转 + HandleWaveProblemWithoutWork) 只在
+kernel 的静态分核 (startBlockIdx 旋转 + HandleWaveProblemWithoutWork) 只在
 **跨专家**维度填充: 某核对本专家无 tile 就跳到下一个专家, 不空等。但它不跨核填充 ——
 tile 一旦发给某核, 别的核不能拿。于是 n-tile 数不整除核数时 (如 hidden_dim=9216 下
 每专家 18 个 tile 发给 28 核), 拿 1 个 tile 的核做完就闲着, 拿 2 个的还在跑。
@@ -31,7 +31,7 @@ tile 一旦发给某核, 别的核不能拿。于是 n-tile 数不整除核数�
      一个 GMM2 tile 对应 {gmm2.h (头), gmm2 (尾), combine}。组内成员按 tile 身份
      (rank/wave/expert/slice/mgroup/ntile/row_begin/col_begin) 聚合, 一起换核。
   2. 不破坏 AIC/AIV0 配对。GMM1 结果经 L0C->UB 硬件通路直给**同核**的 AIV0
-     (见 builders/activation.py: "ACT 钉在配对 GMM1 同核的 AIV0 上"), 所以 GMM1 搬核
+     (见 builders/activation.py: "ACT 固定在配对 GMM1 同核的 AIV0 上"), 所以 GMM1 搬核
      必须带着配对的 ACT 一起搬。原实现只搬 GMM1 单个事件, 把 ACT 留在原核。
   3. 只搬已就绪的事件。原实现搬 max(order) 即构建序尾部的 tile, 那个 tile 的前置
      大概率还没完成, 搬到新核上照样干等, 等于没搬 (实测 rank0 上 2515 次调用一次
