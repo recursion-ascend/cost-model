@@ -19,8 +19,9 @@ from moe_cost_model.implementations import (A8W4WaveV1Declared, A8W8WaveV1,
                                             Unsupported, default_table)
 from moe_cost_model.implementations.identity import ImplementationId
 
-CORPUS_SHAPE = {"token_num": 128, "h": 5120, "hidden_dim": 4608, "topk": 6,
-                "local_experts": 3}
+#: 语料的代表性实际形状。**不在这里再写一份** —— 2026-10-08 之前这里、工具里、
+#: calibration.py 的域里三处各写一遍, 三处都把 hidden_dim 写成 I (4608) 而不是 2I。
+from moe_cost_model.implementations import CORPUS_POINT as CORPUS_SHAPE
 CORPUS_TOPO = {"world_size": 4, "active_cores": 28}
 
 

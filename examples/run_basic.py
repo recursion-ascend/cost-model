@@ -21,8 +21,10 @@ per = TOKENS * 8 // WORLD // LOCAL
 C = [[[per] * WORLD for _ in range(LOCAL)] for _ in range(WORLD)]
 
 kernel = KernelConfig(tile_m=256, tile_n=256)
-# Cube 计算速率 (MAC/µs) 没有缺省值, 必须显式给. 这里是示例值, 不是标定常数:
-# 换成目标平台的实测速率再看结果.
+# Cube 计算速率 (MAC/µs)。**仓里没有标定过的值**, 2.7e7 是占位示例。
+# 注意缺省是 0.0 而不是报错, 后果是**计算项整个不生效** (GMM tile 只剩载入时间,
+# 见 README 的精度边界一节)。而且载入绑定的 tile 给不给这个数**时长相同**,
+# 所以看输出分辨不出来 —— 要让计算项生效必须显式给。
 CUBE_MAC_PER_US = 2.7e7
 costs = build_analytical_costs(h=H, kernel=kernel,
                                dispatch_mechanistic=DispatchMechanisticLatency(),

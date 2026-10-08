@@ -28,7 +28,9 @@ local_experts = 64           # 每 rank 专家数
 routing = "uniform"          # uniform | cyclic | random | explicit | file
 
 [calibration]
-# Cube 计算速率 (MAC/µs), 必填, 无缺省. 这里是示例值, 不是标定常数:
+# Cube 计算速率 (MAC/µs)。**仓里没有标定过的值**, 下面是占位示例。
+# 缺省是 0.0 而不是报错, 后果是计算项整个不生效 (GMM tile 只剩载入时间);
+# 载入绑定的 tile 给不给都是同一个数, 看输出分辨不出来。
 # 换成目标平台的实测速率再看结果.
 cube_mac_per_us = 2.7e7
 

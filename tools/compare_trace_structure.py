@@ -31,7 +31,8 @@ import moe_cost_model as m                                            # noqa: E4
 from moe_cost_model.validation import (check_graph, compare_run,      # noqa: E402
                                        read_run_config, read_trace)
 
-#: 夹具速率 (非标定常数): 结构比对不看时长, 但 Cube 速率没有缺省值, 必须给一个。
+#: 夹具速率 (非标定常数)。结构比对不看时长, 所以这个值取多少都不影响结论;
+#: 显式给是为了不让计算项静默关掉 (缺省 0 = 不计计算项)。
 CUBE_RATE = 2.7e7
 
 

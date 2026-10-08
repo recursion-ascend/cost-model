@@ -161,18 +161,41 @@ def read_trace(path) -> TraceFile:
     path = Path(path)
     text = path.read_text(encoding="utf-8", errors="replace")
     records, truncated, recovered = _records(text)
-    threads: Dict[int, str] = {}
+    # 线程名按 (pid, tid) 建键: tid 是**每 pid 独立**的, 只按 tid 建会被后一个 pid 覆盖。
+    threads: Dict[Tuple[object, object], str] = {}
+    processes: Dict[object, str] = {}
     rank: Optional[int] = None
     for rec in records:
-        if rec.get("ph") == "M" and rec.get("name") == "thread_name":
-            threads[rec.get("tid")] = str(rec.get("args", {}).get("name", ""))
+        if rec.get("ph") != "M":
+            continue
+        if rec.get("name") == "thread_name":
+            threads[(rec.get("pid"), rec.get("tid"))] = str(
+                rec.get("args", {}).get("name", ""))
+        elif rec.get("name") == "process_name":
+            processes[rec.get("pid")] = str(rec.get("args", {}).get("name", ""))
+
+    # 一个文件里可能有**同一次运行的多个视图** (本仓的 trace 有两个 pid:
+    # "完整流水" 与 "隐藏 WAIT", 事件逐位相同)。全读进来等于每个事件数两遍 ——
+    # 2026-10-08 之前就是这样, 于是结构比对里实测条数恒为模型的 2 倍。
+    # 只取一个视图: 事件最多的那个 (完整视图必然 >= 隐藏视图), 并列取 pid 最小的。
+    per_pid: Dict[object, int] = {}
+    for rec in records:
+        if rec.get("ph") == "X":
+            per_pid[rec.get("pid")] = per_pid.get(rec.get("pid"), 0) + 1
+    view = None
+    skipped_views: List[str] = []
+    if per_pid:
+        view = sorted(per_pid, key=lambda k: (-per_pid[k], str(k)))[0]
+        skipped_views = [f"{processes.get(k, k)} ({per_pid[k]} 条)"
+                         for k in sorted(per_pid, key=str) if k != view]
+
     events: List[TraceEvent] = []
     for rec in records:
-        if rec.get("ph") != "X":
+        if rec.get("ph") != "X" or rec.get("pid") != view:
             continue
         name = str(rec.get("name", ""))
         base = name.split("·", 1)[0].strip()
-        thread = threads.get(rec.get("tid"), "")
+        thread = threads.get((rec.get("pid"), rec.get("tid")), "")
         mo = _THREAD.match(thread)
         if mo is None:
             continue
@@ -191,10 +214,14 @@ def read_trace(path) -> TraceFile:
                     else (int(args["dispatch_expert"])
                           if args.get("dispatch_expert") is not None else None)),
             is_wait=base.startswith(WAIT_PREFIX)))
-    note = ""
+    notes: List[str] = []
     if truncated:
-        note = (f"文件被截断 (在 {len(text)} 字节处断在一条记录中间); "
-                f"已按记录边界救回 {recovered} 条, 事件数因此是**下界**")
+        notes.append(f"文件被截断 (在 {len(text)} 字节处断在一条记录中间); "
+                     f"已按记录边界救回 {recovered} 条, 事件数因此是**下界**")
+    if skipped_views:
+        notes.append(f"文件含多个视图, 只读了 {processes.get(view, view)!r}; "
+                     f"跳过 {', '.join(skipped_views)}")
+    note = "; ".join(notes)
     return TraceFile(path=str(path), rank=rank, events=tuple(events),
                      truncated=truncated, recovered_records=recovered, note=note)
 
@@ -238,13 +265,19 @@ def read_run_config(run_dir) -> Dict[str, object]:
     # 字段名对照 (config.json5 的写法 -> 模型的写法):
     #   tokens       每卡 token 数            -> token_num_per_rank
     #   hidden       输入维                   -> h          (目录名里的 h5120)
-    #   intermediate 专家中间维               -> hidden_dim  (目录名里的 i4608)
+    #   intermediate 专家中间维 I             -> hidden_dim = **2I** (SwiGLU 的 gate+up
+    #                两半), 目录名里的 i4608 是 I; config.json5 自己也注明 hiddenDim = 2I。
+    #                2026-10-08 之前这里直接把 I 当 hidden_dim 返回, 于是
+    #                tools/compare_trace_structure.py 按这个 cfg 建出来的模型只有一半的
+    #                GMM1 n-tile (9 个而不是 18 个) —— 那正是"模型与 trace tile 数差 4x"
+    #                里的一个 2 倍。原始 I 仍以 intermediate 键给出。
     #   ep           rank 数                  -> world
     #   experts      **全局**路由专家数        -> 每卡 experts/ep
     return {
         "tokens": int(case.get("tokens", 0)),
         "h": int(case.get("hidden", 0)),
-        "hidden_dim": int(case.get("intermediate", 0)),
+        "intermediate": int(case.get("intermediate", 0)),       # I, 原样
+        "hidden_dim": 2 * int(case.get("intermediate", 0)),     # 2I, 模型的口径
         "topk": int(case.get("topk", 0)),
         "world": world,
         "experts_total": experts,

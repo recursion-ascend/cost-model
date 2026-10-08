@@ -51,12 +51,27 @@ CORPUS_COMPILE = CompileConfig(combine_meta_bytes_per_row=32,
 #: 标定语料的拓扑: data/ 下六个 run 都是 4 卡 x 28 核 (config.json5 的 device.aic_cores)。
 CORPUS_TOPOLOGY = RuntimeTopology(world_size=4, active_cores=28, ranks_per_server=4)
 
-#: 语料覆盖的形状: bs ∈ {36, 128, 8192}, h = 5120, hidden_dim = 4608, topk = 6,
-#: 每卡 3 或 16 个本地专家 (data/*/config.json5)。注意 examples/scenario_basic.toml 用的
-#: h=6144/hidden=4096 **在这个域外** —— 这正是要能查出来的那种情况。
+#: 语料覆盖的形状: bs ∈ {36, 128, 8192}, h = 5120, topk = 6, 每卡 3 或 16 个本地专家
+#: (data/*/config.json5)。
+#:
+#: **hidden_dim 是 2I 不是 I**: 那批 run 的 config.json5 写 `intermediate: 4608`, 同一处
+#: 注明 `hiddenDim = 2I = 9216`, 六个场景文件也都写 hidden_dim = 9216。本模型的
+#: hidden_dim 字段是 GMM1 的输出宽度, 即 2I (SwiGLU 的 gate+up 两半)。
+#: 2026-10-08 之前这里写的是 4608 —— 于是这一层把**自己的语料**判成 hidden_dim 越域,
+#: 而它的全部职责就是"一个数只在它量过的地方有效"。没被发现是因为那六个场景在干净
+#: 克隆里加载不了 (tiling bin 不入库), 审计从没在它们身上跑过。
+#:
+#: 注意 examples/scenario_basic.toml 用的 h=6144/hidden_dim=4096 **仍在这个域外** ——
+#: 这正是要能查出来的那种情况。
 CORPUS_SHAPE = ShapeDomain(token_num=(36, 8192), h=(5120, 5120),
-                           hidden_dim=(4608, 4608), topk=(6, 6),
+                           hidden_dim=(9216, 9216), topk=(6, 6),
                            local_experts=(3, 16))
+
+#: 语料里一个**代表性的实际形状** (不是范围)。工具与测试都从这里取, 不各自再写一份 ——
+#: 2026-10-08 之前 tools/calibration_domain.py 与 tests/test_calibration_domain.py 各有
+#: 一份同名 dict, 三处都把 hidden_dim 写成 I (4608) 而不是 2I。
+CORPUS_POINT = {"token_num": 128, "h": 5120, "hidden_dim": 9216, "topk": 6,
+                "local_experts": 3}
 
 
 @dataclass(frozen=True)

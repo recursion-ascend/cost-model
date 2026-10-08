@@ -202,7 +202,8 @@ def report(run: Path, compare: Path = None):
         lo, hi = d - 100 * err_band, d + 100 * err_band
         print(f"- 实验: 同工况重跑, 修改 {best_name} 对应的运行参数")
         print(f"- 预期: 墙钟变化落在 [{lo:+.1f}%, {hi:+.1f}%] 内 → 模型在该决策点可信")
-        print("- 判据: 实测变化出界 → 用 tools/validate_waits.py 复核该 stage 的等待归因")
+        print("- 判据: 实测变化出界 → 查 rank_results[r]['stage_dependency_wait_us'] 与"
+      " ['stage_resource_queue_us'] 核对该 stage 的等待归因")
     else:
         print("- 当前配置已在扫描空间内最优; 建议扩大扫描维度 (路由均衡/共享专家路径)")
     if compare:

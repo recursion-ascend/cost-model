@@ -30,8 +30,8 @@ from moe_cost_model.implementations.calibration import (CORPUS_COMPILE,   # noqa
 from moe_cost_model.implementations.identity import ImplementationId      # noqa: E402
 
 #: 打点语料的形状 (data/*/config.json5 的交集), 作为"域内"对照
-CORPUS_SHAPE = {"token_num": 128, "h": 5120, "hidden_dim": 4608, "topk": 6,
-                "local_experts": 3}
+# 语料的代表性实际形状: 单一出处在 implementations.CORPUS_POINT (hidden_dim 是 2I)
+from moe_cost_model.implementations import CORPUS_POINT as CORPUS_SHAPE  # noqa: E402
 CORPUS_TOPO = {"world_size": 4, "active_cores": 28}
 
 

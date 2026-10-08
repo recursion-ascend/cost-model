@@ -9,7 +9,8 @@
   ImplementationAdapter 适配器接口; megamoe.py 里是仓内两份实现
 """
 from .adapter import ImplementationAdapter, Unsupported, WavePlan
-from .calibration import (CORPUS_COMPILE, CORPUS_SHAPE, CORPUS_TOPOLOGY,
+from .calibration import (CORPUS_COMPILE, CORPUS_POINT, CORPUS_SHAPE,
+                          CORPUS_TOPOLOGY,
                           CalibrationRecord, CalibrationTable, Lookup,
                           audit_run, default_table)
 from .compile import FINGERPRINT_AXES, CompileConfig
@@ -21,7 +22,7 @@ from .runtime import RuntimeConfig
 
 __all__ = [
     "ADAPTERS", "ALIASES", "A8W4WaveV1Declared", "A8W8WaveV1", "CORPUS_COMPILE",
-    "CORPUS_SHAPE", "CORPUS_TOPOLOGY", "CalibrationRecord", "CalibrationTable",
+    "CORPUS_POINT", "CORPUS_SHAPE", "CORPUS_TOPOLOGY", "CalibrationRecord", "CalibrationTable",
     "Lookup", "audit_run", "default_table", "CalibrationDomain", "CompileConfig",
     "FINGERPRINT_AXES", "ImplementationAdapter", "ImplementationId", "LayeredV1",
     "RuntimeConfig", "RuntimeTopology", "ShapeDomain", "Unsupported", "WavePlan",

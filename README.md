@@ -116,7 +116,7 @@ local_experts = 64
 routing = "uniform"          # uniform | cyclic | random | explicit | file
 
 [calibration]
-cube_mac_per_us = 2.7e7      # 必填, 无缺省; 示例值, 换成实测 Cube 速率
+cube_mac_per_us = 2.7e7      # 占位示例; 仓里没有标定值。缺省 0 = 计算项不生效
 
 [policy]
 dispatch_lookahead = 2
@@ -385,7 +385,8 @@ bs36→bs128 只有 m 变 (同样 28 核并发), 实测涨了 34%。bs8192 之�
   从 `Location::GM` 取同一个指针)。`"onchip"` 编排下 A 留在片上 (硬件有 UB→L1 通路),
   A 流不付 GM 字节, 代价是一个 m-group 的 GMM1/ACT/GMM2 必须共位于一个核 ——
   并行度上限变成 m-group 数。单缓冲下 GMM2 同样加 `restart` (每 kL1 块一次)。
-- `R_cube` (`cube_mac_per_us`) 必填, 无缺省。**规格峰值由 `cube_mac_per_us("fp8")` 给出
+- `R_cube` (`cube_mac_per_us`) **仓里没有标定值**; 字段缺省 0.0, 其后果是计算项
+  整个不生效 —— 不给**不报错**, 而载入绑定的 tile 给不给时长相同, 看输出分辨不出来。**规格峰值由 `cube_mac_per_us("fp8")` 给出
   = 1.35e7 MAC/µs** (A8W8 主路径), 出处见下。测试里的 `2.7e7` 是占位值, 且正好是把规格的
   FLOPS 当成 MAC/µs (差一倍) —— 它也等于 MXFP4 的峰值, 两种读法都不是 A8W8 该用的数。
 

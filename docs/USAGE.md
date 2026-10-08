@@ -55,7 +55,7 @@ local_experts = 64
 routing = "uniform"        # uniform | cyclic | random | explicit | file
 
 [calibration]
-cube_mac_per_us = 2.7e7    # **必填, 无缺省**。规格值见下方第 6 节
+cube_mac_per_us = 2.7e7    # 占位示例; 缺省 0 = 计算项不生效。规格值见下方第 6 节
 
 [kernel]
 tile_m = 256

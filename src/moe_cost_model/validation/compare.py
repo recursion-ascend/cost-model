@@ -31,12 +31,15 @@ COMPARED_STAGES = ("gmm1", "activation", "gmm2", "combine", "dispatch")
 def time_groups(starts: Sequence[float]) -> int:
     """实测事件按时间空档切出的段数 (诊断用, **不**当作轮数).
 
-    为什么只做诊断: trace 是整次采集的, config.json5 里有 warmup: 3, 所以一个文件可能含
-    多轮同样的工作, 而模型算一轮。但"段数 = 轮数"靠不住 —— 同一个 run 的不同 stage 用
-    8 倍中位间隔切出来是 7/10/3/5/14 段, 彼此矛盾 (28 个核的事件交错, 轮内间隔本身差异很大)。
-    所以这里只报段数这个**证据**, 归一化交给人: 把一个靠不住的推断写进比值, 比不写更糟。
-    唯一一处分得干净的是 bs128 的 gmm2/combine: 3 段各 40 条, 段间空档 82-106 µs 而段内
-    0-3 µs —— 那是"采集含多轮"的强证据, 但它不能推广到别的 stage。
+    为什么只做诊断: "段数 = 轮数"靠不住 —— 同一个 run 的不同 stage 用 8 倍中位间隔切出来
+    是 7/10/3/5/14 段, 彼此矛盾 (28 个核的事件交错, 轮内间隔本身差异很大)。所以这里只报
+    段数这个**证据**, 归一化交给人: 把一个靠不住的推断写进比值, 比不写更糟。
+
+    **"采集含多轮"这个假设已被证伪** (2026-10-08): bs128 rank0 的 108 条 GMM1 标记里,
+    54 个 (波,专家,核,引擎) 元组各出现两次, 两次的 ts 与 dur **逐位相同** —— 多轮会有不同
+    的时刻。真正的原因是那个 trace 文件含**同一次运行的两个视图** (两个 pid: "完整流水"
+    与 "隐藏 WAIT"), 而读取器把两个都收了; 已在 validation/trace.py 改成只读一个视图。
+    config.json5 的 warmup: 3 也注明"正式固定一次", 本就不该进 trace。
     """
     if len(starts) < 4:
         return 1
@@ -114,7 +117,9 @@ class StageComparison:
                 f"{self.model_count}), 逐专家一致, 时间上分 {self.trace_time_groups} 段。"
                 f"两边都按 tile 计数 (kernel 的 MOE_PROFILE_BEGIN 带 "
                 f"ProfileTile(mLoc,nLoc)), 所以这个比值要有解释才能读时长对比: "
-                f"候选是采集含多轮 (config.json5 的 warmup: 3) 或 tile 网格真的不同")
+                f"候选是 tile 网格真的不同, 或两边的事件粒度口径不同 "
+                f"(dispatch 就是这一类: 模型按 dispatch_rows_per_item 成批, "
+                f"kernel 按行级软流水)。'采集含多轮'已被证伪, 见 time_groups 的说明")
         if self.trace_waves and self.model_waves and \
                 len(self.trace_waves) != len(self.model_waves):
             out.append(f"{self.stage}: 波数不同 实测 {len(self.trace_waves)} "

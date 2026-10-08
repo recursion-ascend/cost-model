@@ -103,9 +103,13 @@ def test_the_real_graphs_of_both_adapters_satisfy_the_invariants():
 
 @pytest.mark.skipif(not (DATA / BS128).exists(), reason="缺打点数据")
 def test_a_complete_trace_reads_cleanly():
+    """完整文件不该被判成截断; 但 note 会说明"只读了哪个视图"——那是信息不是问题."""
     trace = read_trace(next((DATA / BS128).glob("*_trace_rank0.json")))
-    assert not trace.truncated and trace.note == ""
-    assert trace.rank == 0 and len(trace.events) > 2000
+    assert not trace.truncated and trace.recovered_records == 0
+    # 本仓的 trace 一个文件含同一次运行的两个视图 ("完整流水" / "隐藏 WAIT"), 读取器
+    # 只取一个并把跳过了哪个写进 note —— 静默跳过会让人以为文件里只有这些事件。
+    assert "只读了" in trace.note and "完整流水" in trace.note
+    assert trace.rank == 0 and len(trace.events) > 1000
     stages = trace.by_stage()
     for stage in ("gmm1", "activation", "gmm2", "combine", "dispatch"):
         assert stages.get(stage, 0) > 0, stage
@@ -152,7 +156,9 @@ def test_run_config_maps_onto_the_model_vocabulary():
     干净克隆上跑不起来。
     """
     cfg = read_run_config(DATA / BS128)
-    assert (cfg["tokens"], cfg["h"], cfg["hidden_dim"]) == (128, 5120, 4608)
+    # hidden_dim 是 2I: 目录名与 config.json5 里的 i4608 是 I
+    assert (cfg["tokens"], cfg["h"], cfg["intermediate"]) == (128, 5120, 4608)
+    assert cfg["hidden_dim"] == 9216
     assert (cfg["topk"], cfg["world"], cfg["experts_total"]) == (6, 4, 12)
     assert cfg["local_experts"] == 3 and cfg["aic_cores"] == 28
     assert cfg["routing"] == "cyclic" and cfg["dtype"] == "fp8_e5m2"
@@ -179,15 +185,26 @@ def test_structural_comparison_reports_ratios_and_flags_what_needs_explaining():
     report = compare_run(trace, events, BS128)
     by_stage = {s.stage: s for s in report.stages}
 
-    gmm1 = by_stage["gmm1"]
-    assert (gmm1.trace_count, gmm1.model_count) == (108, 27)
-    assert gmm1.ratio == pytest.approx(4.0)
-    assert gmm1.consistent, "逐专家比值应当一致 (同一个结构的两种刻度)"
-    assert len(gmm1.trace_waves) == len(gmm1.model_waves) == 2
-    assert gmm1.trace_cores == 28 and gmm1.model_cores == 27
-    # 比值不为 1 要被标成"需要解释", 且话里要给出候选原因
+    # 2026-10-08: 这四个 stage 逐条对上了, 比值 1.00。此前报 4.00 (108 vs 27), 两个
+    # 2 倍都在**比对工具侧**, 建模侧零差异:
+    #   * read_run_config 把 config.json5 的 intermediate (I=4608) 当 hidden_dim 返回,
+    #     而模型的 hidden_dim 是 2I=9216 -> 模型按一半宽度建图, 27 而不是 54 个 GMM1 tile;
+    #   * read_trace 把文件里**同一次运行的两个视图** (pid "完整流水" / "隐藏 WAIT",
+    #     ts 与 dur 逐位相同) 都收了 -> 实测条数翻倍。
+    for st in ("gmm1", "activation", "gmm2", "combine"):
+        s_ = by_stage[st]
+        assert s_.trace_count == s_.model_count, (st, s_.trace_count, s_.model_count)
+        assert s_.ratio == pytest.approx(1.0), st
+        assert s_.consistent, f"{st}: 逐专家比值应当一致"
+        assert len(s_.trace_waves) == len(s_.model_waves) == 2, st
+        assert s_.trace_cores == s_.model_cores == 28, st
+    assert (by_stage["gmm1"].trace_count, by_stage["gmm1"].model_count) == (54, 54)
+    assert (by_stage["gmm2"].trace_count, by_stage["gmm2"].model_count) == (60, 60)
+
+    # dispatch 仍不为 1: 那是**粒度**口径 (模型成批 vs kernel 行级软流水), 另一个问题。
     issues = "\n".join(report.issues())
-    assert "条数比 4.00" in issues and "warmup" in issues
+    assert "dispatch: 条数比" in issues
+    assert "warmup" not in issues, "采集含多轮这个假设已被证伪, 不该再出现在诊断里"
 
     # dispatch 的实测事件不带专家号, 所以"逐专家"这一项不可比 —— 不该报成问题
     assert not by_stage["dispatch"].comparable_by_expert
