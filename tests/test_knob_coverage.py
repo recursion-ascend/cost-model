@@ -109,20 +109,22 @@ def test_roles_and_epilogue_are_reachable_from_a_scenario_file():
 
 
 def test_readme_knob_table_is_the_generated_one():
-    """README 的旋钮表必须与 `knob_audit --markdown` 的输出逐字相同.
+    """旋钮表必须与 `knob_audit --markdown` 的输出逐字相同.
 
-    表由代码生成 (EXPECTED + WHAT), README 里只是粘贴。本测试核对粘贴的那份没有过期 ——
-    新加旋钮、改判定、改说明, 不重新生成就红。
+    表由代码生成 (EXPECTED + WHAT), 文档里只是粘贴。本测试核对粘贴的那份没有过期 ——
+    新加旋钮、改判定、改说明, 不重新生成就红。表在 docs/knobs.md (2026-10-08 从 README
+    搬出去, README 只留入口)。
     """
     from pathlib import Path
 
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+    readme = (Path(__file__).resolve().parents[1] / "docs" / "knobs.md").read_text(
+        encoding="utf-8")
     begin = "<!-- BEGIN knob-table (generated: python tools/knob_audit.py --markdown) -->"
     end = "<!-- END knob-table -->"
-    assert begin in readme and end in readme, "README 里的旋钮表标记不见了"
+    assert begin in readme and end in readme, "docs/knobs.md 里的旋钮表标记不见了"
     pasted = readme.split(begin, 1)[1].split(end, 1)[0].strip()
     assert pasted == ka.markdown_table().strip(), (
-        "README 的旋钮表与代码不一致, 重新生成: "
+        "docs/knobs.md 的旋钮表与代码不一致, 重新生成: "
         "python tools/knob_audit.py --markdown")
 
 

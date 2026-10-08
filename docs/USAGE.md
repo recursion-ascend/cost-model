@@ -198,7 +198,7 @@ python tools/knob_audit.py --quiet  # 只列非"每个形状都生效"的
   即它从来什么都没测到。
 * `topk_weights_prefetch` 有**两个出处**, 其中 `KernelConfig` 上那个没有读者。
   当时删的是 `KernelConfig` 的; 2026-10-06 反过来了 —— 它是编译期宏
-  `MEGAMOE_TOPK_PREFETCH`, 唯一出处是 `KernelConfig`, 且已建模 (见下文),
+  `MEGAMOE_TOPK_PREFETCH`, 唯一出处是 `KernelConfig`, 且已建模 (见 `docs/architecture.md`),
   `ModelOptions` 上那个已删。
 * `options.roles` 与 `options.epilogue_overheads` 在**场景文件这条日常路径上写不出来**
   (报"应为数值"), 只能在 Python 里构造对象 —— 于是"哪个 stage 跑在哪个核上"这一类编排
@@ -310,3 +310,65 @@ print(m.format_design_space(rows))
 * **不许用"等于现有 kernel"来定义缺省值。** 缺省是最少假设; 那份实现的取值放
   `profiles.MEGAMOE_A8W8`。
 * 改了默认行为就要重新生成指纹: `python tools/gen_golden.py` (40 个用例)。
+
+## 场景文件: 完整示例
+
+一个场景文件承载全部旋钮, 改一个旋钮跑一次, 对比差值就是收益或代价。
+
+```bash
+python examples/run_scenario.py
+```
+
+场景文件 (`examples/scenario_basic.toml`) 的表名与字段名就是对象属性名:
+
+```toml
+h = 6144
+hidden_dim = 4096
+aic_num = 28
+p1_override = 2
+p2_override = 1
+
+[workload]
+tokens = 64
+topk = 8
+world = 4
+local_experts = 64
+routing = "uniform"          # uniform | cyclic | random | explicit | file
+
+[calibration]
+cube_mac_per_us = 2.7e7      # 占位示例; 仓里没有标定值。缺省 0 = 计算项不生效
+
+[policy]
+dispatch_lookahead = 2
+```
+
+```python
+from moe_cost_model import load_scenario, simulate
+
+base = load_scenario("examples/scenario_basic.toml")
+variant = base.with_overrides({"policy.gmm2_lag_waves": 2, "kernel.tile_n": 128})
+
+for sc in (base, variant):
+    res = simulate(sc)
+    print(sc.to_dict(defaults=False), res["kernel_total_us"])
+```
+
+也可以不用文件, 直接在 Python 里构造:
+
+```python
+from moe_cost_model import Calibration, InstancePolicy, Scenario, Workload, simulate
+
+sc = Scenario(
+    workload=Workload(tokens=64, world=4, local_experts=64, routing="uniform"),
+    p1_override=2, p2_override=1,
+    calibration=Calibration(cube_mac_per_us=2.7e7),
+    policy=InstancePolicy(gmm2_lag_waves=2),
+    wave_packing="balanced_waves",
+)
+res = simulate(sc)
+```
+
+写错字段名、类型不对、策略名不存在都会立即报错并给出提示, 例如
+`policy.gmm2_lag_wave: 未知字段, 是否想写 'gmm2_lag_waves'?`。
+
+底层入口 `simulate_routing_counts` 保留, 直接给路由计数 `C[dst][expert][src]` 与公式容器。
