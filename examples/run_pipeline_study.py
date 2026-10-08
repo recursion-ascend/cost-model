@@ -48,8 +48,9 @@ POINTS = {
     "相位流水 (队列深 2)": {"options.pipeline": {"queues": {"mte_aic": 2, "cube": 2}}},
     "相位流水 (队列深 4)": {"options.pipeline": {"queues": {"mte_aic": 4, "cube": 4}}},
     # --- stage 之间: 就绪粒度与片上驻留 ---
-    "GMM2 逐 K 块就绪": {"options.links": _edges(readiness=0)},
-    "GMM2 两段就绪": {"options.links": _edges(readiness=2)},
+    "GMM2 逐 K 块就绪": {"options.links": _edges(readiness="per_chunk")},
+    "GMM2 首块先开工": {"options.links": _edges(readiness="first_chunk")},
+    "GMM2 均分 4 段就绪": {"options.links": _edges(readiness=4)},
     "UB 深度 2": {"options.links": _edges(2)},
     "UB 不设限 (上界)": {"options.links": _edges(0)},
     "ACT 不物化 (留片上)": {"options.links": _edges(location="onchip")},

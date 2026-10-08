@@ -1,14 +1,16 @@
-"""第 4 层: GMM2 stage — head/tail 拆分事件 + 按行列范围的 ACT 依赖.
+"""第 4 层: GMM2 stage — 沿 K 分段就绪的事件 + 按行列范围的 ACT 依赖.
 
 tile 网格由 shape.tile_grid 给出 (缺省 SwizzledTileGrid = kernel 现行为)。
 依赖按 ACT 的行列范围挑, 不按构建序 — swizzle 蛇形遍历下构建序与坐标不对应。
-head 窗只等覆盖 K[0,kL1) 的 ACT (流水最大化), 主体等覆盖 K[kL1,K) 的.
+一个 tile 沿 K 分几段由 activation->gmm2 这条边的 readiness 定 (config/readiness),
+第 j 段只挂列范围与它相交的 ACT; 段界落在 kL1 块边界上。
 """
 from __future__ import annotations
 
 from typing import List
 
 from ..config.hardware import BW_L1_GM, select_kl1
+from ..config.readiness import segment_spans
 from ..costs import gmm2_phase_split
 from ..planning.tile_grid import STAGE_GMM2, validate_tiles
 from .context import BuildContext
@@ -70,7 +72,7 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                 first_owned[core] = False
 
             ordered = sorted(acts, key=lambda a: (a.col_begin, a.row_begin))
-            bounds = _k_segment_bounds(k_gmm2, kl1, link.readiness)
+            bounds = segment_spans(link.readiness, k_gmm2, kl1)
 
             ntile = t.col_begin // TILE_N
             g2_res = builder.options.role_resource("gmm2", core)
@@ -120,13 +122,17 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
                     load_us, compute_us = phases
                     seg_meta["load_us"] = load_us * frac
                     seg_meta["compute_us"] = compute_us * frac
+                # 分段的代价: 每段多走一次标志等待 (缺省 0 = 未标定,
+                # 见 StageLink.segment_sync_us)。首段不加: 不分段也要等一次,
+                # 分段多出来的是后续那 (段数-1) 次。
+                seg_dur = duration * frac + (link.segment_sync_us if j else 0.0)
                 # 首段持有队列 token; 后续段靠前一段的串接边保序, 不重复占用。
                 if j == 0:
-                    builder._event(name, (g2_res,), duration * frac,
+                    builder._event(name, (g2_res,), seg_dur,
                                    deps=deps + seg_acts, channel_bytes=seg_ch,
                                    acquires=(q_aic2,), releases=(q_aic2,), meta=seg_meta)
                 else:
-                    builder._event(name, (g2_res,), duration * frac,
+                    builder._event(name, (g2_res,), seg_dur,
                                    deps=prev + seg_acts, channel_bytes=seg_ch,
                                    meta=seg_meta)
                 prev = [name]
@@ -148,38 +154,6 @@ def _sum_phases(costs, members, k_gmm2: int):
         total_load += ph[0]
         total_compute += ph[1]
     return (total_load, total_compute)
-
-
-def _k_segment_bounds(k_gmm2: int, kl1: int, segments: int):
-    """GMM2 沿 K 的分段边界 [(k_lo, k_hi), ...], 末段到 k_gmm2.
-
-    segments == 2: 首个 kL1 块一段, 其余合成一段 (MEGAMOE_A8W8 用这个)。
-        与旧实现逐字节等价: head 等 col_begin < kl1 的 ACT, tail 等 col_end > kl1 的。
-    segments == 0: 每个 kL1 块各一段 (最细)。
-    segments > 2: 按 kL1 块数均分成 segments 段 (块数不足时退化为块数)。
-    """
-    if kl1 <= 0:
-        raise ValueError("kl1 must be positive")
-    n_chunks = -(-k_gmm2 // kl1)
-    if segments == 2:
-        if n_chunks <= 1:
-            return [(0, k_gmm2)]
-        return [(0, kl1), (kl1, k_gmm2)]
-    if segments == 0 or segments >= n_chunks:
-        return [(j * kl1, min((j + 1) * kl1, k_gmm2)) for j in range(n_chunks)]
-    if segments < 1:
-        raise ValueError("StageLink.readiness must be >= 0")
-    if segments == 1:
-        return [(0, k_gmm2)]
-    # 把 n_chunks 个块尽量均匀地分到 segments 段里
-    per, rem = divmod(n_chunks, segments)
-    out, lo_chunk = [], 0
-    for j in range(segments):
-        take = per + (1 if j < rem else 0)
-        hi_chunk = lo_chunk + take
-        out.append((lo_chunk * kl1, min(hi_chunk * kl1, k_gmm2)))
-        lo_chunk = hi_chunk
-    return out
 
 
 def _require_full_k(acts, k_gmm2: int, expert: int, group: int, t) -> None:

@@ -21,7 +21,7 @@
 
     rows = design_space(run, {
         "基线":        m.ModelOptions(),
-        "逐 K 块就绪":  m.ModelOptions(links=(..., L("activation", "gmm2", readiness=0))),
+        "逐 K 块就绪":  m.ModelOptions(links=(..., L("activation", "gmm2", readiness="per_chunk"))),
         "不物化":       m.ModelOptions(links=(..., L("activation", "gmm2", location="onchip"))),
         "分段式执行":   m.ModelOptions(barriers=("stage",)),
     })

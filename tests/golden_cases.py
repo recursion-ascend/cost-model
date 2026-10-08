@@ -176,7 +176,7 @@ def _cases() -> Dict[str, Callable[[], Dict[str, object]]]:
         options=P.with_options(links=(
             m.StageLink("gmm1", "activation", location="onchip", depth=2,
                         colocated_by_hardware=True),
-            m.StageLink("activation", "gmm2", readiness=2))))
+            m.StageLink("activation", "gmm2", readiness="first_chunk"))))
     c["mte_tile_m128"] = lambda: run_api(sk(), SK_TOKENS, kernel=kc(tile_m=128))
     c["mte_tile_n128"] = lambda: run_api(sk(), SK_TOKENS, kernel=kc(tile_n=128))
     c["mte_l1buf1_quant1"] = lambda: run_api(

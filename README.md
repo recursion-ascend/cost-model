@@ -31,7 +31,7 @@ simulate_routing_counts(routing_counts=C, costs=costs,
                         **P.shape_kw(), options=P.with_options(links=(
     StageLink("gmm1", "activation", location="onchip", depth=1,
               colocated_by_hardware=True),
-    StageLink("activation", "gmm2", readiness=0))))
+    StageLink("activation", "gmm2", readiness="per_chunk"))))
 ```
 
 缺省跑出来的数与那份实现的数不同, 这是信息 (差多少 = 那些编排选择值多少), 不是 bug。
@@ -43,7 +43,8 @@ stage 之间的编排收在 `StageLink` 里 (`config/links.py`), 对**任意**�
 
 | 字段 | 问的是 | 取值 |
 | --- | --- | --- |
-| `readiness` | 消费者要等生产者产出多少才能开工 | `1` 等齐 (缺省) / `0` 最细 (每 L1 块一段) / `N` 均分 |
+| `readiness` | 消费者沿共享轴分几段独立就绪 (段越多开工越早) | `"whole"` 等齐 (缺省) / `N>=2` 均分 N 段 / `"per_chunk"` 最细 (一个自然块一段) / `"first_chunk"` 首块+其余 |
+| `segment_sync_us` | 每多一段, 消费者多付多少同步开销 | `0.0` **未标定** (缺省; 不是"量过是零", 所以细分段的收益是上界) / 实测值 |
 | `location` | 中间结果放哪 | `"gm"` 物化 (缺省) / `"onchip"` 留片上 (不付 GM 字节, 代价是共位) |
 | `depth` | 片上能同时存几块 (计数信号量) | `0` 不设限 / `N` 槽数 |
 | `colocated_by_hardware` | 同核是硬件强制还是编排选择 | `gmm1→activation` 为真 (Fixpipe 只在绑定对内), 不让 `location` 去推它 |
@@ -52,7 +53,7 @@ stage 之间的编排收在 `StageLink` 里 (`config/links.py`), 对**任意**�
 from moe_cost_model import ModelOptions, StageLink as L
 ModelOptions(links=(
     L("gmm1", "activation", location="onchip", depth=1, colocated_by_hardware=True),
-    L("activation", "gmm2", readiness=0)))                 # GMM2 逐 K 块就绪
+    L("activation", "gmm2", readiness="per_chunk")))       # GMM2 逐 K 块就绪
 ```
 
 场景文件里写成表数组:
@@ -61,8 +62,26 @@ ModelOptions(links=(
 [[options.links]]
 producer = "activation"
 consumer = "gmm2"
-readiness = 0
+readiness = "per_chunk"
 ```
+
+#### 哪条边能分段 (写得出就必须买账)
+
+`readiness` 只在"两边共有一条轴、且消费者能沿它增量消费"时有意义。四条边的共享轴逐条写在
+`config/links.EDGE_AXES` 里, 校验照着它**拒绝**写不出后果的取值 —— 不静默忽略, 否则在那儿
+扫一圈得到的"0 收益"会被当成硬件上也没收益:
+
+| 边 | 共享轴 (自然块) | 能分段? |
+| --- | --- | --- |
+| `dispatch→gmm1` | token 行 (m-group) | ✗ 一个 GMM1 事件的行落在一个 m-group 内, 一次只吃一个块 |
+| `gmm1→activation` | N = GMM1 的输出列 (GMM1 tile) | ✗ 一个 ACT 对一个 GMM1 tile (1:1) |
+| `activation→gmm2` | K = GMM2 的归约轴 (kL1 块) | ✓ 由 `builders/gmm2` 消费 |
+| `gmm2→combine` | 切片内的 tile (GMM2 tile) | ✗ 这条轴就是 combine 的打包单元 —— 改 `granularity["combine"]` |
+
+`readiness` 与 `granularity` 的分工: **readiness = 消费者多早能开始 (时序), granularity =
+一个事件覆盖多少 (打包)**。两者正交只在"轴不同"时成立 —— GMM2 的 `granularity` 沿 M/N 打包
+tile, `readiness` 沿 K 分段, 互不干涉; 而 `gmm2→combine` 的共享轴**就是** combine 的打包单元,
+在那儿分段等于少打包, 所以那条边上非 `"whole"` 的 `readiness` 直接报错。
 
 ### 扫一遍, 看每个选择值多少钱
 
@@ -965,35 +984,41 @@ ACT tile 只产出 GMM2 在 K 上 1/ceil(k/TILE_N) 的部分, GMM2 要累完整�
 独立就绪是编排选择**: L0C 本来就沿 kL1 分块累加 (kernel 的 `ProcessTileL1`), 所以让第 j 段
 只等覆盖自己 K 范围的 ACT 在物理上可行。
 
-`StageLink("activation", "gmm2", readiness=N)` —— 2026-10-04 起由这条边给出
-(原先是 `ModelOptions.gmm2_k_segments`, 已删除; 三个各自为政的旋钮
-`gmm2_k_segments` / `act_to_gmm2` / `InstancePolicy.gmm1_activation_depth`
-合并成"一条边三个问题", 见 `config/links.py`):
+`StageLink("activation", "gmm2", readiness=...)` 给出这条边的分段 (取值与语义在
+`config/readiness.py`, 一条边有没有共享轴、能不能分段在 `config/links.EDGE_AXES`):
 
 | `readiness` | 含义 |
 | --- | --- |
-| `1` (缺省) | 不分段: 等齐覆盖整个 K 的全部 ACT 再开工 —— 最少假设 |
-| `2` | 首个 kL1 块一段 (只等 1 个 ACT), 其余合成一段 (`MEGAMOE_A8W8` 用这个) |
-| `0` | 每个 kL1 块各一段, 第 j 段只等第 j 块的 ACT —— 最细 |
-| `N>2` | 按 kL1 块数均分成 N 段 |
+| `"whole"` (缺省) | 不分段: 等齐覆盖整个 K 的全部 ACT 再开工 —— 最少假设 |
+| `N` (>= 2) | 按 kL1 块数**均分** N 段 (块数不足就是每块一段; 除不尽时多的块给前面的段) |
+| `"per_chunk"` | 每个 kL1 块各一段, 第 j 段只等第 j 块的 ACT —— 最细 |
+| `"first_chunk"` | 首块一段 (只等 1 个 ACT) + 其余一段 (`MEGAMOE_A8W8` 是这一档) |
 
-实测 (ep=5, 每专家 256 行全远端, aic=28, `kl1=256` 即 18 个 kL1 块):
+取值**单调**: 段数 `whole`(1) ≤ `N`(min(N, 块数)) ≤ `per_chunk`(块数)。整数只表示"均分几段",
+`0` 与 `1` 都报错 —— 它们在 2026-10-08 之前分别表示"最细"与"等齐", 那套编码不单调
+(1=等齐 / 2=首块+其余 / 0=最细 / ≥块数=最细), 而且 `0` 的含义与 `granularity` 的 `0`=整片、
+`dispatch` 的 `0`=沿用 tiling 三处相反。**旧场景文件里的 `readiness = 2` 现在是"均分 2 段",
+不再是"首块+其余"** —— 要后者就写 `"first_chunk"`。
 
-| 形状 | 2 段 | 3 段 | 6 段 | 逐块 |
+实测 (ep=5, 每专家 256 行全远端, aic=28, `kl1=256` 即 18 个 kL1 块;
+基线那一列是 `"first_chunk"`, 即那份实现的档):
+
+| 形状 | `first_chunk` | 均分 3 段 | 均分 6 段 | `per_chunk` |
 | --- | ---: | ---: | ---: | ---: |
 | hidden=9216 专家=3 | 311.7 us | −4.1% | −4.6% | −5.2% |
 | hidden=9216 专家=6 | 462.6 us | −4.6% | −5.0% | −5.0% |
 | hidden=14336 专家=6 | 679.8 us | −1.0% | −1.9% | −2.4% |
 | hidden=18432 专家=6 | 855.2 us | −3.0% | −2.8% | −2.5% |
 
-两点结论: **收益主要在 2→3 段**(现状的两段是 1/18 + 17/18 的极端不均分, 改 3 段就把等待链
-打散了); **过细会退化** (hidden=18432 专家=6 逐块反而比 3 段差, 事件数 240→4320 后调度器的
-资源排队成为新瓶颈)。
+两点结论: **收益主要在"首块+其余"→均分 3 段** (前者是 1/18 + 17/18 的极端不均分, 均分就把
+等待链打散了); **过细会退化** (hidden=18432 专家=6 逐块反而比 3 段差, 事件数 240→4320 后
+调度器的资源排队成为新瓶颈)。
 
-⚠️ **这些数是上界**: kernel 侧每段要多做一次 `WaitUntilGmFlagEquals` (GM 读 + 自旋), 逐块
-= 18 次轮询 vs 现在 2 次, 模型未计这项开销。所以 3 段的 −4.1% 比逐块的 −5.2% 更可信 —— 前者
-只多 1 次轮询。要算出最优段数需要补一个按段数计费的轮询常数, 实测值可从 trace 的
-`WAIT_GMM2_INPUT` 打点反解。
+⚠️ **这些数是上界**: 实现侧每段要多做一次标志等待 (GM 读 + 自旋), 逐块 = 18 次轮询
+vs 两段 2 次。这笔开销由 `StageLink.segment_sync_us` 表达, **缺省 0 = 未标定** (不是"量过
+是零"), 上表就是缺省下跑的。所以均分 3 段的 −4.1% 比逐块的 −5.2% 更可信 —— 前者只多
+1 次轮询。要定它见 `docs/calibration_runs.md` 的 R8 (可从 trace 的 `WAIT_GMM2_INPUT`
+打点反解); 它登记在 `analysis/sensitivity.UNCERTAIN_INPUTS` 里。
 
 ## 带宽争用: 信道模型已停用 (2026-10-03)
 
@@ -1332,7 +1357,8 @@ moe-cost-model/
 │   │   ├── platform.py          #   白皮书规格 (spec): 峰值算力/带宽, 与实测分开记
 │   │   ├── policy.py            #   InstancePolicy + StageWaveOffsets
 │   │   ├── pipeline.py          #   PipelineConstraints + QueueDepths + tiling 解析
-│   │   ├── links.py             #   StageLink: 一条 stage 边的就绪/落点/槽数
+│   │   ├── links.py             #   StageLink: 一条 stage 边的就绪/落点/槽数 + EDGE_AXES
+│   │   ├── readiness.py         #   Readiness: 消费者沿共享轴分几段就绪 (段界/余数规则)
 │   │   ├── roles.py             #   RoleAssignment: 哪个 stage 跑在哪个引擎角色
 │   │   ├── granularity.py       #   StageGranularity: 一个事件覆盖多少个单元
 │   │   └── provenance.py        #   常数出处标签系统 (SourcedValue / SourcedInt)

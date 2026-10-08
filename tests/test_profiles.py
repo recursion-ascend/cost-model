@@ -16,7 +16,8 @@ def test_profile_carries_every_implementation_specific_choice():
     assert P.options.dispatch_partition  # 谁取哪些行
     assert P.options.dispatch_pacing     # 下一波 dispatch 等什么
     g2 = P.options.link("activation", "gmm2")
-    assert g2.location == "gm" and g2.readiness == 2   # 物化 + 两段就绪
+    assert g2.location == "gm"                         # 物化
+    assert g2.readiness == m.Readiness.first_chunk()    # 首块一段 + 其余一段
     g1 = P.options.link("gmm1", "activation")
     assert g1.location == "onchip" and g1.depth == 1 and g1.colocated_by_hardware
     assert P.options.epilogue_overheads is not None

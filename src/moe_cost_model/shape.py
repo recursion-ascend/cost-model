@@ -193,9 +193,10 @@ class ModelOptions:
     dispatch_pacing: str = "none"
 
     def __post_init__(self) -> None:
-        validate_links(self.links)
         object.__setattr__(self, "granularity", resolve_granularity(self.granularity))
         self._reconcile_granularity_views()
+        # granularity 先定下来, 校验才报得出"该改的是 granularity, 现在是几"
+        validate_links(self.links, self.granularity)
 
     def _reconcile_granularity_views(self) -> None:
         """把两个历史旋钮折进统一的 granularity, 保证只有一个真相.

@@ -166,7 +166,7 @@ def report(run: Path, compare: Path = None):
         "gmm1→act UB 深度=2": dict(options=PROFILE.with_options(links=(
             StageLink("gmm1", "activation", location="onchip", depth=2,
                       colocated_by_hardware=True),
-            StageLink("activation", "gmm2", readiness=2)))),
+            StageLink("activation", "gmm2", readiness="first_chunk")))),
         "kL1=256 显式": dict(options=PROFILE.with_options(gmm2_kl1=256)),
     }
     if t["bs"] >= 1024:

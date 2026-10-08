@@ -84,6 +84,14 @@ UNCERTAIN_INPUTS: Tuple[object, ...] = (
         calibration="R7",
     ),
     Unknown(
+        name="options.links[activation->gmm2].segment_sync_us",
+        reason=("沿共享轴多分一段, 消费者要多走一次标志等待 —— 这笔开销**从未测过**。"
+                "缺省 0 不表示没有代价, 表示本模型没有声称它是多少 —— 所以任何"
+                "'分得越细越好'的结论都是上界, 不是结论 (readiness 扫出来的收益"
+                "没有扣这笔钱)"),
+        calibration="R8",
+    ),
+    Unknown(
         name="calibration.cube_mac_per_us",
         reason=("Cube 速率给的是规格峰值 (fp8 1.35e7 MAC/us/核), 真实可达效率没测过。"
                 "计算绑定的形状上结论会随它变"),

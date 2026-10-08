@@ -59,8 +59,9 @@ def main() -> int:
 
     points = {
         "基线 (最少假设)": OPT(),
-        "GMM2 两段就绪": OPT(links=edges(readiness=2)),
-        "GMM2 逐 K 块就绪": OPT(links=edges(readiness=0)),
+        "GMM2 首块先开工": OPT(links=edges(readiness="first_chunk")),
+        "GMM2 均分 4 段就绪": OPT(links=edges(readiness=4)),
+        "GMM2 逐 K 块就绪": OPT(links=edges(readiness="per_chunk")),
         "UB 深度 2 (交织路径)": OPT(links=edges(2)),
         "UB 不设限 (上界)": OPT(links=edges(0)),
         "ACT 不物化 (留片上)": OPT(links=edges(location="onchip")),

@@ -41,7 +41,8 @@ def test_duplicate_edge_is_refused():
     """同一条边两条说法 -> "谁生效"会变成实现细节, 直接拒绝."""
     with pytest.raises(ValueError, match="重复的边"):
         m.ModelOptions(links=(m.StageLink("activation", "gmm2"),
-                              m.StageLink("activation", "gmm2", readiness=0)))
+                              m.StageLink("activation", "gmm2",
+                                          readiness="per_chunk")))
 
 
 def test_materialised_charges_the_a_stream_read():

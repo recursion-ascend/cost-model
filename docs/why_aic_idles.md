@@ -162,10 +162,11 @@ GMM2 的 K 轴就是 GMM1 切分的那个 N 轴 (`k_gmm2 = hidden_dim / activati
 
 - 模型能沿 K 分段就绪: `StageLink("activation", "gmm2").readiness`
   (原 `ModelOptions.gmm2_k_segments`, 2026-10 并入 `ModelOptions.links`)。
-  **缺省是 1 = 等齐** —— 不声称实现能在只拿到部分 K 时起步; `profiles.MEGAMOE_A8W8`
-  给的是 2, 即那份实现的两级分段: 首段只等覆盖首个 kL1 块的 **1 个** ACT, 尾段等其余 17 个。
-- 所以在 readiness >= 2 下首段能在 wave 的 ACT 还没跑完时启动; 真正等整个 wave 的只有尾段。
-- 分更多段 (readiness=0 最细) 能把这条等待链继续打散, 收益与代价见 README 的
+  **缺省是 "whole" = 等齐** —— 不声称实现能在只拿到部分 K 时起步; `profiles.MEGAMOE_A8W8`
+  给的是 `"first_chunk"`, 即那份实现的两级分段: 首段只等覆盖首个 kL1 块的 **1 个** ACT,
+  尾段等其余 17 个。
+- 所以在分段 (段数 >= 2) 下首段能在 wave 的 ACT 还没跑完时启动; 真正等整个 wave 的只有尾段。
+- 分更多段 (`"per_chunk"` 最细) 能把这条等待链继续打散, 收益与代价见 README 的
   「GMM2 沿 K 维分段就绪」一节。
 
 ---
@@ -178,7 +179,7 @@ GMM2 的 K 轴就是 GMM1 切分的那个 N 轴 (`k_gmm2 = hidden_dim / activati
 | ⑤ 的选核 | 池化事件按核算出各自的"最早能开始" (核空闲 ∧ 该核槽可用), 取最小的那个核 —— 两个约束分别取最小会指向不同的核, 算出的 start 没有单个核真能满足 | 已实现 |
 | ⑤ 的顺序代价 | `scheduling_policy=WorkConservingCriticalPath()` — 零空闲之上按剩余关键链打破平手, 消掉纯贪心把关键 tile 挤后的回退 | 已实现 |
 | ① 波间 | `dispatch_pacing="wave"` / `"none"` — 放开"下一波 dispatch 等本核上一波 combine"这条配速边 | 已实现 |
-| ① 中段 | `StageLink("activation","gmm2").readiness` 调细 (缺省 1 = 等齐) | 已实现 |
+| ① 中段 | `StageLink("activation","gmm2").readiness` 调细 (缺省 "whole" = 等齐) | 已实现 |
 | ① 尾段 | unpermute 分给 AIC (缺口 4) | 未实现 |
 | ⑤ 的根因之一 | 跨核 split-K, 让 18 个 tile 变成 36/54 个更细的任务 (缺口 1) | 未实现 |
 | ① 头部 | 消不掉 — GMM1 必须等 dispatch | 物理 |

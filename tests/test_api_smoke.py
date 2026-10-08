@@ -223,8 +223,9 @@ def test_gmm2_act_edges_by_ntile():
         expert_source_tokens=tuple(tuple(per_src for _ in range(world))
                                    for _ in range(local)),
         kernel=m.KernelConfig())
-    # 本测试讲的是 head/tail 两段各等哪些 ACT, 所以显式要 2 段 (缺省是 1 段不分)
-    model = A8W8WaveCostModel(_run_costs(), m.ModelOptions(links=links(readiness=2)))
+    # 本测试讲的是 head/tail 两段各等哪些 ACT, 所以显式要两段 (缺省 "whole" 不分段)
+    model = A8W8WaveCostModel(
+        _run_costs(), m.ModelOptions(links=links(readiness="first_chunk")))
     events, _ = model.build_events(shape)
     by_name = {e.name: e for e in events}
 

@@ -27,7 +27,7 @@ POINTS = {
     "UB 深度 2": ({"options.links": [
         dict(producer="gmm1", consumer="activation", location="onchip",
              depth=2, colocated_by_hardware=True),
-        dict(producer="activation", consumer="gmm2", readiness=1)]}, ()),
+        dict(producer="activation", consumer="gmm2")]}, ()),
 }
 
 

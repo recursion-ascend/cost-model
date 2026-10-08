@@ -128,7 +128,8 @@ def test_gmm2_follows_act_coverage_after_row_split():
         aic_num=28, expert_source_tokens=rows, p1_override=2, p2_override=1, topk=6,
         kernel=m.KernelConfig(), tile_grid=m.SplitRowsTileGrid(parts=2))
     events, _ = A8W8WaveCostModel(
-        manual_costs(), m.ModelOptions(links=links(readiness=2))).build_events(shape)
+        manual_costs(),
+        m.ModelOptions(links=links(readiness="first_chunk"))).build_events(shape)
     by_name = {e.name: e for e in events}
     k_gmm2 = HIDDEN // 2
     for e in events:
@@ -254,17 +255,20 @@ def _seg_run(segments):
 
 def test_readiness_default_is_one_segment():
     """缺省不分段: 一个 GMM2 tile 等齐整个 K 的 ACT 再开工 (最少假设)."""
-    assert m.ModelOptions().link("activation", "gmm2").readiness == 1
-    g2 = [e for e in _seg_run(1)["rank_results"][0]["events"]
+    assert m.ModelOptions().link("activation", "gmm2").readiness.is_whole
+    g2 = [e for e in _seg_run("whole")["rank_results"][0]["events"]
           if e.meta.get("stage") == "gmm2"]
     assert {str(e.meta.get("part")) for e in g2} == {"tail"}
     assert not any(e.name.endswith(".h") for e in g2)
 
 
-def test_two_segments_keep_the_head_tail_names():
+@pytest.mark.parametrize("two_segments", ["first_chunk", 2])
+def test_two_segments_keep_the_head_tail_names(two_segments):
     """2 段时必须沿用 ".h"/part=head 与不带后缀的 tail —— combine 与
-    gmm2_tail_by_group 按这两个名字挂钩, audit_edges 与 test_api_smoke 也认它们."""
-    res = _seg_run(2)
+    gmm2_tail_by_group 按这两个名字挂钩, audit_edges 与 test_api_smoke 也认它们.
+
+    两种写法都是 2 段 (首块+其余 / 均分), 名字规则只看段数, 不看是哪一档。"""
+    res = _seg_run(two_segments)
     g2 = [e for e in res["rank_results"][0]["events"] if e.meta.get("stage") == "gmm2"]
     parts = {str(e.meta.get("part")) for e in g2}
     assert parts == {"head", "tail"}
@@ -273,10 +277,10 @@ def test_two_segments_keep_the_head_tail_names():
 
 def test_readiness_bounds_cover_k_without_gap():
     """分段边界必须无缺口无重叠地覆盖 [0, k); 各段时长占比之和 == 1."""
-    from moe_cost_model.builders.gmm2 import _k_segment_bounds
+    from moe_cost_model.config.readiness import parse_readiness, segment_spans
     for k, kl1 in ((4608, 256), (4608, 512), (5120, 256), (256, 256), (300, 256)):
-        for seg in (0, 1, 2, 3, 6, 1000):
-            b = _k_segment_bounds(k, kl1, seg)
+        for seg in ("whole", "per_chunk", "first_chunk", 2, 3, 6, 1000):
+            b = segment_spans(parse_readiness(seg), k, kl1)
             assert b[0][0] == 0 and b[-1][1] == k, (k, kl1, seg, b)
             for (a_lo, a_hi), (n_lo, _) in zip(b, b[1:]):
                 assert a_hi == n_lo, (k, kl1, seg, b)
@@ -286,8 +290,8 @@ def test_readiness_bounds_cover_k_without_gap():
 def test_gmm2_finer_segments_only_wait_their_own_act_columns():
     """逐块模式下, 第 j 段只依赖列范围与它相交的 ACT —— 这就是"对应 tile ACT 完
     就能进 GMM2"的表达。段数越多, 单段等待的 ACT 数越少。"""
-    res2 = _seg_run(2)
-    res0 = _seg_run(0)
+    res2 = _seg_run("first_chunk")
+    res0 = _seg_run("per_chunk")
 
     def n_gmm2(result):
         return len([e for e in result["rank_results"][0]["events"]

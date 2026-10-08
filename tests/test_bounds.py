@@ -384,8 +384,8 @@ def test_granularity_rejects_non_integer_and_unknown_stage_lookup():
 
 
 def test_stage_link_rejects_negative_readiness_and_depth():
-    """readiness / depth 不能为负 —— 0 有明确含义 (最细 / 不设限), 负数没有."""
-    with pytest.raises(ValueError, match="readiness 不能为负"):
+    """depth 不能为负 (0 = 不设限); readiness 的取值校验见 test_readiness."""
+    with pytest.raises(ValueError, match="段数不能为负"):
         m.StageLink("activation", "gmm2", readiness=-1)
     with pytest.raises(ValueError, match="depth 不能为负"):
         m.StageLink("gmm1", "activation", depth=-1)
@@ -399,7 +399,7 @@ def test_resolve_link_falls_back_to_the_default_edge():
     assert got.producer == "activation" and got.consumer == "gmm2"
     assert resolve_link(only_one, "gmm1", "activation").depth == 3
     # 完全不认识的一对也给一个中性的 StageLink, 不抛
-    assert resolve_link((), "gmm2", "combine").readiness >= 0
+    assert resolve_link((), "gmm2", "combine").readiness.is_whole
 
 
 # ------------------------- platform: 聚合带宽帽要在日常路径上生效

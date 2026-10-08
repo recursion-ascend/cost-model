@@ -45,8 +45,8 @@ def test_aic_late_binding_is_work_conserving():
     静态轮转恰好也是工作守恒的 (违规 0), 没有可观测的违规就证明不了什么。
     两段时静态发牌的违规是 10.10 核·us。
     """
-    static = _rank(9216, 3, (), k_segments=2)
-    late = _rank(9216, 3, ("AIC",), k_segments=2)
+    static = _rank(9216, 3, (), k_segments="first_chunk")
+    late = _rank(9216, 3, ("AIC",), k_segments="first_chunk")
     assert _aic(static).avoidable_idle_us > 1.0          # 基线确有违规
     assert _aic(late).avoidable_idle_us < 1e-6           # 晚绑定后为 0
     # 只换"哪个核做", 不增删工作量

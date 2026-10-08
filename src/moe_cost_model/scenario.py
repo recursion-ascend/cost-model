@@ -27,6 +27,7 @@ from .config.pipeline import (BufferSlots, PhaseRates, PipelineConstraints,
 from .config.granularity import resolve_granularity
 from .config.platform import resolve_platform
 from .config.links import StageLink
+from .config.readiness import Readiness, parse_readiness
 from .config.roles import RoleAssignment
 from .config.policy import InstancePolicy, StageWaveOffsets
 from .costs import (DispatchDataLayout, DispatchMechanisticLatency, PrimitiveCosts,
@@ -464,6 +465,12 @@ _NESTED = {
 _LIST_NESTED = {
     (ModelOptions, "links"): StageLink,
 }
+# 值不是裸标量的**叶子**字段: (所属类, 字段名) → 解析函数。readiness 的写法有两种
+# (字符串档名 / 整数段数), 而 _leaf_kind 只会按缺省值的类型收一种 —— 不在这里登记,
+# 场景文件里就只写得出其中一种。
+_PARSED_LEAF = {
+    (StageLink, "readiness"): parse_readiness,
+}
 # 值为"stage -> 整数"映射的字段: 场景文件里写 [options.granularity] 下 gmm2 = 2。
 # 每 stage 一个取值, 所以是表而不是表数组 (links 那种每条边一个对象才用表数组)。
 _MAP_NESTED = {
@@ -524,6 +531,12 @@ def _convert(cls, key: str, value, path: str, base=None):
         if bad:
             raise ValueError(f"{where}: 每一项应为字符串, 得到 {bad!r}")
         return tuple(value)
+    parser = _PARSED_LEAF.get((cls, key))
+    if parser is not None:
+        try:
+            return parser(value)
+        except ValueError as exc:
+            raise ValueError(f"{where}: {exc}") from None
     mapper_str = _MAP_STR_NESTED.get((cls, key))
     if mapper_str is not None:
         if value is None:
@@ -655,6 +668,10 @@ def _set_path(obj, keys, value, path: str):
 
 
 def _dump(value):
+    if isinstance(value, Readiness):
+        # 导出成场景文件里的写法 (档名或段数), 不是它的两个字段 —— 否则
+        # to_dict() 的结果喂不回 load_scenario。
+        return value.spelling
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return {f.name: _dump(getattr(value, f.name)) for f in dataclasses.fields(value)}
     if isinstance(value, bool) or value is None or isinstance(value, str):

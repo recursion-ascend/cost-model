@@ -41,7 +41,8 @@
 | stage 波偏移 | `InstancePolicy.wave_offsets` | dispatch 超前波数、GMM2 滞后波数 |
 | dispatch 配速 | `ModelOptions.dispatch_pacing` | none (缺省) / per_core (`MEGAMOE_A8W8`) / wave |
 | dispatch 分工 | `ModelOptions.dispatch_partition` | pooled (缺省) / precut (`MEGAMOE_A8W8`) |
-| stage 边: 就绪粒度 | `StageLink.readiness` | 1 (缺省, 等齐) / 2 (`MEGAMOE_A8W8`) / 0 (逐块) / N |
+| stage 边: 就绪粒度 | `StageLink.readiness` | "whole" (缺省, 等齐) / "first_chunk" (`MEGAMOE_A8W8`) / "per_chunk" (逐块) / N>=2 (均分); 只在 `EDGE_AXES` 说可分段的边上允许非 whole |
+| stage 边: 每段同步开销 | `StageLink.segment_sync_us` | 0.0 (缺省, **未标定**) —— 不计这笔, 分段只有收益没有代价, 见 R8 |
 | stage 边: 落点 | `StageLink.location` | gm (缺省) / onchip (不物化, 代价是共位) |
 | stage 边: 片上槽数 | `StageLink.depth` | gmm1→act 缺省 1 (UB 单槽); 0 = 不设限 |
 | GMM2 kL1 | `ModelOptions.gmm2_kl1` | 自适应或显式 |
@@ -771,3 +772,51 @@ meta["compute_us"]、丢掉 gmm2_problem_startup_us"那一版的数。补回那�
 | 32 | 某实现的取值 (`DataCopy` 搬满 `META_INFO_SIZE=8` 个 int32 槽), `MEGAMOE_A8W8` 用它 |
 
 "搬几个字段"是编排选择: 多搬的字段不参与 combine 的计算, 只是跟着 cacheline 走。
+
+---
+
+## readiness 的编码改写 (2026-10-08): 从哨兵到物理量
+
+`StageLink.readiness` 原先是整数, 编码**不单调**: `1`=等齐 / `2`=首块+其余 / `0`=最细 /
+`>=块数`=最细 —— 字面"段数"只在 `3..块数-1` 成立。它还有两个更实的毛病:
+
+1. **只有一条边真消费它。** 读它的只有 `builders/gmm2`(activation→gmm2)。
+   `gmm1→activation` 上 `effective_gmm1_act_link` 把它透传, 但没有任何消费者 ——
+   在那儿写非缺省值**静默无效**。实测: 固定形状静态钉核, 只改 gmm1→activation 的
+   readiness (0/1/2/5), 事件数恒 271、墙钟逐位相同; 改 activation→gmm2 则
+   0→943、2→367、5→655 个事件。
+2. **`0` 的语义与别的旋钮相反。** `granularity` 的 `0`=整片、`dispatch_rows_per_item`
+   的 `0`=沿用 tiling, 而 readiness 的 `0`=最细。
+
+现在: 语义先定成物理量 ("消费者沿共享轴分 S 段独立就绪, 第 j 段只挂覆盖第 j 段范围的
+产出"), 取值即段数, 四个档 `"whole"` / `N>=2` / `"per_chunk"` / `"first_chunk"`
+(`config/readiness.py`), `0` 与 `1` 报错。每条边的共享轴、自然块、能不能分段逐条写在
+`config/links.EDGE_AXES` 里, 校验照着它拒绝 —— **写得出的取值模型必须买账**。
+
+### 分段的代价现在写得出来了
+
+`StageLink.segment_sync_us`: 除首段外每段多付的同步开销, 缺省 **0 = 未标定**
+(不是"量过是零")。要定它见 `docs/calibration_runs.md` 的 R8; 它登记在
+`analysis/sensitivity.UNCERTAIN_INPUTS`。缺省 0 之下"分得越细越不差"是模型的结构偏置,
+与晚绑定不计取活开销 (R7) 同一类。
+
+### 墙钟对段数**不单调** —— 这是读 readiness 扫描结果的前提
+
+同一夹具 (uniform 2x4x128, aic=28), 只改 readiness:
+
+| | `whole` | 均分 2 | 均分 3 | 均分 4 | 均分 6 | `first_chunk` | `per_chunk` |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 静态钉核 | 289.065 | 289.065 | 289.065 | 289.065 | 289.065 | 289.065 | 289.065 |
+| 晚绑定 | 258.087 | 247.986 | **250.511** | 247.986 | 247.986 | 255.562 | 247.986 |
+
+两件事:
+
+- **静态钉核下七个档完全相等**: 墙钟由各核的工作量定, GMM2 的等待不在关键路径上 ——
+  分段既不赚也不亏。所以"分段有收益"这个结论本身依赖晚绑定。
+- **晚绑定下均分 3 段比 2 段差 2.5us (+1.0%), 4 段又回到 2 段的值**。成因是贪心表调度
+  对事件集合的 Graham 异常 (同一现象: 给 `act_gmm2_ready_us` 加 0.01us 的扰动能让墙钟
+  动 −2.81%), 不是分段本身有代价。**所以 readiness 扫出来的几个百分点, 只在同一绑定
+  方式下、且差值大于这类抖动时才可读**; `WorkConservingCriticalPath` 下这类抖动消失。
+
+测试把这两条都钉住了 (`tests/test_readiness.py`): 静态钉核断言"墙钟不增", 晚绑定那条
+只记事实 —— 断言 3 段确实比 2 段差, 以免哪天有人把它当成容差抹平。

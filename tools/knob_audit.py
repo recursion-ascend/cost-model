@@ -77,7 +77,8 @@ SHAPES = {
 CANDIDATES = {
     "options.links": [[dict(producer="gmm1", consumer="activation", location="onchip",
                             depth=1, colocated_by_hardware=True),
-                       dict(producer="activation", consumer="gmm2", readiness=0)]],
+                       dict(producer="activation", consumer="gmm2",
+                            readiness="per_chunk")]],
     "options.granularity": [{"gmm1": 2}, {"combine": 2}],
     "options.roles": [{"combine": "AIV0"}, {"activation": "AIV1"}],
     "options.late_bind_pools": [["AIC"]],

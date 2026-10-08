@@ -95,5 +95,5 @@ def test_static_binding_still_reports_real_violations():
 
     静态发牌是某实现的分核方式 (缺省已是晚绑定), 所以这里显式给 ()。
     """
-    rr = _run(6, 9216, options=m.ModelOptions(late_bind_pools=(), links=links(readiness=2)))
+    rr = _run(6, 9216, options=m.ModelOptions(late_bind_pools=(), links=links(readiness="first_chunk")))
     assert _avoid(rr, "AIC") > 1.0

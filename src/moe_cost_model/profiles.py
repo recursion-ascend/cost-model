@@ -17,7 +17,7 @@
     #   只改一条边: 让 GMM2 逐 K 块就绪
     links=(StageLink("gmm1", "activation", location="onchip", depth=1,
                      colocated_by_hardware=True),
-           StageLink("activation", "gmm2", readiness=0))))
+           StageLink("activation", "gmm2", readiness="per_chunk"))))
 """
 from __future__ import annotations
 
@@ -122,9 +122,9 @@ MEGAMOE_A8W8 = ReferenceProfile(
         #     GMM2 从 Location::GM 取同一个指针 (stage/mega_moe_gmm2_combine.h:770);
         #     沿 K 两段就绪 —— 首个 kL1 块一段 (只等 1 个 ACT), 其余合成一段
         links=(
-            StageLink("gmm1", "activation", readiness=1, location="onchip", depth=1,
+            StageLink("gmm1", "activation", location="onchip", depth=1,
                       colocated_by_hardware=True),
-            StageLink("activation", "gmm2", readiness=2, location="gm"),
+            StageLink("activation", "gmm2", readiness="first_chunk", location="gm"),
         ),
         # dispatch 按核预切: 均衡分配 + startBlockIdx 轮转
         dispatch_partition="precut",
