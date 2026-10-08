@@ -1453,7 +1453,8 @@ python tools/gen_golden.py             # 重新生成快照
 | --- | --- | --- | --- |
 | `examples/run_basic.py` —— MTE, 4 rank × 64 专家, B=64, **缺省选项 (晚绑定)** | 4423 | 230.7 s | 1737.51 µs |
 | 同上, 只改 `ModelOptions(late_bind_pools=())` (静态分核) | 4423 | **2.71 s** | 1754.94 µs |
-| `examples/scenario_basic.toml` (profile `megamoe-a8w8`, 其 `late_bind_pools=()`) | 6599 | 3.5 s | 1751.48 µs |
+| `examples/scenario_basic.toml` (profile `megamoe-a8w8`, 其 `late_bind_pools=()`) | 6599 | 3.8 s | 1751.48 µs |
+| 同形状改 Layered (`topo_urma=True`), 缺省选项 | 3210 | 286.0 s | 2181.65 µs |
 
 **晚绑定是主要开销, 同形状 85 倍**: 池化资源下调度器要为每个事件在池里挑核, 静态分核在
 建图时就定了。缺省是晚绑定 (`late_bind_pools=("AIC", "AIV1")`), 理由是它把 avoidable 空闲
@@ -1464,10 +1465,10 @@ python tools/gen_golden.py             # 重新生成快照
 绝对耗时随容器负载浮动, **比值才是可比的量**; 墙钟那一列与负载无关, 可以用来核对这张表
 是不是还对得上代码。
 
-分段 (`run_basic` 那一行, 4 rank 合计 17692 事件): 慢的是调度本身, 不是建图, 也不是空闲
-分解 —— `build_events` 与 `idle_decomposition` 都在秒级以下, 其余时间全在调度与后处理。
-无重构钩子、使用内置调度策略时各 rank 独立调度 (结果与合并调度逐位一致, 见
-`model._ranks_independent`)。
+分段 (`run_basic` 那一行, 4 rank 合计 17692 事件): `build_events` 0.68 s,
+`idle_decomposition` (1 rank, AIC 池) 0.09 s, 其余 **229 s 全在调度与后处理**。
+所以慢的是调度本身, 不是建图, 也不是空闲分解。无重构钩子、使用内置调度策略时各 rank
+独立调度 (结果与合并调度逐位一致, 见 `model._ranks_independent`)。
 
 `idle_core_stealing` 是另一笔: 它每次提交都扫描全部未提交事件。golden 里
 `stealing_gmm1` (1674 事件) 2.5 s、`stealing_pipeline` (2826 事件) 6.6 s, 而同规模
