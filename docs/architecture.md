@@ -179,7 +179,7 @@ python tools/calibration_domain.py --scenario examples/scenario_basic.toml
 | 常数 | 它自己记下的离散 |
 | --- | --- |
 | `BW_L1_GM` 51900 | 按并发核数重拟: 28 核 45300 / 18 核 37000 (**1.40 倍**) |
-| `BW_REMOTE_WRITE` 8600 | 三个形状各自反扣: 9.5 / 7.8 / 4.5 GB/s 每核 (**2.11 倍**) |
+| `BW_REMOTE_WRITE` 8600 | 三个形状各自反推: 9.5 / 7.8 / 4.5 GB/s 每核 (**2.11 倍**) |
 | `BW_UNPERMUTE_AGG` 950000 | h6144 比语料高 **18%** |
 | `T_RANK_SYNC_RTT_US` 2.2 | 缺省形状 1.6-2.0, h6144 是 2.2-2.5 |
 | `URMA_GET_LAT_US` 8.5 | 域是"4 卡 / 3 条流", 超出 world-1 > 3 未验证 |

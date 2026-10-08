@@ -12,7 +12,7 @@
 轮询窗口 (后者原先是**复制出来的派生值** 2048, 注释声明等于两个常数之积, 但改常数不会
 跟着变)。
 
-**stage 边收成一个概念** (2026-10): `gmm2_k_segments` / `act_to_gmm2` /
+**stage 边合并为一个概念** (2026-10): `gmm2_k_segments` / `act_to_gmm2` /
 `InstancePolicy.gmm1_activation_depth` 三个参数合并为 `ModelOptions.links`
 (一条边一个 `StageLink`, 见 `config/links.py`)。旧名字已移除 —— 留着等于保留两套说法。
 
@@ -375,7 +375,7 @@ max(A,B) —— 它是按载入相位时长折算的。统计访存量时要记�
 ## C1 (2026-10-03): 事件名不再带核号
 
 原先 503 个事件里 494 个名字带 `.c{核}`, 而依赖边是按名字连的 —— 换一种分核方式, 图的
-结构就跟着变。那是在复现 kernel 的记账, 不是建模: 事件的身份应该是"哪一份工作 (哪些
+结构就跟着变。那是在复现 kernel 的统计, 不是建模: 事件的身份应该是"哪一份工作 (哪些
 数据)", 核是**调度的产出**。
 
 改完之后 GMM1 / ACT / GMM2 / combine / dispatch 的名字都只含 (波, 专家, 切片, tile),
@@ -400,7 +400,7 @@ dispatch 的名字去掉核号后仍然唯一, 因为行区间按核互不重叠
 ## C6 (2026-10-03): dispatch 的行->核分配变成调度决策
 
 原先 `_rotated_balanced_range` 把一个波的行按 kernel 的"均衡 + 轮转"先分给 28 核, 每核
-再按 `routeItemsPerBatch` 切批。前半步是 kernel 的记账: 物理事实只是"这些行要被取回来",
+再按 `routeItemsPerBatch` 切批。前半步是 kernel 的统计: 物理事实只是"这些行要被取回来",
 谁取哪一行是调度决策。
 
 `ModelOptions.dispatch_partition`:
@@ -527,7 +527,7 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 按资源独占调度、不建模带宽争用, 因此:
 
   * tile 公式对标**最快**那条 tile (没被挤住的那条) —— `BW_REMOTE_WRITE` 就是这么从
-    31000 (假设) 改到 8600 (实测反扣) 的, 见 `config/hardware.py`;
+    31000 (假设) 改到 8600 (实测反推) 的, 见 `config/hardware.py`;
   * `scatter_exponent` 留 0 **不是保守、不是待办**, 是现有证据不支持非 0。要立起这个
     机制, 得有一个“固定 m 与 n、只扫 token 数、并且把并发压住”的 run (R3), 而且它得
     先推翻上面那两条观察;
@@ -614,9 +614,9 @@ dispatch_partition="rows", t_call_oh_us=1.006:
 
 `config/granularity.py` 的 `StageGranularity` / `GranularityAssignment`, 与
 `StageLink` (每 stage 一条边)、`RoleAssignment` (每 stage 一个角色) 平行。
-`ModelOptions.granularity` 是唯一真相; `combine_granularity` 与
+`ModelOptions.granularity` 是唯一来源; `combine_granularity` 与
 `dispatch_rows_per_item` 降级为**兼容视图**, `__post_init__` 把两边对齐,
-**两边都离开缺省且矛盾就报错** —— 不允许两个真相。
+**两边都离开缺省且矛盾就报错** —— 不允许两处定义。
 
 合并规则由物理定, 不是口味 (`builders/tiling.coalesce_tiles`): 只合并**行范围相同、
 列范围相邻**的连续项。行不同就不是一个 matmul 输出块, 合并后的矩形会盖住没算的格子;
@@ -859,7 +859,7 @@ meta["compute_us"]、丢掉 gmm2_problem_startup_us"那一版的数。补回那�
 真约束**(`pipeline_expand._expand_aiv` 的 `need_split` 分支把 `Q:vec0` 变成跨事件持有)。
 所以判据必须逐 token 看它的全部持有者,不能按名字一刀切。
 
-### 为什么必须删,而不是留着当记账
+### 为什么必须删,而不是留着当统计
 
 它改不了任何事件的起止(实测:把容量抬到 10⁹,四个配置调度逐位相同;删掉之后 40 个
 golden 指纹**零 diff**),却会改 `ScheduledEvent.actionable_us` —— engine 对带

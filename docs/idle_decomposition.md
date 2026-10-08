@@ -36,7 +36,7 @@ python tools/check_work_conservation.py <场景> --assert-conserving   # CI: 有
 ### `avoidable` 不等于"实现做错了"
 
 静态分派 (`late_bind_pools=()`, 复现那份实现的 `startBlockIdx` 轮转) 下, 每个核按 block 号
-算出自己该干哪些 tile, 干完就收工 —— 核空着的时候它**名下没有活**, 那些就绪的 tile 不归它。
+算出自己该干哪些 tile, 干完就收工 —— 核空着的时候它**没有分配给它的工作**, 那些就绪的 tile 不归它。
 从 kernel 自己的视角这不是"本不应空闲而空闲", 是**尾部负载不均**。
 
 实测 trace 证明真实 kernel 确实不是工作守恒的 (20260930, rank0, AIC 事件):
