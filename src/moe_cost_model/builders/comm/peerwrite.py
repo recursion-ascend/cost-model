@@ -209,6 +209,39 @@ class PeerWriteDispatch(DispatchTransport):
                 ctx.dispatch_ready_event[key] = rn
 
 
+def _combine_channel_bytes(c, shape, rows: int, cols: int, by_dst, remote_rows: int):
+    """combine 一个事件搬的字节, 逐通路申报. **两种粒度共用这一个函数.**
+
+    三股, 与 AnalyticalCombineCosts.tile 的三段逐项对应:
+      片间    目的卡 != 本卡的行写出 (逐目的卡两条边: 离开本卡 / 到达对端)
+      本卡读  读回 GMM2 tile + 每行的路由元数据 (GM->UB)
+      本卡写  目的卡 == 本卡的那些行的写出
+
+    2026-10-08 之前 per_tile 与 per_expert 各写一份申报, 而 per_expert 那份**只申报了
+    片间两条**, 本卡的读回与写出一股没申报。于是把 combine_granularity 从 per_tile 改到
+    per_expert, scenario_basic 上 R0.combine_read 的 6.7MB 整个消失、R0.hbm_write 从
+    2.7MB 掉到 1.1MB —— 而 per_expert 照样要把 GMM2 的输出从 GM 读回来, 它少读的只有
+    重复的元数据 (每行一次而不是每 n-tile 一次)。那是漏申报, 不是口径差异: 它会让带宽
+    下界随一个编排参数变松, 也让 traffic_bytes 在两种粒度之间不可比。
+    一个函数两处调用, 这类分叉就不会再出现 (tests/test_combine_audit.py 钉住)。
+    """
+    row_bytes = c.combine_write_bytes_per_row(cols)
+    bw_fab = c.dispatch_mechanistic.bw_remote_bytes_per_us
+    ch = [ch for d, n in enumerate(by_dst) if d != shape.rank_id and n
+          for ch in ((f"fab_src:{shape.rank_id}", n * row_bytes, bw_fab),
+                     (f"fab_dst:{d}", n * row_bytes, bw_fab))]
+    # 读与写分开申报, 且读走自己的通路名 —— 混进 hbm_write 会让
+    # "不物化就不写 GM" (test_onchip_declares_no_act_gm_write) 这类断言失去意义:
+    # 那条断言问的是 ACT 写没写, 不是 COMBINE 读没读。
+    read_back = float(c.combine_read_bytes(rows, cols))
+    if read_back:
+        ch.append((CH_COMBINE_READ, read_back, float(BW_LOCAL_GM)))
+    local_write = float((rows - remote_rows) * row_bytes)
+    if local_write:
+        ch.append((CH_HBM_WRITE, local_write, float(BW_LOCAL_GM)))
+    return tuple(ch)
+
+
 def _spread_slots(options, shape, rows: int) -> float:
     """这 rows 行的写出落点铺开在多少个槽位里 (ModelOptions.combine_layout).
 
@@ -323,33 +356,7 @@ class PeerWriteCombine(CombineTransport):
         # 片间信道: 逐目的卡一条边 (fab_src = 流量离开本卡, fab_dst = 到达对端),
         # 与 dispatch 的方向语义一致。争用由速率服务器裁决, 不折进事件时长 ——
         # 时长用无争用带宽, 28 个核同时写同一条 fab 的降速是调度出来的。
-        row_bytes = c.combine_write_bytes_per_row(cols)
-        bw_fab = c.dispatch_mechanistic.bw_remote_bytes_per_us
-        ch_bytes = tuple(
-            ch for d, n in enumerate(by_dst) if d != shape.rank_id and n
-            for ch in ((f"fab_src:{shape.rank_id}", n * row_bytes, bw_fab),
-                       (f"fab_dst:{d}", n * row_bytes, bw_fab)))
-        # 本卡侧的两股也要申报 (与 AnalyticalCombineCosts.tile 的三段逐项对应):
-        #   读回 GMM2 tile + 路由元数据 (GM→UB)
-        #   目的卡 == 本卡的那些行的写出
-        # 2026-10-05 之前这两股没申报, 而相位流水那条路径反而用
-        # "base_dur x BW_SCATTER" 从**时长**倒推出一个 hbm_write 字节数 —— 方向是反的,
-        # 用的还是标着"旧口径, 已不用"的常数, 而且只在开了相位流水时才出现
-        # (换一个编排参数不该改变搬了多少字节)。现在按字节直接申报。
-        local_rows = rows - remote_rows
-        # combine_read_bytes 是 PrimitiveCosts 的必填字段, 所以这里直接调 ——
-        # 原先有个 getattr 兜底, 那正是让两条入口静默分叉的东西。
-        read_back = float(c.combine_read_bytes(rows, cols))
-        local_write = float(local_rows * row_bytes)
-        # 读与写分开申报, 且读走自己的通路名 —— 混进 hbm_write 会让
-        # "不物化就不写 GM" (test_onchip_declares_no_act_gm_write) 这类断言失去意义:
-        # 那条断言问的是 ACT 写没写, 不是 COMBINE 读没读。
-        if read_back:
-            ch_bytes = ch_bytes + ((CH_COMBINE_READ, read_back,
-                                    float(BW_LOCAL_GM)),)
-        if local_write:
-            ch_bytes = ch_bytes + ((CH_HBM_WRITE, local_write,
-                                    float(BW_LOCAL_GM)),)
+        ch_bytes = _combine_channel_bytes(c, shape, rows, cols, by_dst, remote_rows)
         spread = _spread_slots(builder.options, shape, rows)
         builder._event(cname, (builder.options.role_resource("combine", core),),
                        c.combine_tile(rows, cols, remote_rows, spread)
@@ -391,12 +398,8 @@ class PeerWriteCombine(CombineTransport):
             by_dst = rows_by_source_rank(shape.expert_source_tokens[expert],
                                         sl.row_begin, sl.row_begin + rows)
             remote_rows = sum(n for d, n in enumerate(by_dst) if d != shape.rank_id)
-            row_bytes = c.combine_write_bytes_per_row(shape.h)
-            bw_fab = c.dispatch_mechanistic.bw_remote_bytes_per_us
-            ch_bytes = tuple(
-                ch for d, n in enumerate(by_dst) if d != shape.rank_id and n
-                for ch in ((f"fab_src:{shape.rank_id}", n * row_bytes, bw_fab),
-                           (f"fab_dst:{d}", n * row_bytes, bw_fab)))
+            ch_bytes = _combine_channel_bytes(c, shape, rows, shape.h, by_dst,
+                                               remote_rows)
             q_aiv1 = (builder.options.role_queue_token("combine", core), 1)
             cname = f"W{w.index}.E{expert}.S{si}.combine.expert"
             spread = _spread_slots(builder.options, shape, rows)

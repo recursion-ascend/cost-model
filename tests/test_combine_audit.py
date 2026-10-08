@@ -129,3 +129,48 @@ def test_only_one_combine_orchestration_is_expressible():
     # 字节宽度确实换了 -> 每个 combine 事件更快
     assert sum(e.end_us - e.start_us for e in combines(b)) < \
         sum(e.end_us - e.start_us for e in combines(a))
+
+
+def test_declared_bytes_do_not_depend_on_the_combine_granularity():
+    """粒度改"一个事件覆盖多少工作", 不改"算法必搬多少字节".
+
+    2026-10-08 修的一个漏申报: per_tile 与 per_expert 各写了一份 channel_bytes,
+    而 per_expert 那份只申报了片间两条, 本卡的读回 (GMM2 输出 + 路由元数据) 与本卡
+    写出一股没申报。scenario_basic 上 R0.combine_read 的 6.7MB 整个消失、R0.hbm_write
+    从 2.65MB 掉到 1.1MB。后果不是"口径不同": 带宽下界会随一个编排参数变松,
+    traffic_bytes 在两种粒度之间也不可比。
+
+    这条断言钉住三件事:
+      写出字节      两种粒度**完全相等** (同样的行、同样的每行字节)
+      片间字节      完全相等 (同样的行写回同样的来源卡)
+      读回字节      per_expert <= per_tile, 且都 >= 算法下界 (BF16 x 行 x 列);
+                    差额只能来自重复读的元数据 (per_tile 每个 n-tile 读一遍本窗 m 行)
+    """
+    W, PER, LOCAL = 4, 18, 3
+    rc = [[[PER] * W for _ in range(LOCAL)] for _ in range(W)]
+
+    def run(grain):
+        return m.simulate_routing_counts(
+            routing_counts=rc, token_num_per_rank=36, h=5120, hidden_dim=9216,
+            aic_num=28, topk=6, p1_override=1, p2_override=1,
+            options=m.ModelOptions(combine_granularity=grain),
+            costs=m.build_analytical_costs(
+                h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency()),
+        )["rank_results"][0]
+
+    tile, expert = run("per_tile"), run("per_expert")
+
+    def ch(rr, name):
+        return rr["traffic_bytes"].get(f"R0.{name}", 0.0)
+
+    def fab(rr):
+        return sum(v for k, v in rr["traffic_bytes"].items() if "fab_" in k)
+
+    assert ch(tile, "hbm_write") == pytest.approx(ch(expert, "hbm_write"))
+    assert fab(tile) == pytest.approx(fab(expert))
+    # 读回: 两种粒度都要申报, per_expert 少的只有重复的元数据
+    rows = sum(e.meta["m_rows"] for e in tile["events"]
+               if e.meta.get("stage") == "combine" and e.meta["col_begin"] == 0)
+    algo_min = 2.0 * rows * 5120          # BF16 x 行 x 列, 读回 GMM2 输出的算法下界
+    assert ch(expert, "combine_read") >= algo_min
+    assert algo_min <= ch(expert, "combine_read") <= ch(tile, "combine_read")
