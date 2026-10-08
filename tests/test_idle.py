@@ -111,15 +111,29 @@ def test_the_guard_only_covers_pooled_roles():
     assert m.work_conservation_violations(reports, ()) == {}
     assert m.work_conservation_violations(reports, ("AIC",)) == {"AIC": 5.0}
     assert set(m.work_conservation_violations(reports, ("AIC", "AIV1"))) == {"AIC", "AIV1"}
-    # 跑 ACT 的那个角色排除在外, 即使它字面上入了池: ACT 与它的 GMM1 必须同核,
-    # 是成对漂移而不能独立落核, 本模块分不开"配对逼出来的空闲"与"真可回收的空闲"
-    # (见模块开头"avoidable 仍是上界")。实测 golden 的 mte_topk_prefetch 在派发时刻
-    # 绑定下 AIV0 有 1774.4 核·us 而 AIC/AIV1 皆 0 —— 那是共位, 不是调度没做到位。
-    assert m.work_conservation_violations({"R0.AIV0": rep}, ("AIC", "AIV0")) == {}
-    assert m.work_conservation_violations({"R0.AIV0": rep}, ("AIV1",)) == {}
-    # 换了跑 ACT 的角色, 排除的也跟着换 (不写死 AIV0)
-    assert m.work_conservation_violations({"R0.AIV1": rep}, ("AIV1",),
-                                          act_role="AIV1") == {}
+    # 被共位钉住的角色排除在外, 即使它字面上入了池
+    assert m.work_conservation_violations(reports, ("AIC", "AIV1"),
+                                          exclude_roles=("AIC",)) == {"AIV1": 5.0}
+    assert m.work_conservation_violations(reports, ("AIC", "AIV1"),
+                                          exclude_roles=("AIC", "AIV1")) == {}
+
+
+def test_pinned_roles_are_read_off_the_event_graph():
+    """哪些角色被共位钉住, 从事件图里取 —— 不写死哪几个角色, 也不按参数名猜.
+
+    两种钉法都让事件无法独立落核, 于是那里的 avoidable 只是上界:
+      colocate_with  ACT 与它的 GMM1 成对漂移; activation->gmm2 落片上时一整个
+                     m-group 的工作被串在一个核上 (model._apply_onchip_act_to_gmm2)
+      core_group     相位拆分后 .ld 把数据搬进某个核的 L1, .cb 只能在那个核上算
+    """
+    from moe_cost_model.scheduler import Event
+
+    free = Event("gmm1", ("AIC:*",), 1.0)
+    paired = Event("act", ("AIV0:*",), 1.0, colocate_with="gmm1")
+    phase = Event("ld", (), 1.0, core_group=("g0", "AIC"))
+    assert m.pinned_roles([free]) == ()
+    assert m.pinned_roles([free, paired]) == ("AIV0",)
+    assert m.pinned_roles([free, paired, phase]) == ("AIC", "AIV0")
 
 
 def test_a_non_work_conserving_policy_is_not_checked():

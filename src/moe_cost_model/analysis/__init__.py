@@ -1,6 +1,7 @@
 """第 6 层: 决策分析 — 设计空间扫描 / 关键路径归因 / 空闲核任务转移."""
 from .idle import (IdleReport, IdleSegment, WorkConservationViolation,
-                   idle_decomposition, work_conservation_violations)
+                   idle_decomposition, pinned_roles,
+                   work_conservation_violations)
 from .critical_path import (bottleneck_report, critical_path_breakdown,
                             extract_critical_path, next_bottleneck,
                             resource_utilization, what_if)
@@ -18,6 +19,7 @@ __all__ = [
     "IdleSegment",
     "WorkConservationViolation",
     "idle_decomposition",
+    "pinned_roles",
     "work_conservation_violations",
     "idle_core_stealing",
     "next_bottleneck",

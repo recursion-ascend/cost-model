@@ -18,7 +18,7 @@ from .builders.barriers import apply_barriers
 from .builders.pipeline_expand import CH_HBM_WRITE, apply_pipeline
 from .costs import PrimitiveCosts
 from .analysis.bounds import attach_bounds
-from .analysis.idle import (WorkConservationViolation,
+from .analysis.idle import (WorkConservationViolation, pinned_roles,
                             work_conservation_violations)
 from .implementations import CompileConfig, RuntimeConfig, WavePlan
 from .implementations.megamoe import (_BuilderShim, adapter_for,
@@ -308,6 +308,8 @@ class A8W8WaveCostModel:
         self._order = 0
         self._rank = 0
         self.cursor_traces: Dict[int, List[CursorTrace]] = {}
+        #: 每个 rank 上被共位钉住的角色 (建图后算一次, 工作守恒护栏要用)
+        self._pinned_roles: Dict[int, Tuple[str, ...]] = {}
         self._wave_plans: Dict[tuple, WavePlan] = {}
 
     def _kernel_cfg(self, shape: MegaMoeShape) -> KernelConfig:
@@ -432,6 +434,9 @@ class A8W8WaveCostModel:
             if self.options.link("activation", "gmm2").location == "onchip":
                 # 共位在加 rank 前缀之前打: colocate_with 记的是事件名, 不带前缀。
                 _apply_onchip_act_to_gmm2(events, late)
+            # 哪些角色上有被共位钉住的事件 —— 工作守恒护栏在这些角色上不成立
+            # (那里的 avoidable 只是上界, 见 analysis/idle.pinned_roles)
+            self._pinned_roles[shape.rank_id] = pinned_roles(events)
             capacities: Dict[str, int] = {}
             for ev in events:
                 ev.resources = tuple(pre + r for r in ev.resources)
@@ -519,7 +524,7 @@ class A8W8WaveCostModel:
                 bad = work_conservation_violations(
                     results[rank].get("idle_decomposition") or {},
                     self.options.late_bind_pools,
-                    act_role=self.options.roles.role_of("activation"))
+                    exclude_roles=self._pinned_roles.get(rank, ()))
                 if bad:
                     segs = tuple(
                         sg for key, rep in (results[rank]["idle_decomposition"]).items()

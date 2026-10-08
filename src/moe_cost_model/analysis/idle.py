@@ -356,27 +356,53 @@ class WorkConservationViolation(RuntimeError):
             + (f"\n  前几段: {sample}" if sample else ""))
 
 
+def pinned_roles(events: Sequence) -> Tuple[str, ...]:
+    """哪些角色上有**被共位钉住**的事件 —— 这些角色不能用 avoidable 当护栏.
+
+    两种钉法, 都让事件无法独立落核, 于是"它就绪了而别处有核空着"可能纯属被钉住:
+      colocate_with  必须与某个具名事件同核。ACT 与它的 GMM1 (L0C->UB 的 Fixpipe 只在
+                     绑定对内) 是这种; activation->gmm2 落片上时, 一整个 m-group 的
+                     GMM1/ACT/GMM2 也被串到一个核上 (model._apply_onchip_act_to_gmm2,
+                     那个函数的注释自己写了: "核数多于 m-group 数时多出来的核无活可做
+                     —— 不是违反'有就绪的活就不空闲', 是这个编排本身没有可并行的活")。
+      core_group     相位拆分后 .ld 把数据搬进某个核的 L1, .cb 只能在那个核上算。
+
+    本模块的测量分不开"被钉住" 与 "真可回收" (见模块开头"avoidable 仍是上界"), 所以
+    在这些角色上它只是上界。角色名从资源名取 ("R0.AIC:7" -> "AIC"), 不写死哪几个角色。
+    """
+    out = set()
+    for ev in events:
+        if getattr(ev, "colocate_with", None) is None and getattr(ev, "core_group", None) is None:
+            continue
+        for res in getattr(ev, "resources", ()):
+            if ":" in res:
+                out.add(res.rsplit(":", 1)[0].split(".")[-1])
+        grp = getattr(ev, "core_group", None)
+        if grp is not None and len(grp) > 1:
+            out.add(str(grp[1]))
+    return tuple(sorted(out))
+
+
 def work_conservation_violations(reports: Mapping[str, object],
                                  late_bind_pools: Sequence[str],
-                                 *, act_role: Optional[str] = None,
+                                 *, exclude_roles: Sequence[str] = (),
                                  tol: float = 1e-6) -> Dict[str, float]:
-    """哪些**池化**角色违了不变量: {角色名: 可避免空闲 核·us}.
+    """哪些**池化且未被共位钉住**的角色违了不变量: {角色名: 可避免空闲 核·us}.
 
     reports: rank_result["idle_decomposition"], 键形如 "R0.AIC" / "AIC"。
     late_bind_pools: 这次运行哪些角色池是派发时刻绑定的。空 = 全静态钉核 = 不检查。
-    act_role: 跑 ACT 的那个角色 (ModelOptions.roles 决定, 缺省 AIV0)。**排除在检查外。**
+    exclude_roles: 被共位钉住的角色 (由 pinned_roles() 从事件图里取), 不参与检查。
 
-    为什么要把 ACT 那个角色排除: ACT 与它的 GMM1 必须同核 (L0C->UB 的 Fixpipe 只在
-    绑定对内), 它是**成对漂移**而不能独立落核。于是"有就绪的 ACT 却有那个向量核空着"
-    可能纯粹是配对逼出来的 —— 本模块的测量分不开这两种 (见模块开头"avoidable 仍是
-    上界"), 所以它在那个角色上只是上界, 不能当护栏。实测: golden 的
-    mte_topk_prefetch 形状在派发时刻绑定下 AIV0 上有 1774.4 核·us, 而 AIC/AIV1 皆 0。
-    要把它收紧, 得先把共位与 core_group 透进本模块。
+    实测这条排除是必要的, 两例:
+      mte_topk_prefetch 形状在派发时刻绑定下 AIV0 上 1774.4 核·us, 而 AIC/AIV1 皆 0
+        —— ACT 成对漂移;
+      activation->gmm2 落片上时 AIC 上 9.4 核·us (tests/test_stage_links.py 的四个用例)
+        —— 一整个 m-group 被串在一个核上。
     """
     pools = set(late_bind_pools or ())
     if not pools:
         return {}
-    pools.discard(act_role or "AIV0")
+    pools.difference_update(exclude_roles or ())
     out: Dict[str, float] = {}
     for key, rep in (reports or {}).items():
         role = str(key).rsplit(".", 1)[-1]
