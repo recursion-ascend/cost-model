@@ -227,7 +227,7 @@ class PrimitiveCosts:
     # 晚绑定 (ModelOptions.late_bind_pools 非空) 下每取一次活的开销: 真实 kernel 要做
     # 一次原子加 / 核间同步标志的读改写, 静态分核不需要 (编译期算好)。
     # **缺省 0.0 不表示"没有代价", 表示本模型没有声称它是多少** —— 不计这笔, 晚绑定
-    # 就只拿收益不付代价, 永远显得更好。要定它见 docs/calibration_runs.md 的 R7。
+    # 就只拿收益不付代价, 永远显得更好。要定它得同一形状跑两版做差分 (标定项 R7)。
     late_bind_fetch_us: float = 0.0
 
     # 每个专家波内任务的每核首次 tile 的启动开销
@@ -575,7 +575,7 @@ class AnalyticalCombineCosts:
 
     combine_quant_mode 只管**数据格式** (写侧每元素几个字节)。combine 跑在哪个角色、
     什么粒度是**编排**, 本模型目前只能表达一种 (AIV1 与 GMM2 tile 1:1 配对同核) ——
-    那是表达力缺口, 见 docs/design_space_gaps.md 缺口 11。两件事在参考实现里恰好绑在
+    那是表达力缺口。两件事在参考实现里恰好绑在
     一个模板参数上, 但那是那份实现的耦合, 不是物理。
     meta: 见上 (缺省 16B/行)。2026-10-04 之前写死 8B —— 既不是算法下界也不是任何
           实现的取值, 同一个仓库里 dispatch 侧早就按 32B 算了。
@@ -684,7 +684,7 @@ class AnalyticalCombineCosts:
         固定开销都解释不了 (两者都线性)。这两点与 exponent ≈ 0.5 相容
         ((768/216)**0.5 = 1.88 对实测每行代价比 1.86), 但**两个点定不了一条规律**, 而且
         m 与 token 数在这两个 run 里是一起变的。所以模型只提供这个结构, 系数要由
-        "固定 m 与 n、只扫 token 数"的 run 来定。见 docs/design_space_gaps.md 缺口 10。
+        "固定 m 与 n、只扫 token 数"的 run 来定。
         """
         if self.scatter_us_per_row <= 0 or m <= 0:
             return 0.0

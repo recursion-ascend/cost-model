@@ -332,7 +332,7 @@ def _expand_gmm1(
     #   2026-10-05 之前 .ld 的 resources=() (不占任何资源), 于是载入的并发只受
     #   QUEUE:mte_aic 的深度 d 限制 = 28 核 x d 笔同时按满带宽搬。d=2 时聚合载入带宽
     #   达到 2.9e6 B/us, 是每核规格 (28 x 51900 = 1.45e6) 的两倍, 墙钟因此低于带宽
-    #   下界 26.6% (见 analysis/bounds.py 与 docs/design_space_gaps.md "下界与漏账")。
+    #   下界 26.6% (见 analysis/bounds.py)。
     # 占住 MTE2 之后载入并发上限 = 核数, 聚合载入带宽自动不超过 核数 x BW_L1_GM,
     # 带宽下界由构造满足, 不需要速率服务器。
     mte2 = (f"MTE2:c{core}", 1)

@@ -278,7 +278,7 @@ def test_dead_parameter_fails_loudly_instead_of_silently():
 
 
 def test_bounds_and_sensitivity_types_are_exported():
-    """README 在讲这些类型, 包门面就得有 —— 否则文档指向一个 import 不到的东西."""
+    """这些类型是公共 API, 包门面就得有 —— 否则调用方 import 不到."""
     for n in ("Bounds", "BoundViolation", "WorkloadFacts", "workload_facts",
               "compute_bound_us", "bandwidth_bound_us", "dependency_bound_us",
               "check_wall_clock", "Interval", "Ranged", "Unknown", "propagate",

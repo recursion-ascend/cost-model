@@ -120,7 +120,7 @@ DECLARED_UNREAD = {
     #   exponent 不是保守取 0, 是实测把"落点跨度"这个机制否掉了 (costs.py 的
     #   AnalyticalCombineCosts 文档: bs128 与 bs8192 跨度差 64 倍而更稀的那个反而快一倍)。
     # 读侧: UNPERMUTE 从顺序读变 gather 的代价**完全没建模** (字节 / BW_UNPERMUTE_AGG
-    #   一个除法, 与落点无关) —— 见 docs/design_space_gaps.md 缺口 10。
+    #   一个除法, 与落点无关) 
     # 所以扫这个参数只会得到 0, 那是模型的空白, 不是硬件上没有差别。
     "options.combine_layout": "写侧要 scatter_exponent>0 (实测已否掉该机制), "
                               "读侧 UNPERMUTE gather 未建模 (缺口 10)",
@@ -283,7 +283,7 @@ def verdict_of(cells):
 
 
 #: 参数表里一行的"作用": 路径 -> 一句话。缺了就在 --markdown 时报错 ——
-#: README 的表由代码生成, 新参数必须在这里给一句说明, 否则表里会出现空格子。
+#: 参数表由代码生成 (--emit), 新参数必须在这里给一句说明, 否则表里会出现空格子。
 WHAT = {
     "core_assignment": "tile 分给哪个核 (三种策略)",
     "scheduling_policy": "就绪集里谁先跑 (三种策略)",
@@ -328,7 +328,7 @@ WHAT = {
 
 
 def markdown_table() -> str:
-    """按 EXPECTED 生成 README 里那张参数表 (代码是唯一来源)."""
+    """按 EXPECTED 生成参数表 (代码是唯一来源)."""
     missing = sorted(set(EXPECTED) - set(WHAT))
     if missing:
         raise SystemExit(f"knob_audit.WHAT 缺这些参数的说明: {missing}")

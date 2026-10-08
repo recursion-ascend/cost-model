@@ -89,7 +89,7 @@ def simulate_routing_counts(
     # 下界断言: 缺省**抛异常**。穿透物理下界的数说明模型漏算了某项代价, 不该让人
     # 拿去做决策。给 False 可降级为只记录 (rank_results[i]["bounds"]["violation"]),
     # 用于排查而不是用于出结论。见 analysis/bounds.py 与
-    # docs/design_space_gaps.md 的"下界与漏账"。
+    # analysis/bounds.py 的三条下界。
     check_bounds: bool = True,
 ) -> Dict[str, object]:
     """Simulate directly from C[dst_rank][local_expert][src_rank].

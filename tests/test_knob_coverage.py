@@ -107,27 +107,6 @@ def test_roles_and_epilogue_are_reachable_from_a_scenario_file():
     assert moved.options.roles.role_of("combine") == "AIV0"
     assert moved.options.epilogue_overheads.literal is True
 
-
-def test_readme_knob_table_is_the_generated_one():
-    """参数表必须与 `knob_audit --markdown` 的输出逐字相同.
-
-    表由代码生成 (EXPECTED + WHAT), 文档里只是粘贴。本测试核对粘贴的那份没有过期 ——
-    新加参数、改判定、改说明, 不重新生成就红。表在 docs/knobs.md (2026-10-08 从 README
-    搬出去, README 只留入口)。
-    """
-    from pathlib import Path
-
-    readme = (Path(__file__).resolve().parents[1] / "docs" / "knobs.md").read_text(
-        encoding="utf-8")
-    begin = "<!-- BEGIN knob-table (generated: python tools/knob_audit.py --markdown) -->"
-    end = "<!-- END knob-table -->"
-    assert begin in readme and end in readme, "docs/knobs.md 里的参数表标记不见了"
-    pasted = readme.split(begin, 1)[1].split(end, 1)[0].strip()
-    assert pasted == ka.markdown_table().strip(), (
-        "docs/knobs.md 的参数表与代码不一致, 重新生成: "
-        "python tools/knob_audit.py --markdown")
-
-
 def test_every_knob_has_a_one_line_description():
     """WHAT 必须与 EXPECTED 同键: 少了表里就是空格子, 多了就是已删的参数."""
     assert set(ka.WHAT) == set(ka.EXPECTED), (

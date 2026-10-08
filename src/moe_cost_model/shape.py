@@ -164,7 +164,7 @@ class ModelOptions:
     #   读侧代价 (UNPERMUTE 从顺序读变 gather) **完全没建模** —— UNPERMUTE 现在是
     #     字节量 / BW_UNPERMUTE_AGG 一个除法 (builders/base.py), 与落点布局无关。
     # 所以填了 scatter 系数之后 "expert_contiguous" 会显得单方面变好, 那是模型的偏置,
-    # 不是结论。见 docs/design_space_gaps.md 缺口 10。
+    # 不是结论。
     combine_layout: str = "token_scatter"
     # L3 晚绑定: 哪些角色池的 tile->核 绑定推迟到**派发时刻**。
     #

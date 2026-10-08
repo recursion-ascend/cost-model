@@ -77,7 +77,7 @@ def test_tile_cost_is_not_superlinear_in_m_and_spread_does_not_explain_it():
     的带宽争用**, 不是 tile 自身。
 
     本模型按资源独占排程, 不建模带宽争用, 所以 tile 公式对标最快那条; 争用那部分是
-    已知的乐观边界 (见 docs/design_space_gaps.md 与 docs/calibration_runs.md)。
+    已知的乐观边界。
     """
     C = m.AnalyticalCombineCosts(meta_bytes_per_row=ONE_IMPL_META_BYTES)
     model = {rows: C.tile(rows, 256, rows * 3 // 4) for rows in FASTEST}

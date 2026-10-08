@@ -57,7 +57,7 @@ class Unknown:
 
     name: str
     reason: str                 #: 为什么没有范围 (没测过 / 机制未定 / ...)
-    calibration: str = ""       #: 要定它得做哪个 run (docs/calibration_runs.md 的编号)
+    calibration: str = ""       #: 要定它得做哪个 run (标定项编号)
 
 
 #: 本模型当前**没有标定到点**的输入. 加一条就要写出处或原因 —— 这张表就是
@@ -158,7 +158,7 @@ def propagate(metric: Callable[[Mapping[str, float]], float],
 
 
 def report() -> str:
-    """把"模型知道自己不知道什么"列出来 —— 用在报告与 README 里."""
+    """把"模型知道自己不知道什么"列出来 —— 用在报告里."""
     lines = ["未标定到点的输入:", ""]
     for r in RANGED:
         lines.append(f"  [有区间] {r.name} = {r.nominal:g}  "

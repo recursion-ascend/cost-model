@@ -676,7 +676,7 @@ def _charge_late_bind_fetch(events, late_pools, costs) -> None:
     PrimitiveCosts.late_bind_fetch_us 缺省 0.0, 出处 assumed —— **0 不表示"没有代价",
     表示"本模型没有声称代价是多少"**。所以缺省下换晚绑定的那个收益仍是不可信的,
     analysis/design_space.py 会把这类行标出来。要定这个值, 见
-    docs/calibration_runs.md 的 R7 (同一形状跑静态分核与动态取活两版, 差分)。
+    要定它得同一形状跑静态分核与动态取活两版做差分 (标定项 R7)。
     """
     fetch = float(getattr(costs, "late_bind_fetch_us", 0.0) or 0.0)
     if fetch <= 0.0:

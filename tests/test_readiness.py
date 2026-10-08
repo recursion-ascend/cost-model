@@ -226,7 +226,7 @@ def test_late_binding_is_not_monotone_in_readiness():
     assert three > two and four < three, (
         f"2 段 {two:.3f} / 3 段 {three:.3f} / 4 段 {four:.3f} —— 如果现在单调了, "
         "那是调度器变了 (比如缺省策略换成 WorkConservingCriticalPath): "
-        "改这个测试, 同时更新 docs/design_space_gaps.md 里那张表")
+        "改这个测试")
 
 
 def test_segment_sync_us_charges_the_extra_segments():
