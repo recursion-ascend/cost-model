@@ -20,9 +20,14 @@ class SchedulingPolicy:
     prune_by_start: 排序键首项是否为开始时刻. True 时调度器可用
     tbase ≤ best.start 剪枝; False (优先级/slack 等非时间首项) 时
     剪枝无效, 全体 ready 候选都会被比较.
+    work_conserving: 这个策略是否承诺"有就绪的活就不让核空着". 以优先级为首项的
+    策略会**主动**让核空着去等高优先级的 stage, 那是它的语义, 不是调度器的缺陷 ——
+    所以模型层的 work-conservation 护栏对声明 False 的策略不生效
+    (model.A8W8WaveCostModel.check_work_conservation)。
     """
 
     prune_by_start: bool = False
+    work_conserving: bool = True
 
     def event_key(self, ev: Event, start: float,
                   tbase: Dict[str, float], end_by_name: Dict[str, float]) -> tuple:
@@ -83,6 +88,11 @@ class PriorityByStage(SchedulingPolicy):
     发出的 stage 集合, 断言缺省列表是它的子集。未列出的 stage 仍按兜底排在后面, 那是
     **有意**的: stage_order 只排它关心的那几个。
     """
+
+    #: 按优先级排意味着"宁可让核空着也先排高优先级的 stage" —— 实测 golden 的
+    #: policy_priority_by_stage 形状在派发时刻绑定下留下 41879 核·us 的可避免空闲。
+    #: 那是这个策略的语义, 所以护栏跳过它。
+    work_conserving = False
 
     def __init__(self, stage_order: Sequence[str] = ("dispatch", "gmm1", "activation",
                                                      "gmm2", "combine")):

@@ -111,9 +111,26 @@ def test_the_guard_only_covers_pooled_roles():
     assert m.work_conservation_violations(reports, ()) == {}
     assert m.work_conservation_violations(reports, ("AIC",)) == {"AIC": 5.0}
     assert set(m.work_conservation_violations(reports, ("AIC", "AIV1"))) == {"AIC", "AIV1"}
-    # AIC 入池隐含 AIV0 随动 (ACT 与 GMM1 的共位是硬件强制的, 它跟着 GMM1 漂)
-    assert m.work_conservation_violations({"R0.AIV0": rep}, ("AIC",)) == {"AIV0": 5.0}
+    # 跑 ACT 的那个角色排除在外, 即使它字面上入了池: ACT 与它的 GMM1 必须同核,
+    # 是成对漂移而不能独立落核, 本模块分不开"配对逼出来的空闲"与"真可回收的空闲"
+    # (见模块开头"avoidable 仍是上界")。实测 golden 的 mte_topk_prefetch 在派发时刻
+    # 绑定下 AIV0 有 1774.4 核·us 而 AIC/AIV1 皆 0 —— 那是共位, 不是调度没做到位。
+    assert m.work_conservation_violations({"R0.AIV0": rep}, ("AIC", "AIV0")) == {}
     assert m.work_conservation_violations({"R0.AIV0": rep}, ("AIV1",)) == {}
+    # 换了跑 ACT 的角色, 排除的也跟着换 (不写死 AIV0)
+    assert m.work_conservation_violations({"R0.AIV1": rep}, ("AIV1",),
+                                          act_role="AIV1") == {}
+
+
+def test_a_non_work_conserving_policy_is_not_checked():
+    """按优先级排的策略**主动**让核空着去等高优先级的 stage —— 那是它的语义.
+
+    实测: golden 的 policy_priority_by_stage 形状在派发时刻绑定下 AIC 上有
+    41879 核·us 可避免空闲。要求它工作守恒等于要求它不是它, 所以护栏跳过声明
+    work_conserving=False 的策略。
+    """
+    assert m.EarliestStart().work_conserving is True
+    assert m.PriorityByStage().work_conserving is False
 
 
 def test_the_guard_is_in_the_model_layer_and_on_by_default():

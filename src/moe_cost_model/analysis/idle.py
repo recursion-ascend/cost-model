@@ -358,20 +358,25 @@ class WorkConservationViolation(RuntimeError):
 
 def work_conservation_violations(reports: Mapping[str, object],
                                  late_bind_pools: Sequence[str],
-                                 *, tol: float = 1e-6) -> Dict[str, float]:
+                                 *, act_role: Optional[str] = None,
+                                 tol: float = 1e-6) -> Dict[str, float]:
     """哪些**池化**角色违了不变量: {角色名: 可避免空闲 核·us}.
 
     reports: rank_result["idle_decomposition"], 键形如 "R0.AIC" / "AIC"。
     late_bind_pools: 这次运行哪些角色池是派发时刻绑定的。空 = 全静态钉核 = 不检查。
+    act_role: 跑 ACT 的那个角色 (ModelOptions.roles 决定, 缺省 AIV0)。**排除在检查外。**
 
-    共位是硬件强制的那一对 (GMM1 -> ACT 必须同核, L0C->UB 的 Fixpipe 只在绑定对内)
-    不随 AIC 入池而自由: 所以 "AIC" 入池隐含 AIV0 随动, AIV0 自身也按池化看待。
+    为什么要把 ACT 那个角色排除: ACT 与它的 GMM1 必须同核 (L0C->UB 的 Fixpipe 只在
+    绑定对内), 它是**成对漂移**而不能独立落核。于是"有就绪的 ACT 却有那个向量核空着"
+    可能纯粹是配对逼出来的 —— 本模块的测量分不开这两种 (见模块开头"avoidable 仍是
+    上界"), 所以它在那个角色上只是上界, 不能当护栏。实测: golden 的
+    mte_topk_prefetch 形状在派发时刻绑定下 AIV0 上有 1774.4 核·us, 而 AIC/AIV1 皆 0。
+    要把它收紧, 得先把共位与 core_group 透进本模块。
     """
     pools = set(late_bind_pools or ())
     if not pools:
         return {}
-    if "AIC" in pools:
-        pools.add("AIV0")                  # 共位随动: ACT 跟着它的 GMM1 漂
+    pools.discard(act_role or "AIV0")
     out: Dict[str, float] = {}
     for key, rep in (reports or {}).items():
         role = str(key).rsplit(".", 1)[-1]

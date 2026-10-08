@@ -508,10 +508,18 @@ class A8W8WaveCostModel:
             # tests/golden_cases.run_shapes 直达本函数并手工拼结果, 于是四个 golden
             # case 完全没跑下界断言。platform 只有 api 层知道, 所以这里按 platform=None
             # 挂 (带宽下界只用每核带宽 x 核数), api 收到 platform 时会重算一遍。
-            if self.check_work_conservation:
+            # 策略可能是注册名 (api 入口允许), 先解析成对象再问它承诺不承诺守恒
+            pol = getattr(self, "_sched_policy", None)
+            try:
+                pol = registry.resolve("scheduling_policy", pol)
+            except Exception:
+                pass
+            policy_conserving = getattr(pol, "work_conserving", True)
+            if self.check_work_conservation and policy_conserving:
                 bad = work_conservation_violations(
                     results[rank].get("idle_decomposition") or {},
-                    self.options.late_bind_pools)
+                    self.options.late_bind_pools,
+                    act_role=self.options.roles.role_of("activation"))
                 if bad:
                     segs = tuple(
                         sg for key, rep in (results[rank]["idle_decomposition"]).items()
