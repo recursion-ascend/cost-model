@@ -99,7 +99,7 @@ from .builders.mte import MteEventBuilder
 from .builders.pipeline_expand import apply_pipeline
 from .model import A8W8WaveCostModel
 from .analysis import (
-    bottleneck_report, critical_path_breakdown, design_space,
+    bottleneck_report, compare_variants, critical_path_breakdown, design_space,
     extract_critical_path, format_design_space, idle_core_stealing,
     resource_utilization,
 )

@@ -73,3 +73,86 @@ def test_format_is_one_line_per_point():
     assert len(lines) == len(rows) + 1          # 表头 + 每个方案一行
     for r in rows:
         assert str(r["name"]) in text
+
+
+# ---- compare_variants: 换得了 tiling 几何与策略, 不只是 ModelOptions ----
+
+def _scenario():
+    """一个不依赖实测 tiling 真值的小场景 (Scenario 是方案描述的载体)."""
+    W, PER, LOCAL = 5, 64, 3
+    rc = tuple(tuple(tuple(0 if s == d else PER for s in range(W))
+                     for _ in range(LOCAL)) for d in range(W))
+    tok = sum(rc[d][e][1] for d in range(W) for e in range(LOCAL)) // 6
+    return m.Scenario(
+        workload=m.Workload(tokens=tok, topk=6, routing="explicit", counts=rc),
+        h=5120, hidden_dim=9216, aic_num=28, p1_override=1, p2_override=1)
+
+
+def test_compare_variants_can_change_tiling_and_strategies():
+    """design_space 的入口只换 ModelOptions, 所以这些维度**换不了**:
+    tile 几何在 kernel 上, 分核/打包/调度策略在 Scenario 上。
+    compare_variants 以 Scenario 的点分路径为方案描述, 覆盖面与场景文件一致。
+    """
+    rows = m.compare_variants(_scenario(), {
+        "基线": {},
+        "tile_n 128": {"kernel.tile_n": 128},
+        "GMM2 粒度 2": {"options.granularity": {"gmm2": 2}},
+        "静态分核 + 最闲核优先": {"options.late_bind_pools": [],
+                                  "core_assignment": "greedy_least_busy"},
+    }, check_bounds=False)
+    by = {r["name"]: r for r in rows}
+    assert by["基线"]["is_baseline"]
+    # tile_n 减半 -> n 方向的 tile 数翻倍 -> 事件数必须变 (几何真的进了事件图)
+    assert by["tile_n 128"]["events"] > by["基线"]["events"]
+    # 粒度变粗 -> 事件数必须变少
+    assert by["GMM2 粒度 2"]["events"] < by["基线"]["events"]
+    # 策略换了也要有后果: 静态分核下 tile->核 的分配变了
+    assert by["静态分核 + 最闲核优先"]["total_us"] != by["基线"]["total_us"]
+
+
+def test_every_row_reports_utilization_and_the_binding_bound():
+    """"资源利用率"与"性能瓶颈"要逐方案给, 否则比较只剩一个时长数字."""
+    rows = m.compare_variants(_scenario(), {"基线": {}, "tile_n 128":
+                                            {"kernel.tile_n": 128}},
+                              check_bounds=False)
+    for r in rows:
+        util = r["utilization"]
+        assert util, "利用率表不能为空"
+        # 角色名从资源名取, 不写死: 至少 Cube 要在里面
+        assert any(k.startswith("AIC") for k in util)
+        assert all(0.0 <= v <= 1.0 for v in util.values())
+        # 三条下界里哪条绑定 + 离它多远
+        assert r["binding_bound"] in ("compute", "bandwidth", "dependency", "-")
+        assert r["lower_us"] > 0 and r["over_bound_pct"] >= 0
+    text = m.format_design_space(rows)
+    assert "利用率" in text and "瓶颈" in text
+
+
+def test_avoidable_idle_is_read_differently_under_static_pinning():
+    """"有就绪的活却有核空闲"这个量的判读取决于绑定方式 (analysis/idle.py 的规则).
+
+    晚绑定的池: avoidable 必须 0, 不为 0 是不变量没守住 -> 那一行收益不可信。
+    静态钉核的池: avoidable 是**那种分核方式留下的可回收空闲** —— 是结论, 不是缺陷。
+    2026-10-08 定位过一次: examples/scenario_basic.toml 用 profile="megamoe-a8w8",
+    那份 profile 把 late_bind_pools 设成 (), 于是 AIC 上有 1022.8 核·us 的 avoidable。
+    两种虚报成因 (共位、相位组) 都不在场 (AIV0 恒 0, pipeline 未开), 只把 AIC 入池
+    avoidable 立刻为 0、时长 1751.48 -> 1727.97。所以它是真帐。
+    把两者混在一个"违反"里, 会把一个结论读成一个 bug。
+    """
+    base = _scenario()
+    rows = {r["name"]: r for r in m.compare_variants(base, {
+        "静态钉核": {"options.late_bind_pools": []},
+        "AIC 入池": {"options.late_bind_pools": ["AIC"]},
+    }, check_bounds=False)}
+
+    static = rows["静态钉核"]
+    assert static["late_bind_pools"] == ()
+    # 静态钉核下的 avoidable 不计入"违反", 而是单列出来
+    assert static["invariant_ok"], static["invariant_violations"]
+    assert not static["invariant_violations"]
+
+    late = rows["AIC 入池"]
+    assert late["late_bind_pools"] == ("AIC",)
+    # 入池的那个角色必须守住不变量
+    assert late["avoidable_idle_us"].get("AIC", 0.0) <= 1e-6
+    assert late["invariant_ok"]
