@@ -123,7 +123,7 @@ class ModelOptions:
     #                    哪个核去取由调度器在派发时刻定。最少假设 —— 不预设分工。
     #   "precut":        建图时就把波的行按核分好 (均衡分配 + 轮转), 每核再切批。
     #                    一种具体实现的分工方式; 对齐实测 trace 要用它。
-    # 见 builders/comm/mte.py。
+    # 见 builders/comm/peerwrite.py。
     dispatch_partition: str = "pooled"
     # 一份 dispatch 工作覆盖多少行; 0 = 用 tiling 的 routeItemsPerBatch
     dispatch_rows_per_item: int = 0

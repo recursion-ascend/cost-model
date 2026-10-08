@@ -125,7 +125,7 @@ CHANNEL_SEMANTICS = {
 }
 
 #: 跨卡通路: fab_src:{rank} = 流量离开该卡, fab_dst:{rank} = 到达该卡。
-#: 两条记的是**同一批字节**的两端 (builders/comm/mte.py 同时申报), 所以汇总时不能相加。
+#: 两条记的是**同一批字节**的两端 (builders/comm/peerwrite.py 同时申报), 所以汇总时不能相加。
 _FAB = re.compile(r"^fab_(src|dst):(\d+)$")
 
 #: 资源名 -> 引擎 (核号在后缀)。"AIC:c7" / "AIC:*" (晚绑定占位) 两种都要认。

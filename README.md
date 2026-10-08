@@ -378,7 +378,7 @@ moe-cost-model/
 │   │   ├── barriers.py          #   全核栅栏 (融合 vs 分段)
 │   │   ├── comm/                #   通信协议接口 (dispatch 与 combine 都在这里)
 │   │   │   ├── base.py          #     DispatchTransport / CombineTransport
-│   │   │   ├── mte.py           #     MTE: DataCopyPad 直写 + 配对 tile combine
+│   │   │   ├── peerwrite.py     #     直写对端对称窗口 + 配对 tile combine
 │   │   │   └── urma.py          #     URMA: 批量 GET/PUT + AIV1 程序序链
 │   │   ├── mte.py               #   MTE 编排
 │   │   ├── layered.py           #   Layered 编排

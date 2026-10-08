@@ -1,7 +1,7 @@
 """逐实现的 DAG 结构校验: 用 IR 的词表写出"这张图必须满足什么".
 
 与现有校验的分工 —— builders 里已经有不少**建图期**断言 (gmm1 要求每个 (专家, m-group)
-有一个 dispatch_ready; gmm2 的 _require_full_k 要求 ACT 覆盖整个 K; comm/mte 查重复生产者
+有一个 dispatch_ready; gmm2 的 _require_full_k 要求 ACT 覆盖整个 K; comm/peerwrite 查重复生产者
 与行数守恒)。它们查的是"这一步算对了吗", 而且散在各个建图器里。
 
 本模块查的是**整张图成形之后的结构**, 并且用的是与 kernel 无关的词表 (ir/vocabulary):

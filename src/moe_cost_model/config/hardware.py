@@ -45,7 +45,7 @@ BW_WINDOW = SourcedValue(33000.0, 'measured:跨卡读数据的片间带宽, disp
 # 2026-10-05: 确认**真的没有任何公式再用它**。此前标着"已不用", 但
 # builders/pipeline_expand.py 还在用 "base_dur x BW_SCATTER" 从时长倒推 COMBINE 的
 # hbm_write 字节 —— 方向反了, 而且那股字节只在开相位流水时出现 (换编排参数不该改变
-# 搬了多少字节)。现在 COMBINE 的本卡读回与本卡行写由 builders/comm/mte.py 按字节直接
+# 搬了多少字节)。现在 COMBINE 的本卡读回与本卡行写由 builders/comm/peerwrite.py 按字节直接
 # 申报, 这个常数只作为旧标定的复现记录保留, 不进任何公式、不进任何申报。
 BW_SCATTER = SourcedValue(139500.0, 'measured:COMBINE 散射写带宽 (旧口径); 域受限 (B=64 随机路由标定); 已退役, 不进任何公式, 仅留复现记录')
 # COMBINE 的跨卡行写 (CombineTokens 每行一次 DataCopyPad 直写目的卡窗口) 没有直测,

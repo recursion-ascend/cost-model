@@ -1,7 +1,13 @@
-"""MTE 传输: AIV 触发 DataCopyPad 直写目的窗 (源推模型).
+"""直写对端窗口的传输后端: AIV 发 DataCopyPad 直接写入目的卡的对称窗口 (源推).
 
-MTE 路径. dispatch 前瞻配速读 ctx.last_combine_by_core;
-combine 为配对 tile, 每 GMM2 tail 一个同核 AIV1 事件.
+**名字按机制取, 不按搬运引擎取。** kernel 把这条拓扑称作 MTE
+(`common/mega_moe_peermem.h`: `TOPO_TYPE_MTE = 0`, 与 URMA 对举), 但 MTE1/2/3 是**核内的
+搬运单元**, 两条拓扑都在用它 —— 用它命名区分不了两者, 也会被读成一种通信协议。真正的
+区别是跨卡怎么做: 这一条直接写对端的对称窗口, URMA 那一条走 GetUrmaCommHandle 的
+GET/PUT (见 comm/urma.py)。对称窗口的布局是两条路径共用的, 见 kernel 的 peermem。
+
+dispatch 的前瞻配速读 ctx.last_combine_by_core; combine 与 GMM2 tile 配对, 每个 GMM2
+末段一个同核 AIV1 事件。
 """
 from __future__ import annotations
 
@@ -32,7 +38,7 @@ def _route_batches(row_begin: int, rows: int, batch_rows: int) -> Iterator[Tuple
         off += n
 
 
-class MteDispatch(DispatchTransport):
+class PeerWriteDispatch(DispatchTransport):
 
     def add_wave(self, builder, ctx: BuildContext, w, shape, km, p, c, policy,
                  shared_gates):
@@ -219,7 +225,7 @@ def _spread_slots(options, shape, rows: int) -> float:
     return float(shape.token_num * shape.topk)
 
 
-class MteCombine(CombineTransport):
+class PeerWriteCombine(CombineTransport):
     """combine 的两种粒度 (ModelOptions.combine_granularity):
 
       "per_tile"   与每个 GMM2 tile 1:1 配对、紧跟其后。

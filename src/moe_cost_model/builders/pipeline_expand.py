@@ -394,7 +394,7 @@ def _expand_aiv(
     # 2026-10-05 之前这里还会**追加** (CH_HBM_WRITE, base_dur x BW_SCATTER) ——
     # 从时长倒推字节, 方向是反的; 用的 BW_SCATTER 自己标着"旧口径, 已不用";
     # 而且它只在开了相位流水时出现 —— 换一个编排参数不该改变搬了多少字节。
-    # COMBINE 的本卡读回与本卡行写现在由 builders/comm/mte.py 按字节直接申报。
+    # COMBINE 的本卡读回与本卡行写现在由 builders/comm/peerwrite.py 按字节直接申报。
     ch = ev.channel_bytes
 
     need_split = load_bw is not None and base_dur > 0

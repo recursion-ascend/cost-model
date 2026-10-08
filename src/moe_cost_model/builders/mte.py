@@ -2,7 +2,7 @@
 
 MTE 路径 (非 Layered).
 各 stage 的建图函数在同包: gmm1.py / activation.py / gmm2.py; dispatch 与 combine 在
-comm/mte.py (没有 dispatch.py / combine.py 这两个文件)。本类只负责编排与共享状态 BuildContext.
+comm/peerwrite.py (没有 dispatch.py / combine.py 这两个文件)。本类只负责编排与共享状态 BuildContext.
 """
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from ..scheduler.events import Event
 from ..shape import BlockCursor, CursorTrace, MegaMoeShape
 from ..planning.waves import Wave
 from .base import EventBuilderBase
-from .comm import MteCombine, MteDispatch
+from .comm import PeerWriteCombine, PeerWriteDispatch
 from .context import BuildContext
 from .gmm1 import add_gmm1_wave
 from .gmm2 import add_gmm2_wave
@@ -34,8 +34,8 @@ class MteEventBuilder(EventBuilderBase):
         p = shape.aic_num
         c = self.costs
         ctx = BuildContext.fresh(p, BlockCursor(p, 0))
-        dispatch_backend = MteDispatch()
-        self.combine_backend = MteCombine()
+        dispatch_backend = PeerWriteDispatch()
+        self.combine_backend = PeerWriteCombine()
 
         shared_gates = self._build_shared_expert(shape, km, ACT_HALF, TILE_M, TILE_N, p, c)
 
