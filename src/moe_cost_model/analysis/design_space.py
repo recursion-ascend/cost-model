@@ -9,7 +9,7 @@
   * 哪个方案在我的形状上根本不值得做?
 
 所以每一行给的不是一个数, 而是: 时长差 / 哪个 stage 变了 / 关键路径上的等待构成 /
-访存量 / 可避免空闲。最后一项是护栏 —— 它不为 0 说明这个方案下模型自己的不变量
+访存量 / 可避免空闲。最后一项是一致性检查 —— 它不为 0 说明这个方案下模型自己的不变量
 没守住 (有就绪的活却有核空闲), 那一行的收益不能信。
 
 用法:
@@ -68,7 +68,7 @@ def design_space(run: Callable[[object], Mapping],
     run:      run(options) -> simulate_routing_counts 的返回值
     points:   {方案名: ModelOptions}; 保持插入序
     baseline: 用哪个方案做基线; 不给就取第一个
-    platform: config.platform.PlatformSpec。给了就多算一项护栏: 该方案申报的 GM
+    platform: config.platform.PlatformSpec。给了就多算一项检查: 该方案申报的 GM
               访存量 / 墙钟 = 它需要的聚合带宽, 超过规格聚合 HBM 带宽就是**物理上
               不可能** —— 那一行的时长不可信 (模型不建带宽争用, 只能事后核对)。
 
@@ -117,7 +117,7 @@ def design_space(run: Callable[[object], Mapping],
         bad = {k: v for k, v in r["avoidable_idle_us"].items() if v > 1e-6}
         r["invariant_ok"] = not bad
         r["invariant_violations"] = bad
-        # 带宽护栏: 申报的 GM 访存量 / 墙钟 = 这个方案需要的聚合带宽
+        # 带宽上界检查: 申报的 GM 访存量 / 墙钟 = 这个方案需要的聚合带宽
         gm = sum(v for k, v in r["traffic_bytes"].items() if k.endswith("gm_to_l1"))
         r["gm_bytes"] = gm
         r["gm_bw_needed"] = gm / r["total_us"] if r["total_us"] else 0.0
@@ -135,7 +135,7 @@ def format_design_space(rows: List[Dict[str, object]]) -> str:
     """把 design_space 的结果排成一张能直接读的表.
 
     收益 (负的 Δ 是变快), 哪个 stage 让它变快/变慢, 关键路径上最大的那种等待,
-    GM 访存量差, 以及不变量护栏。
+    GM 访存量差, 以及不变量是否成立。
     """
     def mb(x: float) -> str:
         return f"{x / 1e6:+.2f}MB" if abs(x) >= 1e4 else f"{x:+.0f}B"
@@ -143,7 +143,7 @@ def format_design_space(rows: List[Dict[str, object]]) -> str:
     w = max(len(str(r["name"])) for r in rows)
     out = [f"{'方案'.ljust(w)}  {'时长':>9}  {'Δ':>9}  {'Δ%':>7}  "
            f"{'关键路径变化 (stage)':<26}  {'总忙碌变化':<18}  {'最大等待':<16}  "
-           f"{'访存量差':<14}  护栏"]
+           f"{'访存量差':<14}  不变量"]
     for r in rows:
         # 总忙碌不变 = 工作量没变, 变的是走的路 —— 这本身是结论, 不是缺数据
         busy = ", ".join(f"{k}{v:+.0f}" for k, v in
@@ -155,7 +155,7 @@ def format_design_space(rows: List[Dict[str, object]]) -> str:
         tr = ", ".join(f"{k.split('.')[-1]}{mb(v)}"
                        for k, v in list(r["traffic_delta_bytes"].items())[:1]) or "-"
         guard = "ok" if r["invariant_ok"] else \
-            "违反 " + ",".join(f"{k}{v:.0f}" for k, v in r["invariant_violations"].items())
+            "违反 " + ", ".join(f"{k} {v:.0f}" for k, v in r["invariant_violations"].items())
         if r["hbm_pct"] is not None:
             guard += f" | HBM {r['hbm_pct']:.0f}%" + ("" if r["bandwidth_ok"] else " 超!")
         tag = " (基线)" if r["is_baseline"] else ""

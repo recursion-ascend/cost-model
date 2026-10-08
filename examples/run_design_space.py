@@ -9,7 +9,7 @@
   总忙碌变化    "(工作量不变)" = 省的不是计算量, 是等待/排布。
   最大等待      改完之后卡在什么上: capacity (信号量/容量) / dep (依赖) / res (核被占)。
   访存量差      少搬/多搬多少字节。片上不物化省的就是这一列。
-  护栏          "违反" = 这个方案下有就绪的活却有核空闲, 该行时长偏慢, 收益不可比。
+  不变量        "违反" = 这个方案下有就绪的活却有核空闲, 该行时长偏慢, 收益不可比。
                 "HBM x%" = 这个方案需要的聚合带宽占该平台规格的多少; 超 100% 就是
                 物理上不可能 (模型不建带宽争用, 只能事后核对)。
 
@@ -87,7 +87,7 @@ def main() -> int:
         print(m.format_design_space(rows))
         ok = [r for r in rows if r["invariant_ok"] and r["bandwidth_ok"]]
         best = min(ok, key=lambda r: r["total_us"])
-        print(f"   护栏通过的最快方案: {best['name']}  {best['total_us']:.2f} us "
+        print(f"   不变量成立的最快方案: {best['name']}  {best['total_us']:.2f} us "
               f"({best['delta_pct']:+.1f}%), 需要聚合带宽 "
               f"{best['gm_bw_needed'] / 1e6:.2f} TB/s = 规格的 {best['hbm_pct']:.0f}%")
         print()
