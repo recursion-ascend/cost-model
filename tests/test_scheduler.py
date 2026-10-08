@@ -364,3 +364,82 @@ def test_priority_by_stage_default_names_match_what_builders_emit():
     assert not missing, (
         f"PriorityByStage 缺省列出的 stage 没有被发出: {missing}; "
         f"实际发出的是 {sorted(emitted)}")
+
+
+# ---- 只读状态视图 (scheduler/view.py) 与 wants_view 契约 ----
+
+def _two_core_graph():
+    """两个核、四个事件: 两条独立链, 用来检查视图给的几个量."""
+    return [
+        Event("a", ("AIC:0",), 10.0, order=0),
+        Event("b", ("AIC:0",), 1.0, order=1),
+        Event("c", ("AIC:1",), 1.0, order=2),
+        Event("d", ("AIC:1",), 1.0, deps=("c",), order=3),
+    ]
+
+
+def test_a_policy_that_wants_a_view_gets_one():
+    """wants_view=True 的策略每步拿到一个只读视图; 不要的策略连构造都不走."""
+    seen = []
+
+    class Spy(m.EarliestStart):
+        wants_view = True
+
+        def event_key_with_view(self, ev, start, tbase, end_by_name, view):
+            seen.append((ev.name, view.ready_names(), view.t_base(ev.name)))
+            return (start, ev.order, ev.name)
+
+    total, sched = MultiResourceScheduler().schedule(_two_core_graph(), policy=Spy())
+    assert seen, "策略声明要视图, 引擎却没给"
+    for name, ready, tb in seen:
+        assert name in ready          # 视图里的 ready 含当前被考量的事件
+        assert tb >= 0.0
+    # 结果与不要视图时一致 (视图是只读的, 不改任何状态)
+    base_total, _ = MultiResourceScheduler().schedule(_two_core_graph())
+    assert total == base_total
+
+
+def test_the_view_can_try_out_an_occupation_without_changing_state():
+    """start_if 是纯函数: 问"这些资源被占到这些时刻, 你最早何时能开始"."""
+    answers = {}
+
+    class Probe(m.EarliestStart):
+        wants_view = True
+
+        def event_key_with_view(self, ev, start, tbase, end_by_name, view):
+            if ev.name == "a" and "b" in view.ready_names():
+                end = start + ev.duration_us
+                busy = view.occupied_by("a", end)
+                answers["busy"] = dict(busy)
+                answers["b_now"] = view.start("b")
+                answers["b_if_a"] = view.start_if("b", busy)
+                answers["c_if_a"] = view.start_if("c", busy)
+            return (start, ev.order, ev.name)
+
+    MultiResourceScheduler().schedule(_two_core_graph(), policy=Probe())
+    # a 占 AIC:0 到 10, 所以同核的 b 要等到 10; 另一个核上的 c 不受影响
+    assert answers["busy"] == {"AIC:0": 10.0}
+    assert answers["b_now"] == 0.0
+    assert answers["b_if_a"] == 10.0
+    assert answers["c_if_a"] == 0.0
+
+
+def test_pooled_resources_do_not_block_each_other_in_the_view():
+    """占位符只在池里仅剩一个成员时才算占住 —— 池有多个成员时对端可以落别的核."""
+    got = {}
+
+    class Probe(m.EarliestStart):
+        wants_view = True
+
+        def event_key_with_view(self, ev, start, tbase, end_by_name, view):
+            if ev.name == "p" and "q" in view.ready_names():
+                busy = view.occupied_by("p", start + ev.duration_us)
+                got["busy"] = dict(busy)
+                got["q_if_p"] = view.start_if("q", busy)
+            return (start, ev.order, ev.name)
+
+    evs = [Event("p", ("AIC:*",), 10.0, order=0), Event("q", ("AIC:*",), 1.0, order=1)]
+    MultiResourceScheduler().schedule(
+        evs, policy=Probe(), pools={"AIC": ("AIC:0", "AIC:1")})
+    assert got["busy"] == {}            # 池里有两个成员, 占一个不算占住
+    assert got["q_if_p"] == 0.0

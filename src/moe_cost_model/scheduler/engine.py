@@ -576,6 +576,26 @@ class MultiResourceScheduler:
                 return t, dur, cap_wait
             return t, dur, cap_wait
 
+        # ---- 策略要状态视图时的两个只读入口 (都不写状态) ----
+        def _start_of(name: str) -> float:
+            """这个就绪事件此刻最早能开始的时刻 (含容量准入). 不可行则 +inf."""
+            ev0 = by_name[name]
+            if not ev0.acquires:
+                return tbase[name]
+            got = resolved.get(name)
+            if got is not None:
+                return got[0]
+            return probe(ev0, tbase[name])[0]
+
+        wants_view = bool(getattr(policy, "wants_view", False))
+
+        def _make_view():
+            from .view import SchedulerView
+            return SchedulerView(
+                by_name=by_name, ready=ready, tbase=tbase, end_by_name=end_by_name,
+                resource_free=resource_free, pool_members=pool_members,
+                start_of=_start_of)
+
         from .policies import EarliestStart
         # 快路径只对 EarliestStart 本类启用: 排序键 (start, order, name) 与堆序一致.
         # 子类/其他策略的键由 event_key 决定, 走通用路径.
@@ -587,6 +607,9 @@ class MultiResourceScheduler:
         while ready:
             best_key: Optional[tuple] = None
             best: Optional[Tuple[str, float, float, float]] = None
+            # 视图每步构造一个, 且只在策略索要时构造 —— 不要的策略连这一行都不走,
+            # 结果与引入视图之前逐位相同。
+            view = _make_view() if wants_view else None
 
             def consider(name: str) -> None:
                 nonlocal best_key, best
@@ -599,7 +622,9 @@ class MultiResourceScheduler:
                     if start == float("inf"):
                         return
                     payload = (cap_w,)
-                key = policy.event_key(ev, start, tbase, end_by_name)
+                key = (policy.event_key_with_view(ev, start, tbase, end_by_name, view)
+                       if view is not None
+                       else policy.event_key(ev, start, tbase, end_by_name))
                 if best_key is None or key < best_key:
                     best_key = key
                     best = (name, start, dur, payload[0])
