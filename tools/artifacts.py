@@ -9,7 +9,12 @@ import struct
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-from moe_cost_model import parse_tiling  # noqa: F401  (统一出口)
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from moe_cost_model import parse_tiling  # noqa: E402,F401  (统一出口)
 
 N_CORES = 84          # 每卡打点核数上限 (AIC+AIV 阵列)
 

@@ -13,7 +13,10 @@ from pathlib import Path
 
 PROJ = Path(__file__).resolve().parents[1]
 REPO = PROJ.parent
-sys.path.insert(0, str(PROJ))
+# 包在 src/ 下 —— 插 PROJ 本身是不够的 (2026-10-08 之前就是这么写的, 于是
+# 干净克隆里这个工具一运行就 ModuleNotFoundError)。第二条是为了 import 同目录的
+# routing / artifacts。
+sys.path.insert(0, str(PROJ / "src"))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from moe_cost_model import (

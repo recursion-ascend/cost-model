@@ -341,6 +341,10 @@ def markdown_table() -> str:
 
 
 def main(argv):
+    if "-h" in argv or "--help" in argv:
+        # 不认 --help 的后果是: 新用户想看用法, 却触发一次几分钟的全量扫描。
+        print(__doc__.strip())
+        return 0
     if "--markdown" in argv:
         print(markdown_table())
         return 0
