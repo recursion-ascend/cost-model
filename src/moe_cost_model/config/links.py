@@ -10,7 +10,7 @@
   3. 片上能同时存几块?                  -> depth     (计数信号量, 容量不是程序序)
 
 共享轴 = 生产者切分的轴 ∩ 消费者的某条轴, 且消费者能沿它增量消费。这不是一句定性
-的话: 每条边的共享轴、自然块、以及"分段在这条边上有没有意义"都在 EDGE_AXES 里
+的话: 每条边的共享轴、自然块、以及"分段在这条边上有没有意义"都在词汇表的 edges 里
 逐条写出, 校验照着它拒绝 —— 写得出的取值模型就必须买账, 否则报错, 不静默忽略。
 
 readiness 与 granularity 的分工 (两者都"看起来在切事件", 必须分清):
@@ -30,6 +30,7 @@ from typing import Mapping, Optional, Sequence, Tuple
 
 from .hardware import DAV3510_NONINTERLEAVED_GMM1_ACTIVATION_DEPTH
 from .readiness import Readiness, parse_readiness
+from .stages import SharedAxis, StageVocabulary, default_vocabulary
 
 #: 落点取值
 LOC_GM = "gm"
@@ -37,58 +38,11 @@ LOC_ONCHIP = "onchip"
 LOCATIONS = (LOC_GM, LOC_ONCHIP)
 
 
-@dataclass(frozen=True)
-class SharedAxis:
-    """一条边上的共享轴: 它是什么、自然块是什么、在这条边上能不能分段.
-
-    axis / chunk 只用于报错与文档 (模型不按名字办事)。真正有后果的是
-    segmentable: False 时任何非 "whole" 的 readiness 直接报错。
-
-    segmentable=False 有两种成因, 分开写, 因为下一步的做法不同:
-      packed_by_granularity=True  共享轴就是消费者的打包单元 -> 该调 granularity
-      packed_by_granularity=False 一个消费者事件一次只吃一个块 (1:1) -> 没有可分的段,
-                                  要更细得先改 tile 几何或 stage 划分
-    consumed_by: segmentable=True 时**谁真的读它** —— 这一栏空着就等于声称
-    "可以写但没人看", 校验会拦住 (见 validate_links)。
-    """
-
-    axis: str
-    chunk: str
-    segmentable: bool
-    consumed_by: str = ""
-    packed_by_granularity: bool = False
-    note: str = ""
-
-    def __post_init__(self) -> None:
-        if self.segmentable and not self.consumed_by:
-            raise ValueError(
-                f"共享轴 {self.axis!r} 声称可分段, 但没写谁消费 —— "
-                "可写而无人读的参数等于没有")
-
-
-#: 本模型的四条 stage 边各自的共享轴。表里没有的边, links 里写它就报错 ——
-#: 模型只有这五个 stage, 别的边名多半是拼错。
-EDGE_AXES: Mapping[Tuple[str, str], SharedAxis] = {
-    ("dispatch", "gmm1"): SharedAxis(
-        axis="token 行", chunk="m-group", segmentable=False,
-        note=("一个 GMM1 事件的行落在一个 m-group 内, 它等的就是那一个组的就绪标记 "
-              "(builders/gmm1 的 dispatch_ready_event) —— 一次只吃一个块, "
-              "没有可分的段; 要更细得先改 tile_m 或 m-group 的划分")),
-    ("gmm1", "activation"): SharedAxis(
-        axis="N (GMM1 的输出列)", chunk="GMM1 tile", segmentable=False,
-        note=("一个 ACT 对一个 GMM1 tile (1:1), 一次只吃一个块。ACT 内部按 "
-              "epilogue 行块再分是**粒度**而不是就绪 (builders/activation)")),
-    ("activation", "gmm2"): SharedAxis(
-        axis="K (GMM2 的归约轴 = GMM1 的输出列)", chunk="kL1 块", segmentable=True,
-        consumed_by="builders/gmm2.add_gmm2_wave",
-        note=("L0C 本来就沿 K 分块累加, 所以第 j 段只等覆盖自己那段 K 的 ACT。"
-              "块大小由 select_kl1 定 (options.gmm2_kl1 可覆盖)")),
-    ("gmm2", "combine"): SharedAxis(
-        axis="切片内的 tile", chunk="GMM2 tile", segmentable=False,
-        packed_by_granularity=True,
-        note=("这条边的共享轴就是 combine 的打包单元: 一个 combine 事件要写的那些行, "
-              "由它覆盖的 GMM2 tile 给齐。分段 = 少打包")),
-}
+#: 有哪些 stage 边、每条边的共享轴是什么, 由**实现声明的词汇表**给
+#: (config/stages.py 的 StageVocabulary.edges)。下面这个模块级别名是缺省词汇表
+#: (仓内 MegaMoE) 的视图, 保留是为了现有调用不改; 另一份实现把自己的
+#: StageVocabulary 传进 validate_links 即可。
+EDGE_AXES: Mapping[Tuple[str, str], SharedAxis] = default_vocabulary().edges
 
 
 @dataclass(frozen=True)
@@ -148,7 +102,10 @@ class StageLink:
 
     @property
     def axis(self) -> Optional[SharedAxis]:
-        """这条边的共享轴声明 (表里没有则 None)."""
+        """这条边的共享轴声明 (缺省词汇表里没有则 None).
+
+        非缺省词汇表走 validate_links(vocab=...) —— 这个便捷属性查的是缺省那份。
+        """
         return EDGE_AXES.get(self.key)
 
 
@@ -176,27 +133,29 @@ def resolve_link(links: Sequence[StageLink], producer: str, consumer: str) -> St
     return StageLink(producer, consumer)
 
 
-def validate_links(links: Sequence[StageLink], granularity=None) -> None:
+def validate_links(links: Sequence[StageLink], granularity=None,
+                   vocab: Optional[StageVocabulary] = None) -> None:
     """拒绝三类写法, 而不是静默忽略它们.
 
     1. 重复边 —— 两条说法会让"谁生效"变成实现细节;
-    2. 不认识的边 —— 模型只有 EDGE_AXES 那几条, 别的边名多半是拼错 (而且
+    2. 不认识的边 —— 只有词汇表声明的那几条边存在, 别的边名多半是拼错 (而且
        location/depth/readiness 在那儿一个都不会被读);
     3. 这条边上表达不出来的 readiness / segment_sync_us —— 共享轴不可分段时,
        非 "whole" 的就绪与非零的分段开销都没有作用对象。静默忽略的后果是
        算子工程师在那儿扫一圈得到"0 收益", 还以为硬件上也没收益。
     """
+    edges = (vocab or default_vocabulary()).edges
     seen = set()
     for lk in links:
         if lk.key in seen:
             raise ValueError(f"links 里有重复的边 {lk.producer}->{lk.consumer}")
         seen.add(lk.key)
-        axis = lk.axis
+        axis = edges.get(lk.key)
         if axis is None:
             raise ValueError(
-                f"links 里有模型没有的边 {lk.producer}->{lk.consumer}; "
+                f"links 里有这份词汇表里没有的边 {lk.producer}->{lk.consumer}; "
                 f"只有这几条: "
-                f"{', '.join(f'{p}->{c}' for p, c in EDGE_AXES)}")
+                f"{', '.join(f'{p}->{c}' for p, c in edges)}")
         if axis.segmentable:
             continue
         where = f"{lk.producer}->{lk.consumer}"

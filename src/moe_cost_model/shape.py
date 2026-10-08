@@ -141,7 +141,7 @@ class ModelOptions:
     roles: object = DEFAULT_ROLES                 # config.roles.RoleAssignment
     # 每个 stage 的**事件粒度** (一个事件覆盖多少份该 stage 的自然工作单元),
     # 见 config/granularity.py。与 links (每 stage 一条边)、roles (每 stage 一个角色)
-    # 平行 —— 粒度是五个 stage 共有的维度, 不是 combine 的特性。
+    # 平行 —— 粒度是每个 stage 共有的维度, 不是 combine 的特性。
     # 缺省全 1 = 最细 = 最少假设 (不预设任何合并)。
     # 下面 combine_granularity / dispatch_rows_per_item 是它的**兼容视图**,
     # __post_init__ 会把两边对齐, 冲突直接报错 —— 只允许一个真相。
@@ -195,8 +195,11 @@ class ModelOptions:
     def __post_init__(self) -> None:
         object.__setattr__(self, "granularity", resolve_granularity(self.granularity))
         self._reconcile_granularity_views()
-        # granularity 先定下来, 校验才报得出"该改的是 granularity, 现在是几"
-        validate_links(self.links, self.granularity)
+        # granularity 先定下来, 校验才报得出"该改的是 granularity, 现在是几"。
+        # 用哪份 stage 词汇表校验边, 跟着 granularity 走 —— 它已经带着那份声明
+        # (config/stages.py), 所以换算子不必在这里再加一个参数。
+        validate_links(self.links, self.granularity,
+                       vocab=self.granularity.vocab)
 
     def _reconcile_granularity_views(self) -> None:
         """把两个历史参数折进统一的 granularity, 保证只有一个真相.

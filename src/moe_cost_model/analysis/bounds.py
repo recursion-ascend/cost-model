@@ -47,6 +47,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Mapping, Optional, Tuple
 
+from ..config.stages import default_vocabulary
+
 #: 判定"墙钟低于下界"的相对容差. 浮点累加与 tile 边界取整会带来 ulp 级误差。
 TOL = 1e-6
 
@@ -308,12 +310,12 @@ def _load_bw_of(costs) -> float:
 
 
 def _dependency_bound_of(rank_result) -> float:
-    """一个 token 必经链 dispatch->GMM1->ACT->GMM2->COMBINE 上各 stage 的最小一份.
+    """一份工作的必经链 (词汇表声明的 chain) 上各 stage 的最小一份.
 
     从已排出的事件里取每个 stage 的最短事件时长 —— 那就是"这个 stage 最小一份工作"
     的时长。链上的事不能并行, 所以它们的和是硬下界 (弱, 但不会错)。
     """
-    CHAIN = ("dispatch", "gmm1", "activation", "gmm2", "combine")
+    CHAIN = default_vocabulary().chain
     best = {}
     for e in rank_result.get("events", ()):
         st = (e.meta or {}).get("stage")

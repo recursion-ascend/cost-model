@@ -19,6 +19,38 @@ Workload (token/专家/路由)
    -> Scheduler/Timing (与 kernel 无关)    scheduler/
 ```
 
+### stage 词汇表: 核心与具体实现的边界
+
+核心 (`scheduler/`) 不认识任何 stage 名: 它只看事件的独占资源、依赖边、计数信号量与时长。
+但 `config/` 的校验与缺省表、`analysis/` 的必经链与搬运组、`validation/` 的比对口径需要
+知道"有哪些 stage", 这份知识属于**实现**, 所以由实现声明:
+
+```python
+>>> A8W8WaveV1().stages()                 # ImplementationAdapter.stages()
+StageVocabulary(operator='megamoe', ...)  # implementations/megamoe_stages.py
+```
+
+一份 `StageVocabulary` (`config/stages.py`) 声明七件事, 下游七处照它办, 不再各写一份字面量:
+
+| 声明项 | 谁读它 |
+| --- | --- |
+| `pipeline` / `unit_of` / `default_items` | `config/granularity.py` (事件粒度与缺省) |
+| `edges` (每条边的共享轴) | `config/links.py` (就绪/落点/槽数的校验) |
+| `roles` / `cube_only` | `config/roles.py` (stage 落哪个执行角色) |
+| `chain` | `analysis/bounds.py` (最长依赖链下界) |
+| `steal_groups` / `default_steal_drivers` | `analysis/stealing.py` (搬运时的随动配对) |
+| `compared` | `validation/compare.py` (与 trace 比对覆盖哪些 stage) |
+| `drain` | `builders/base.py` (排空节点按引擎归集) |
+
+2026-10-08 之前这七处各写一份 MegaMoE 的 stage 名字面量, 于是"换一个算子"在代码里没有
+落脚处: 另一份实现要么改七个文件, 要么被 `STAGES` 校验直接拒掉。现在换算子要写的是
+一份词汇表 + 一个适配器 + 各 stage 的时长公式, `config/` 与 `analysis/` 不动
+(判据: 词汇表归位后 golden 40 个配置零差异; `tests/test_stage_vocabulary.py` 用一份
+非 MegaMoE 的词汇表跑通粒度/角色/边三处校验)。
+
+**MegaMoE 的五个 stage 是一个实例, 不是框架的缺省假设。** 不传词汇表时取仓内 MegaMoE
+那份 (`config.stages.default_vocabulary`), 这是向后兼容的缺省 —— 现有调用与 golden 因此不变。
+
 ### 实现身份: 换 kernel 是换适配器, 不是改一个布尔开关
 
 ```python

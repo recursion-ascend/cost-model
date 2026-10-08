@@ -20,12 +20,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
+from ..config.stages import default_vocabulary
 from ..ir.vocabulary import classify_resource
 from .trace import TraceFile
 
-#: 比对覆盖的 stage。dispatch_call 不列: 模型把它的开销折进了各段 dispatch 的
-#: once_per_core (model.py 的说明), 所以模型侧根本没有这个事件, 条数比没有意义。
-COMPARED_STAGES = ("gmm1", "activation", "gmm2", "combine", "dispatch")
+#: 比对覆盖哪些 stage 由**实现声明的词汇表**给 (config/stages.py): 一份实现的
+#: stage 划分决定哪些事件在模型里存在。MegaMoE 不列 dispatch_call 的理由写在
+#: implementations/megamoe_stages。
+COMPARED_STAGES = default_vocabulary().compared
 
 
 def time_groups(starts: Sequence[float]) -> int:

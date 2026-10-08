@@ -1,6 +1,12 @@
-"""moe_cost_model: Ascend NPU MegaMoE wave cost model.
+"""moe_cost_model: 昇腾 NPU 算子 cost model —— 用硬件执行过程的模拟得到时间.
 
-routing counts → wave 规划 → 事件图 → 多资源调度 → 执行时间.
+核心建模的是机制: 计算、数据搬运、存储层级与片上容量、调度、资源竞争。
+事件图与调度器不认识任何算子或 stage 名 —— 一份具体实现 (有哪些 stage、
+哪些边、落哪个执行角色) 由 config.stages.StageVocabulary 声明, 由
+implementations/ 下的适配器降解成事件图。仓内的 MegaMoE 两份 kernel 级适配器
+是其中一种实现路径 (可与 profiler trace 逐 stage 对账), 不是框架的缺省假设。
+
+输入 → 波规划 → 事件图 → 多资源调度 → 执行时间.
 分层: config(0) / shape+costs(1) / scheduler(2) / planning(3) /
 builders(4) / model(5) / analysis(6).
 """
@@ -37,6 +43,7 @@ from .analysis.idle import idle_decomposition
 from .analysis.sensitivity import (RANGED, UNCERTAIN_INPUTS, UNKNOWNS, Interval,
                                    Ranged, Unknown, propagate)
 from .config.links import DEFAULT_LINKS, EDGE_AXES, SharedAxis, StageLink
+from .config.stages import StageVocabulary, default_vocabulary
 from .config.readiness import Readiness
 from .config.roles import (DEFAULT_ROLES, DEFAULT_STAGE_ROLES, ROLES,
                            RoleAssignment, VECTOR_ROLES)

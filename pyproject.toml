@@ -1,7 +1,7 @@
 [project]
 name = "moe-cost-model"
 version = "0.1.0"
-description = "Ascend NPU MegaMoE wave cost model: routing counts -> event DAG -> schedule -> time"
+description = "Ascend NPU operator cost model: hardware-mechanism simulation (compute / data movement / memory hierarchy / scheduling / contention); MegaMoE kernel adapters included"
 requires-python = ">=3.10"
 dependencies = []
 

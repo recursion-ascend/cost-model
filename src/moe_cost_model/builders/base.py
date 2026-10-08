@@ -12,6 +12,7 @@ from ..config.hardware import (
     BW_UNPERMUTE_AGG, T_CORE_SYNC_BARRIER_US, T_COUNTS_EXPORT_US,
     T_FINALIZE_US, T_OUTPUT_INIT_US, T_RANK_SYNC_RTT_US, ceil_div,
 )
+from ..config.stages import default_vocabulary
 from ..scheduler.events import Event
 from ..costs import DispatchDataLayout, PrimitiveCosts
 from ..shape import BlockCursor, CursorTrace, MegaMoeShape, ModelOptions
@@ -292,13 +293,10 @@ class EventBuilderBase:
 
     # ---- 完成事件 ----
 
-    #: 每个引擎上跑哪些 stage —— 排空节点按此归集本核该引擎的全部事件
-    DRAIN_STAGES = (
-        ("aic", ("gmm1", "gmm2", "shared_gmm1", "shared_gmm2")),
-        ("aiv0", ("activation",)),
-        ("aiv1", ("dispatch_call", "dispatch", "combine",
-                  "dispatch_recv", "dispatch_local", "mask_scan")),
-    )
+    #: 每个引擎上跑哪些 stage —— 排空节点按此归集本核该引擎的全部事件。
+    #: 这张表属于具体实现 (哪些 stage 存在、落哪个引擎), 所以取自词汇表;
+    #: 另一份实现的建图器覆盖这个类属性即可。
+    DRAIN_STAGES = default_vocabulary().drain
 
     def _add_completion(self, p):
         """MoE 阶段的排空栅栏: **一个**零时长节点, 依赖全部 MoE 事件.

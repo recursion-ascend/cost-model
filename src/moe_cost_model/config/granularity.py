@@ -2,7 +2,8 @@
 
 为什么要有这一层
 ----------------
-粒度是五个 stage **共有**的编排维度, 不是 combine 的特性。它与 tile 几何是两件事:
+粒度是**每个** stage 共有的编排维度 (哪些 stage 由 config/stages 的词汇表给),
+不是 combine 的特性。它与 tile 几何是两件事:
 
   * ``KernelConfig.tile_m`` / ``tile_n`` 受 L1/L0C 容量约束 —— **物理**;
   * "一个事件覆盖几个 tile" 是 **同步点密度 <-> 并行度** 的交换 —— **纯编排**。
@@ -15,7 +16,8 @@
 具体问题就地加的), dispatch 的粒度叫 ``dispatch_rows_per_item``, 而 GMM1 / SwiGLU /
 GMM2 的粒度写死为 1。那是提问历史留下的洞, 不是物理。本模块把这个维度统一起来。
 
-自然工作单元
+自然工作单元 (下表是仓内 MegaMoE 实现声明的那五个 stage, 见
+implementations/megamoe_stages.py; 另一份实现声明自己的单元与上界)
 ------------
 =============  ==========================  ======================================
 stage          单元                        ``items_per_event`` 的物理上界
@@ -42,17 +44,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, Mapping, Optional, Tuple
 
-#: 五个 stage. 顺序即数据流顺序。
-STAGES: Tuple[str, ...] = ("dispatch", "gmm1", "activation", "gmm2", "combine")
+from .stages import StageVocabulary, default_vocabulary
+
+#: 哪些 stage、每个 stage 的单元叫什么, 由 **实现声明的词汇表** 给 (config/stages.py)。
+#: 这里的两个模块级别名是缺省词汇表 (仓内 MegaMoE) 的视图, 保留是为了现有调用不改;
+#: 另一份实现把自己的 StageVocabulary 传进 GranularityAssignment 即可。
+STAGES: Tuple[str, ...] = default_vocabulary().pipeline
 
 #: 每个 stage 的工作单元名 (只用于报错与 meta, 不参与计算)。
-UNIT_OF: Mapping[str, str] = {
-    "dispatch": "row",
-    "gmm1": "tile",
-    "activation": "tile",
-    "gmm2": "tile",
-    "combine": "tile",
-}
+UNIT_OF: Mapping[str, str] = default_vocabulary().unit_of
 
 
 @dataclass(frozen=True)
@@ -65,11 +65,13 @@ class StageGranularity:
 
     stage: str
     items_per_event: int = 1
+    #: 用哪份词汇表判"这个 stage 存不存在"。不参与相等/repr: 它是校验的出处,
+    #: 不是这条粒度设置的内容。
+    vocab: StageVocabulary = field(
+        default_factory=default_vocabulary, compare=False, repr=False)
 
     def __post_init__(self) -> None:
-        if self.stage not in STAGES:
-            raise ValueError(
-                f"未知 stage {self.stage!r}; 只能是 {STAGES}")
+        self.vocab.require(self.stage)
         if not isinstance(self.items_per_event, int) or isinstance(self.items_per_event, bool):
             raise ValueError(
                 f"{self.stage} 的 items_per_event 必须是整数, 得到 {self.items_per_event!r}")
@@ -78,28 +80,35 @@ class StageGranularity:
                 f"{self.stage} 的 items_per_event 不能为负 (0 = 整个切片一个事件)")
 
 
-#: 缺省粒度. 四个计算/通信 stage 最细 (1 个单元一个事件 = 最少假设);
-#: dispatch 取 0 = "沿用 tiling 算出的 routeItemsPerBatch" —— dispatch 的单元是行,
-#: 一行一个事件既不是任何实现的做法也不是合理缺省, 所以这里的 0 不表示"整片",
-#: 而表示"没有覆盖, 用 tiling 的值" (与历史参数 dispatch_rows_per_item 同义)。
-DEFAULT_GRANULARITY: Tuple[StageGranularity, ...] = (
-    StageGranularity("dispatch", 0),
-    StageGranularity("gmm1", 1),
-    StageGranularity("activation", 1),
-    StageGranularity("gmm2", 1),
-    StageGranularity("combine", 1),
-)
+def default_granularity(vocab: Optional[StageVocabulary] = None
+                        ) -> Tuple[StageGranularity, ...]:
+    """这份词汇表的缺省粒度: 每个 stage 取 ``vocab.items_default``.
+
+    缺省是"最细" (1 个单元一个事件 = 最少假设, 不预设任何合并); 偏离 1 的
+    stage 由词汇表自己声明并写出理由 (MegaMoE 的 dispatch 取 0, 见
+    implementations/megamoe_stages)。
+    """
+    v = vocab or default_vocabulary()
+    return tuple(StageGranularity(s, v.items_default(s), vocab=v) for s in v.pipeline)
+
+
+#: 缺省词汇表的缺省粒度 (现有调用与测试沿用这个名字)。
+DEFAULT_GRANULARITY: Tuple[StageGranularity, ...] = default_granularity()
 
 
 @dataclass(frozen=True)
 class GranularityAssignment:
     """stage -> 事件粒度. 与 RoleAssignment / StageLink 平行 (每 stage 一条)."""
 
-    stages: Tuple[StageGranularity, ...] = DEFAULT_GRANULARITY
+    stages: Optional[Tuple[StageGranularity, ...]] = None
+    vocab: StageVocabulary = field(
+        default_factory=default_vocabulary, compare=False, repr=False)
     _by_stage: Dict[str, StageGranularity] = field(
         default_factory=dict, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
+        if self.stages is None:
+            object.__setattr__(self, "stages", default_granularity(self.vocab))
         seen: Dict[str, StageGranularity] = {}
         for g in self.stages:
             if not isinstance(g, StageGranularity):
@@ -108,7 +117,7 @@ class GranularityAssignment:
             if g.stage in seen:
                 raise ValueError(f"stage {g.stage!r} 的粒度给了两遍")
             seen[g.stage] = g
-        for g in DEFAULT_GRANULARITY:
+        for g in default_granularity(self.vocab):
             seen.setdefault(g.stage, g)
         object.__setattr__(self, "_by_stage", seen)
 
@@ -116,7 +125,8 @@ class GranularityAssignment:
         try:
             return self._by_stage[stage]
         except KeyError:
-            raise ValueError(f"未知 stage {stage!r}; 只能是 {STAGES}") from None
+            raise ValueError(
+                f"未知 stage {stage!r}; 只能是 {tuple(self.vocab.pipeline)}") from None
 
     def items(self, stage: str) -> int:
         """该 stage 一个事件覆盖多少单元 (0 = 整个切片)."""
@@ -125,24 +135,27 @@ class GranularityAssignment:
     def with_stage(self, stage: str, items_per_event: int) -> "GranularityAssignment":
         rest = tuple(g for g in self.stages if g.stage != stage)
         return GranularityAssignment(
-            rest + (StageGranularity(stage, items_per_event),))
+            rest + (StageGranularity(stage, items_per_event, vocab=self.vocab),),
+            vocab=self.vocab)
 
     def coarser_than_default(self) -> Tuple[str, ...]:
         """哪些 stage 偏离了缺省粒度 (供报告与 design_space 标注)."""
-        base = {g.stage: g.items_per_event for g in DEFAULT_GRANULARITY}
-        return tuple(s for s in STAGES if self.items(s) != base[s])
+        v = self.vocab
+        return tuple(s for s in v.pipeline if self.items(s) != v.items_default(s))
 
 
 DEFAULT_GRANULARITIES = GranularityAssignment()
 
 
-def resolve_granularity(value: Optional[object]) -> GranularityAssignment:
+def resolve_granularity(value: Optional[object],
+                        vocab: Optional[StageVocabulary] = None) -> GranularityAssignment:
     """接受 GranularityAssignment / StageGranularity 序列 / {stage: items} 映射."""
+    v = vocab or default_vocabulary()
     if value is None:
-        return DEFAULT_GRANULARITIES
+        return GranularityAssignment(vocab=v) if vocab else DEFAULT_GRANULARITIES
     if isinstance(value, GranularityAssignment):
         return value
     if isinstance(value, Mapping):
         return GranularityAssignment(tuple(
-            StageGranularity(s, int(n)) for s, n in value.items()))
-    return GranularityAssignment(tuple(value))
+            StageGranularity(s, int(n), vocab=v) for s, n in value.items()), vocab=v)
+    return GranularityAssignment(tuple(value), vocab=v)

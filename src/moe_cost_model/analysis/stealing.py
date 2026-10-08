@@ -43,6 +43,7 @@ from collections import defaultdict
 import dataclasses
 from typing import Dict, List, Optional, Tuple
 
+from ..config.stages import default_vocabulary
 from ..scheduler.events import Event, RestructureAction
 
 #: 资源名里 rank 前缀与本地名的分隔符 ("R0.AIC:5" -> ("R0", "AIC:5"))
@@ -104,23 +105,19 @@ def _moved(ev: Event, new_core: str, old_core: str, meta_extra: Dict) -> Event:
     )
 
 
-#: 默认搬运的 stage 组: (驱动 stage, 必须随动的配对 stage)。
-#: gmm1 -> act 是 AIC/AIV0 同核 (L0C->UB 硬件通路);
-#: gmm2 -> combine 是 AIC/AIV1 同核 (gmmToEpilogueFlag 按核索引)。
-#: 只搬 gmm1 不搬 gmm2 会把瓶颈推到 gmm2 的静态落位上, 实测反而制造新的
-#: work-conservation 违规 (hidden=9216/3专家: 违规 0 -> 10)。
-#: 缺省只搬 gmm1 组。gmm2 组 (("gmm2", ("combine",))) 是 opt-in: 实测两组同开会让
-#: 贪心反复搬同一个 tile (hidden=18432/6 专家直接打爆引擎的注入上限), 且收益不单调
-#: (hidden=14336/6 专家 679.8 -> 687.3 反而变差)。两组同开要先解决 thrashing。
+#: 搬运时必须随动的配对 (驱动 stage, 随动 stage) 由**实现声明的词汇表**给
+#: (config/stages.py): gmm1 -> act 是 AIC/AIV0 同核 (L0C->UB 硬件通路),
+#: gmm2 -> combine 是 AIC/AIV1 同核 (gmmToEpilogueFlag 按核索引) —— 这是同核关系,
+#: 不是策略。缺省开哪几组、为什么只开一部分, 也写在那份声明里。
 DEFAULT_STEAL_GROUPS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
-    ("gmm1", ("activation",)),
-)
+    default_vocabulary().default_steal_groups)
 
-#: 同时搬 gmm2 组的配置, 供显式实验用 (见上面的 thrashing 警告)。
-GMM1_AND_GMM2_GROUPS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
-    ("gmm1", ("activation",)),
-    ("gmm2", ("combine",)),
-)
+#: 全部搬运组都开, 供显式实验用 (声明处写了两组同开的 thrashing 实测)。
+ALL_STEAL_GROUPS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+    default_vocabulary().steal_groups)
+
+#: 旧名字, 仓内调用沿用 (= ALL_STEAL_GROUPS)
+GMM1_AND_GMM2_GROUPS = ALL_STEAL_GROUPS
 
 
 def idle_core_stealing(stage: Optional[str] = None, resource_prefix: str = "AIC:",

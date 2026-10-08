@@ -1,11 +1,33 @@
-# MegaMoE Cost Model
+# Ascend NPU 算子 Cost Model
 
-**在 CPU 上模拟 NPU 执行的 cost model。** 给它一组流水编排与编译/运行期参数, 它按昇腾的硬件条件
-算出这套参数下的执行过程: 总时长、每个事件的开始与结束时刻、每个事件在等什么、各通路
-搬运了多少字节、哪些核处于空闲。
+**在 CPU 上模拟 NPU 执行过程来得到 cost model。** 给它一组流水编排与编译/运行期参数,
+它按昇腾的硬件条件算出这套参数下的执行过程: 总时长、每个事件的开始与结束时刻、
+每个事件在等什么、各通路搬运了多少字节、哪些核处于空闲。
+
+建模的对象是**硬件机制**: 计算、数据搬运、存储层级与片上容量、调度、资源竞争。
+这一层不认识任何算子 —— 事件图与调度器只看资源、依赖、计数信号量与时长 (见「工作原理」)。
+**某份 kernel 的具体编排是这个框架之上的一种实现**, 由适配器声明: 它有哪些 stage、
+每个 stage 落哪个执行角色、stage 之间有哪些边 (`config/stages.py` 的 `StageVocabulary`)。
+仓内已有的实现是 MegaMoE 的两份 kernel 级适配器 —— 复刻到 tile 与标志粒度, 因此能与
+profiler trace 逐 stage 对账 (见「保真度」); 那是**一种**建模路径, 不是框架的缺省假设。
 
 它面向算子工程师自行调参 —— 无需上板、无需编译、不占用板卡。一次运行 0.2
 到 4 秒, 所以可以一次评估几十组参数。它不用于分析某次已有运行的性能问题, 那由 profiler 完成。
+
+## 核心与具体实现的边界
+
+| 层 | 内容 | 与算子有关吗 |
+| --- | --- | --- |
+| `scheduler/` | 事件在多资源上的执行: 独占资源、依赖边、计数信号量、池内绑定 | 无关。不出现任何 stage 名 |
+| `config/` 硬件项 | 硬件常数、片上容量、带宽、编译点 | 与机器有关, 与算子无关 |
+| `config/stages.py` | `StageVocabulary`: 一份实现划了哪些 stage、哪些边、落哪个角色 | 这是**边界本身** —— 核心只认这个接口 |
+| `config/` 编排项 | 粒度、边的就绪与落点、角色、搬运组、比对口径 | 校验与缺省表照词汇表办, 不写死 stage 名 |
+| `implementations/` | 一份实现的身份、编译指纹、波计划、降解成事件图 | 有关。一份实现一个适配器 |
+| `builders/` | 把某份实现的编排展开成事件 (tile 几何、标志、通信路径) | 有关。kernel 级实现的代码在这里 |
+| `analysis/` `validation/` | 下界、空闲分解、关键路径、与 trace 的结构比对 | 机制与口径无关; 比对覆盖哪些 stage 由词汇表给 |
+
+换一个算子要写的是: 一份 `StageVocabulary` + 一个适配器 (`plan` / `lower`) + 各 stage 的时长公式。
+`config/` 与 `analysis/` 里的校验、缺省表与下界不必改。
 
 ## 模拟的硬件条件
 
@@ -165,8 +187,9 @@ duration_us      时长, 由闭式物理公式给出
 
 ## 各 stage 的建模方式
 
-五个 stage 各自的时长公式、独占的资源、依赖的前置事件、统计的访存字节。公式在 `costs.py`,
-建图在 `builders/`。
+以下是**仓内 MegaMoE 适配器声明的那五个 stage** (`implementations/megamoe_stages.py`),
+各自的时长公式、独占的资源、依赖的前置事件、统计的访存字节。公式在 `costs.py`,
+建图在 `builders/`。另一份实现声明自己的 stage, 这一节随之不同。
 
 ### dispatch
 
@@ -343,7 +366,8 @@ moe-cost-model/
 │   │   ├── platform.py          #   白皮书规格 (spec): 峰值算力/带宽, 与实测分开记
 │   │   ├── policy.py            #   InstancePolicy + StageWaveOffsets
 │   │   ├── pipeline.py          #   PipelineConstraints + QueueDepths + tiling 解析
-│   │   ├── links.py             #   StageLink: 一条 stage 边的就绪/落点/槽数 + EDGE_AXES
+│   │   ├── stages.py            #   StageVocabulary: 一份实现有哪些 stage/边 (核心与实现的边界)
+│   │   ├── links.py             #   StageLink: 一条 stage 边的就绪/落点/槽数
 │   │   ├── readiness.py         #   Readiness: 消费者沿共享轴分几段就绪 (段界/余数规则)
 │   │   ├── roles.py             #   RoleAssignment: 哪个 stage 跑在哪个引擎角色
 │   │   ├── granularity.py       #   StageGranularity: 一个事件覆盖多少个单元
@@ -356,6 +380,7 @@ moe-cost-model/
 │   │   ├── runtime.py           #   RuntimeTopology: 几卡几核
 │   │   ├── adapter.py           #   适配器接口 (plan / lower / accepts) + Unsupported
 │   │   ├── megamoe.py           #   三份实现: a8w8_wave / layered / a8w4 (已声明未建图)
+│   │   ├── megamoe_stages.py    #   MegaMoE 的 stage 词汇表 (五个 stage + 四条边)
 │   │   ├── manifest.py          #   编译清单: 从 C++/CMake 抽参数并与 Python 对账
 │   │   └── calibration.py       #   标定域: 一个数只在它量过的 (实现, 编译点, 形状, 拓扑) 里有效
 │   ├── scheduler/               # 第 2 层: 通用离散事件调度引擎

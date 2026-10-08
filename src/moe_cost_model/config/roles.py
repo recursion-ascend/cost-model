@@ -31,18 +31,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Mapping, Tuple
+from typing import Mapping, Tuple
 
-#: 三个执行角色。AIC 是 Cube, 另两个是同一个核上的两个向量核。
-AIC = "AIC"
-AIV0 = "AIV0"
-AIV1 = "AIV1"
+from .stages import AIC, AIV0, AIV1, StageVocabulary, default_vocabulary
+
+#: 三个执行角色 (名字在 config/stages 定义, 词汇表要用它们给 stage 指角色)。
+#: AIC 是 Cube, 另两个是同一个核上的两个向量核。
 ROLES = (AIC, AIV0, AIV1)
 #: 向量角色 (可以互换的那两个)
 VECTOR_ROLES = (AIV0, AIV1)
 
-#: 只能跑在 Cube 上的 stage —— 矩阵乘没有别的去处, 这是物理
-CUBE_ONLY_STAGES = ("gmm1", "gmm2", "shared_gmm1", "shared_gmm2")
+#: 哪些 stage 只能跑 Cube、每个 stage 缺省落哪个角色, 由**实现声明的词汇表**给
+#: (config/stages.py)。下面两个模块级别名是缺省词汇表 (仓内 MegaMoE) 的视图,
+#: 保留是为了现有调用不改; 另一份实现把自己的 StageVocabulary 传进 RoleAssignment。
+CUBE_ONLY_STAGES: Tuple[str, ...] = default_vocabulary().cube_only
 
 #: 角色 -> 该角色的每核引擎队列令牌前缀。名字是历史沿用的 (model.py 声明容量时用同一组),
 #: 这里把映射写在一处, 建图器不再各自拼 f-string。
@@ -50,21 +52,7 @@ QUEUE_TOKENS = {AIC: "Q:aic", AIV0: "Q:vec0", AIV1: "Q:aiv1"}
 
 #: 缺省分工 = 最少假设: 矩阵乘上 Cube, 其余各占一个向量角色。
 #: ACT 与 GMM1 同核由 StageLink 的物理共位保证, 这里只说它用哪个向量角色。
-DEFAULT_STAGE_ROLES: Dict[str, str] = {
-    "gmm1": AIC,
-    "gmm2": AIC,
-    "activation": AIV0,
-    "shared_gmm1": AIC,
-    "shared_gmm2": AIC,
-    "shared_act": AIV0,
-    # 通信与归约: 缺省放另一个向量角色, 与 ACT 分开
-    "dispatch": AIV1,
-    "dispatch_call": AIV1,
-    "dispatch_recv": AIV1,
-    "mask_scan": AIV1,
-    "dispatch_local": AIV1,
-    "combine": AIV1,
-}
+DEFAULT_STAGE_ROLES: Mapping[str, str] = default_vocabulary().roles
 
 
 @dataclass(frozen=True)
@@ -77,16 +65,20 @@ class RoleAssignment:
     """
 
     overrides: Mapping[str, str] = field(default_factory=dict)
+    #: 用哪份词汇表判"这个 stage 存不存在、是不是矩阵乘"。不参与相等/repr。
+    vocab: StageVocabulary = field(
+        default_factory=default_vocabulary, compare=False, repr=False)
 
     def __post_init__(self) -> None:
+        cube_only = self.vocab.cube_only
         for stage, role in self.overrides.items():
             if role not in ROLES:
                 raise ValueError(
                     f"stage {stage!r} 的角色 {role!r} 不在 {ROLES} 里")
-            if stage in CUBE_ONLY_STAGES and role != AIC:
+            if stage in cube_only and role != AIC:
                 raise ValueError(
                     f"stage {stage!r} 是矩阵乘, 只能跑在 {AIC} 上 (物理), 收到 {role!r}")
-            if stage not in CUBE_ONLY_STAGES and role == AIC:
+            if stage not in cube_only and role == AIC:
                 raise ValueError(
                     f"stage {stage!r} 不是矩阵乘, 放到 {AIC} 上没有物理依据; "
                     f"可选 {VECTOR_ROLES}")
@@ -95,11 +87,11 @@ class RoleAssignment:
         """这个 stage 用哪个角色; 未知 stage 报错而不是猜一个."""
         if stage in self.overrides:
             return self.overrides[stage]
-        if stage in DEFAULT_STAGE_ROLES:
-            return DEFAULT_STAGE_ROLES[stage]
+        if stage in self.vocab.roles:
+            return self.vocab.roles[stage]
         raise KeyError(
-            f"未知 stage {stage!r}: 要么加进 config/roles.py 的缺省表, "
-            f"要么在 RoleAssignment.overrides 里显式给角色")
+            f"未知 stage {stage!r}: 要么加进这份词汇表 ({self.vocab.operator}) 的 "
+            f"roles 表, 要么在 RoleAssignment.overrides 里显式给角色")
 
     def resource(self, stage: str, core: int) -> str:
         """该 stage 在 core 号核上的资源名 (建图器就调这个, 不再拼 f-string)."""
@@ -122,12 +114,12 @@ class RoleAssignment:
     def roles_in_use(self) -> Tuple[str, ...]:
         """这份分工实际用到的角色 (按 ROLES 的顺序), 供资源池声明用."""
         used = {self.role_of(s) for s in
-                set(DEFAULT_STAGE_ROLES) | set(self.overrides)}
+                set(self.vocab.roles) | set(self.overrides)}
         return tuple(r for r in ROLES if r in used)
 
     def stages_on(self, role: str) -> Tuple[str, ...]:
         """哪些 stage 落在这个角色上 (排查"谁和谁抢核"时用)."""
-        allst = set(DEFAULT_STAGE_ROLES) | set(self.overrides)
+        allst = set(self.vocab.roles) | set(self.overrides)
         return tuple(sorted(s for s in allst if self.role_of(s) == role))
 
 

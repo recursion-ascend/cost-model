@@ -21,10 +21,12 @@ from __future__ import annotations
 from typing import Any, List, Tuple
 
 from ..config.hardware import KernelConfig
+from ..config.stages import StageVocabulary
 from ..planning.waves import calc_m_groups_per_wave, plan_layered_waves, plan_waves
 from .adapter import Unsupported, WavePlan
 from .compile import CompileConfig
 from .identity import ImplementationId
+from .megamoe_stages import MEGAMOE
 
 
 class _MegaMoeAdapterBase:
@@ -34,9 +36,15 @@ class _MegaMoeAdapterBase:
     ID: ImplementationId = None
     #: 执行时间记到哪个 stage 的最后一个事件结束 (model.completion_event 用)
     END_STAGE = "combine"
+    #: 这份实现划了哪些 stage (config/stages.py 的 StageVocabulary)
+    VOCABULARY = MEGAMOE
 
     def identity(self) -> ImplementationId:
         return self.ID
+
+    def stages(self) -> StageVocabulary:
+        """这份实现的 stage 词汇表 —— 粒度/边/角色/比对的校验都照它办."""
+        return self.VOCABULARY
 
     def accepts(self, compile_cfg: CompileConfig, options: Any) -> None:
         """不支持的编译点/编排组合在这里拒绝.

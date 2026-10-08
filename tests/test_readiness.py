@@ -135,7 +135,7 @@ def test_gmm2_combine_points_at_granularity():
 
 def test_unknown_edge_is_refused():
     """模型只有这几条边; 别的边名多半是拼错, 而在那儿写什么都不会被读."""
-    with pytest.raises(ValueError, match="模型没有的边"):
+    with pytest.raises(ValueError, match="这份词汇表里没有的边"):
         m.ModelOptions(links=(m.StageLink("activation", "gmm1"),))
 
 

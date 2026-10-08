@@ -25,6 +25,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Protocol, Sequence, Tuple
 
+from ..config.stages import StageVocabulary
 from .compile import CompileConfig
 from .identity import ImplementationId
 
@@ -55,14 +56,17 @@ class WavePlan:
 class ImplementationAdapter(Protocol):
     """一份具体实现在模型里的全部接口.
 
-    方法分三组:
+    方法分四组:
       身份      identity()                 —— 名字与源码依据
+      词汇表    stages()                   —— 这份实现划了哪些 stage、它们之间有哪些边
       接受性    accepts(compile_cfg, opts) —— 这个编译点/编排组合支持吗 (不支持抛 Unsupported)
       降解      plan(...) / lower(...)     —— 波计划与事件图
       观察点    measured_end_stage()       —— 执行时间记到哪个 stage 结束
     """
 
     def identity(self) -> ImplementationId: ...
+
+    def stages(self) -> StageVocabulary: ...
 
     def accepts(self, compile_cfg: CompileConfig, options: Any) -> None: ...
 
