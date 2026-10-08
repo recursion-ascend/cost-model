@@ -1,13 +1,13 @@
-"""第 2 层: 调度引擎的数据结构 — 事件 / 信道 / 重构动作 / 计划事件.
+"""调度引擎的数据结构: Event / ScheduledEvent / 重构钩子的上下文与动作.
 
-三层扩展语义:
-  L0 逐边依赖延迟: Event.dep_latency_overrides [(dep_name, us)]
-  L1 计数信号量:    Event.acquires/releases + schedule(capacities={...})
-                   acquire 于事件 start 计入, release 于配对事件 end 归还;
-                   容量不足时事件推迟到下一个归还时刻.
-  L2 信道 (速率服务器): **已于 2026-10-03 停用**。Event.channel_bytes 保留为
-                   访存量申报 [(name, bytes, entitled_rate)], 供统计用, 但不
-                   参与准入、不影响任何时长。
+Event 是模型的表达能力上界 —— 表达不出来的约束, 模型就不声称。它能表达四种:
+
+    资源独占      resources: 事件跑完之前别人用不了这些资源
+    数据依赖      deps + 依赖边上的传播延迟
+    容量           acquires / releases: 计数信号量, 占多少还多少
+    落核约束      colocate_with / core_group: 必须与谁同核
+
+channel_bytes 是第五种的残留: 带宽争用曾经建模过, 现在只申报字节、不影响时长。
 """
 from __future__ import annotations
 
@@ -15,8 +15,8 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 
-#: 资源名里的池占位符后缀: "R0.AIC:*" 表示"该池的任意一个成员"。
-#: 调度器在**派发时刻**把它解析成最早空闲的成员 (晚绑定), 而不是建图时定死。
+#: 池占位符后缀。"R0.AIC:*" = "该池的任意一个成员", 由调度器在派发时刻选定 (晚绑定);
+#: "R0.AIC:7" = 第 7 号核, 建图时就定死 (静态钉核)。
 POOL_WILDCARD = ":*"
 
 
@@ -27,61 +27,61 @@ def pool_key(resource: str) -> Optional[str]:
 
 @dataclass
 class Event:
+    """一份工作: 要哪些资源、等谁、占多久。
+
+    name 是工作的身份, **不带核号** —— 落哪个核是调度的产出, 不是工作的属性。
+    """
+
     name: str
+    #: 本事件独占的资源; 含 ":*" 的是池占位符 (晚绑定)
     resources: Tuple[str, ...]
     duration_us: float
+    #: 前置事件名
     deps: Tuple[str, ...] = ()
+    #: 并列时的确定性 tie-break
     order: int = 0
     meta: Dict[str, object] = field(default_factory=dict)
-    # 依赖边传播延迟(us): flag 握手 RTT, 物理量(实测 WAIT_GMM1_BUFFER median)
+    #: 每条依赖边的传播延迟: flag 握手的 RTT (实测 WAIT_GMM1_BUFFER 中位数)
     dep_latency_us: float = 0.0
-    # L0 逐边覆盖: [(dep_name, latency_us)], 优先于 dep_latency_us
+    #: 逐边覆盖 [(前置名, 延迟)], 优先于 dep_latency_us
     dep_latency_overrides: Tuple[Tuple[str, float], ...] = ()
-    # L1 计数信号量: (资源名, 个数); 本事件 start 占用, 由配对 release 事件 end 归还
+    #: 计数信号量 (资源名, 个数): start 时占用, 由配对事件 end 时归还。
+    #: 容量不足则推迟到下一个归还时刻。表达的是**容量**, 不是程序序。
     acquires: Tuple[Tuple[str, int], ...] = ()
     releases: Tuple[Tuple[str, int], ...] = ()
-    # 访存量申报: (通路名, 字节数, 无争用速率 B/µs)。**只做统计, 不参与准入**
-    # —— 速率服务器信道已停用 (2026-10-03)。按通路汇总见
-    # rank_results["traffic_bytes"]。保留申报是为了随时能重建争用模型。
+    #: 访存量申报 (通路名, 字节数, 无争用速率 B/µs)。**只做统计**: 不参与准入,
+    #: 不影响任何时长。汇总见 rank_results["traffic_bytes"]。
     channel_bytes: Tuple[Tuple[str, float, float], ...] = ()
-    # L3 晚绑定共位: 本事件必须与 colocate_with 命名的事件落在**同一核号**上。
-    # 物理依据: GMM1 的结果经 L0C->UB 的 Fixpipe 硬件通路直给**配对**的 AIV0
-    # (builders/activation.py: "ACT 钉在配对 GMM1 同核的 AIV0 上"), 所以 GMM1 晚绑定到
-    # 核 X 时, 它的 ACT 必须落 AIV0:X。只在 resources 含池占位符时生效。
+    #: 必须与这个事件落同一核号。物理依据: GMM1 的结果经 Fixpipe (L0C->UB) 直给
+    #: **配对**的 AIV0, 这条通路只在绑定对内存在。仅当 resources 含占位符时生效。
     colocate_with: Optional[str] = None
-    # L3 晚绑定核组: (组名, 角色)。同一组的事件必须落**同一核号**, 核号由该组
-    # **最先派发**的那个事件选定 (之后同组事件一律跟随)。
-    #
-    # 为什么不能用 colocate_with 代替: colocate_with 要求锚点**先**绑定, 而相位拆分
-    # 里先跑的恰恰是不持核资源的那一相 (lg/ld 先于 cb/main)。核组把"谁先到谁决定"
-    # 写进语义, 于是不持核资源的相位也能在派发时刻拿到一个真实核号, 它名字里带
-    # c* 的按核计数信号量 (QUEUE:mte_aic / QUEUE:fix / QUEUE:mte_aiv) 才扣得对。
-    #
-    # 角色是池名的后半段 (例 "AIC"), 用来给不持核资源的事件提供候选核表。
+    #: (组名, 角色): 同组事件落同一核号, 核号由组内**最先派发**的事件选定。
+    #: 与 colocate_with 的区别是不要求锚点先绑定 —— 相位拆分里先跑的恰是不持核
+    #: 资源的那一相 (lg/ld 先于 cb), 它需要在派发时刻拿到核号, 名字带 "c*" 的
+    #: 按核信号量才扣得对。角色是池名的后半段 (如 "AIC"), 用来给出候选核表。
     core_group: Optional[Tuple[str, str]] = None
-    # L3 晚绑定一次性开销: (键, us)。同一键在同一核号上只计一次 —— 本事件若是该核
-    # 上第一个带此键的事件, 时长加 us (例: 每波每核的 dispatch 调用开销, 由该核
-    # 在这一波做的第一段 dispatch 承担)。开销落在真正干活的核上, 而不必把事件
-    # 钉死在某个核。只在晚绑定 (schedule(pools=...)) 下生效。
+    #: (键, us): 同一键在同一核号上只计一次 —— 本事件若是该核上第一个带此键的,
+    #: 时长加 us。用于每核一次的开销 (如每波每核的 dispatch 调用开销), 让开销落在
+    #: 真正干活的核上, 而不必把事件钉死在某个核。仅晚绑定下生效。
     once_per_core: Optional[Tuple[str, float]] = None
 
 
 @dataclass(frozen=True)
 class RestructureContext:
-    """重构钩子的只读上下文 (策略函数不得修改返回的容器)."""
+    """重构钩子的只读上下文 (钩子不得修改这些容器)."""
+
     time_us: float
-    resource_free: Dict[str, float]      # 每资源当前空闲时刻
-    resource_pending: Dict[str, int]     # 每资源未提交事件数
-    pending: Dict[str, "Event"]          # 未提交事件视图 (name -> Event)
-    committed_tail: Dict[str, str]       # 每资源最后提交的事件名
-    # 已提交事件的结束时刻 (name -> end_us). 钩子判"前置是否已完成"的唯一依据:
-    # ctx.pending 只说明事件未提交, 不说明它的前置已经跑完 —— 一个未提交事件的
-    # 前置可能刚被提交但结束时刻还在未来。搬运只应作用于已就绪的事件, 否则搬过去
-    # 的 tile 在新核上照样干等, 等于没搬。默认空 dict 保持旧钩子的向后兼容。
+    resource_free: Dict[str, float]      #: 每资源当前空闲时刻
+    resource_pending: Dict[str, int]     #: 每资源未提交事件数
+    pending: Dict[str, "Event"]          #: 未提交事件 (name -> Event)
+    committed_tail: Dict[str, str]       #: 每资源最后提交的事件名
+    #: 已提交事件的结束时刻。判"前置跑完了没有"只能看这个: pending 只说明事件
+    #: 未提交, 不说明它的前置已经结束。把没就绪的 tile 搬去别的核, 它在新核上
+    #: 照样干等。
     end_by_name: Dict[str, float] = field(default_factory=dict)
 
     def ready_at(self, ev: "Event") -> float:
-        """ev 的依赖就绪时刻 (逐边延迟计入); 任一前置未提交则返回 inf."""
+        """ev 的依赖就绪时刻 (计入逐边延迟); 任一前置未提交则 inf."""
         if not ev.deps:
             return 0.0
         t = 0.0
@@ -92,15 +92,18 @@ class RestructureContext:
         return t
 
     def is_ready(self, ev: "Event") -> bool:
-        """全部前置已完成 (结束时刻不晚于当前时刻)."""
+        """全部前置已在当前时刻之前结束."""
         return self.ready_at(ev) <= self.time_us
 
 
 @dataclass
 class RestructureAction:
-    """钩子返回的重构动作: inject/cancel/add_dep.
-    契约: cancel 的每个事件必须以同名重新 inject (消费者依赖才能最终满足),
-    否则调度以死图错误终止."""
+    """钩子要求的图改动.
+
+    契约: cancel 掉的事件必须以同名重新 inject —— 否则消费者的依赖永远满足不了,
+    调度会以死图报错终止。
+    """
+
     inject: List["Event"] = field(default_factory=list)
     cancel: List[str] = field(default_factory=list)
     add_dep: List[Tuple[str, str]] = field(default_factory=list)
@@ -108,6 +111,8 @@ class RestructureAction:
 
 @dataclass(frozen=True)
 class ScheduledEvent:
+    """排好的事件: 起止时刻 + 这段等待该归因给谁."""
+
     name: str
     resources: Tuple[str, ...]
     start_us: float
@@ -120,21 +125,20 @@ class ScheduledEvent:
     critical_reason: str
     order: int
     meta: Dict[str, object]
-    # L1 归因: 计数信号量等待 (从探测起点算, 已含等核那一段之后的推迟)
+    #: 等计数信号量的时长 (从探测起点算)
     capacity_wait_us: float = 0.0
-    # "真能动"的最早时刻: >= dependency_ready_us 且计数信号量已可准入。
-    # **不含"自己的资源空出来"** —— 那一关由 analysis/idle.py 判, 它正是
-    # work-conservation 要抓的那种等待。非核独占资源 (DISPATCH_COMM) 也由 idle.py
-    # 从排程反推 (它只需要排好的时间线)。
+    #: 本事件"真能动"的最早时刻: 依赖已就绪 且 信号量已可准入。
+    #: **不含"自己要的资源空出来"** —— 那一关由 analysis/idle.py 判, 它正是
+    #: work-conservation 要抓的那种等待 (有活就绪却还有核空着)。
     actionable_us: float = 0.0
-    # 绑定后的计数信号量 token (占/还), 供 analysis 判"某个空闲核能不能接这个活":
-    # 按核的 token 要换成那个核的名字再查余量。
+    #: 绑定后的信号量 token。analysis 判"某个空闲核能不能接这个活"时, 要把按核的
+    #: token 换成那个核的名字再查余量。
     acquires: Tuple[Tuple[str, int], ...] = ()
     releases: Tuple[Tuple[str, int], ...] = ()
 
 
 def edge_latency(ev: "Event", dep: str) -> float:
-    """L0: 逐边延迟, override 优先于事件级 dep_latency_us."""
+    """这条依赖边的延迟: 逐边覆盖优先于事件级 dep_latency_us."""
     for name, lat in ev.dep_latency_overrides:
         if name == dep:
             return lat
