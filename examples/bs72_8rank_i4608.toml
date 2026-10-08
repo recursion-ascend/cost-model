@@ -1,0 +1,29 @@
+# 8 卡, 每卡 72 token, topk=6, 每卡 3 个专家 (共 24 专家), 均匀路由, MTE 路径.
+#   每个源 rank 发 72 x 6 = 432 行, 均分到 24 个专家 -> C[dst][expert][src] = 18
+#   每个专家共收 18 x 8 = 144 行, 每张卡共收 432 行
+#
+# 运行: PYTHONPATH=src python -c "import moe_cost_model as m; \
+#       print(m.simulate(m.load_scenario('examples/bs72_8rank_i4608.toml'))['kernel_total_us'])"
+
+profile = "megamoe-a8w8"     # 以那份实现的取值为底 (缺省是"最少假设", 不复现任何实现)
+name = "bs72-8rank-topk6-i4608"
+h = 5120                     # 模型隐藏维 (GMM1 的 K, GMM2 的 N)
+hidden_dim = 9216            # = 2 x 中间维 (SwiGLU 的 gate + up) -> 中间维 4608
+aic_num = 28
+p1_override = 2              # 小 batch 档 (token < 2048) 的取值
+p2_override = 1
+
+[workload]
+tokens = 72                  # 每 rank token 数
+topk = 6
+world = 8                    # 8 张卡
+local_experts = 3            # 每卡 3 个专家
+routing = "uniform"
+
+[kernel]
+topo_urma = false            # MTE 波循环
+
+[calibration]
+# 占位值, 无实测依据。这个形状上 GMM tile 是载入绑定 (max(载入, 计算)),
+# 给 0 与给 2.7e7 时长完全相同 —— 所以本场景的结论不依赖它。
+cube_mac_per_us = 2.7e7
