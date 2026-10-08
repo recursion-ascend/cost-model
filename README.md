@@ -165,6 +165,72 @@ duration_us      时长, 由闭式物理公式给出
 - **工作守恒**: 核空闲分成"没有就绪的活"与"有就绪的活却有核空着"。后者在动态取活下要求
   恒为 0; 不为 0 说明这个方案的时长偏慢, 该方案的收益不能与别的方案直接比。
 
+## 逐 stage 怎么建模
+
+五个 stage 各自的时长公式、占用的资源、依赖的前置、申报的字节。公式在 `costs.py`,
+建图在 `builders/`。
+
+### dispatch
+
+| | |
+| --- | --- |
+| 一个事件 | 一批 token 行 (一段 = 一个 (源卡, 目的专家) 的行区间, 再按批切) |
+| 时长 | 按行级软流水算: `buffer_count` 个槽内的行重叠, 不串行累加; 每段 = 固定延迟 (本卡 `T_LAT_LOCAL` / 远端 `T_LAT_REMOTE`, 后者含互连跳) + 字节 / 对应带宽 |
+| 资源 | AIV1 的一个核 (角色可配); 开了 `serialize_dispatch_comm` 时还独占跨卡通道 |
+| 依赖 | 缺省无前置; `dispatch_pacing` 可让它等前 w 波的 combine |
+| 产出 | 每个 (波, 专家, m-group) 一个零时长的就绪标记, GMM1 依赖它 |
+| 申报字节 | `dispatch_read` / `dispatch_write`; 跨卡部分再记 `fab_src` / `fab_dst` |
+| 每核一次的开销 | `t_call_oh_us` 缺省 0 (实测参考 `T_CALL_OH` = 1.006 µs); 动态取活下由该核本波第一段承担 |
+
+### GMM1
+
+| | |
+| --- | --- |
+| 一个事件 | 一个 tile (`tile_m` × `tile_n`) |
+| 时长 | `max(载入, 计算)`。载入 = A 流 `m·K` + B 流 `wb·K·cols`, 除以 `BW_L1_GM`; 计算 = `m·cols·K / cube_mac_per_us`。**结果写出不计** (Fixpipe 的 L0C→UB/GM 按"数据释放事件忽略不计"的口径) |
+| B 流复用 | 切片内首个 m-group 付整份 B, 其余付 `gmm1_b_reuse_frac` |
+| 资源 | AIC 的一个核 |
+| 容量 | 取一个 GMM1→激活的 UB 槽 (`StageLink.depth`), 由配对的激活事件归还 |
+| 依赖 | 该 (专家, m-group) 的 dispatch 就绪标记 |
+| 申报字节 | `gm_to_l1` (A 流 + B 流); 开了 topk 预取时再记 `hbm_write` (输出改落 GM) |
+
+### 激活 (SwiGLU + MX 量化)
+
+| | |
+| --- | --- |
+| 一个事件 | 一个 GMM1 tile 的输出; 开了 topk 预取时按 128 行块拆成两个 |
+| 时长 | `T_STARTUP_VEC + 向量数 × ACT_BYTES_PER_VEC / BW_UB`, 向量数 = `m·tileN / 64`。每向量 722 B 是源码逐项计数(中间缓冲被流三遍) |
+| 资源 | AIV0 的一个核 (角色可配) |
+| 落核约束 | **必须与产它的 GMM1 同核** —— Fixpipe 的 L0C→UB 只在绑定对内存在。这条是硬件强制, 不是编排选择 |
+| 容量 | 归还 GMM1 取的那个 UB 槽 |
+| 申报字节 | `hbm_write` (量化输出写出); 开了 topk 预取时再记 `act_readback` (从 GM 读回 GMM1 输出 + 每行的路由元数据) |
+
+### GMM2
+
+| | |
+| --- | --- |
+| 一个事件 | 一个 tile; `readiness` 可沿 K 把它拆成多段 |
+| 时长 | `max(载入, 计算)`。K = `hidden_dim / activation_n_half`; 载入 = B 流 `K2·cols` + A 流 `m·K2`(**A 流只在物化编排下存在**: 激活写 GM、GMM2 读回; 留片上时为 0); 计算 = `m·cols·K2 / cube_mac_per_us` |
+| 资源 | AIC 的一个核 |
+| 依赖 | 行范围相交、且列范围覆盖本段 K 的那些激活事件。建图时校验这些激活必须无缺口地覆盖整个 K, 否则报错 |
+| 申报字节 | `gm_to_l1`; 分段时按各段的 K 占比分摊 |
+
+### combine
+
+| | |
+| --- | --- |
+| 一个事件 | 一个 GMM2 tile 的输出 (`per_tile`), 或整个专家切片 (`per_expert`) |
+| 时长 | 三段相加: 读回 (整个 GMM2 tile 从 GM 读回 UB + 每行元数据, 走 `BW_LOCAL_GM`) + 本卡行写出 (`BW_LOCAL_GM`) + 跨卡行写出 (`BW_REMOTE_WRITE`); 跨卡行数由路由精确算出。落点跨度项 `scatter_us` 缺省系数 0 |
+| 资源 | AIV1 的一个核 (角色可配) |
+| 依赖 | 对应的 GMM2 末段; `per_expert` 下等该切片全部 GMM2 段 |
+| 申报字节 | `combine_read` (读回 + 元数据) + `hbm_write` (目的卡是本卡的行) + `fab_src` / `fab_dst` (跨卡) |
+
+### 尾段
+
+counts_export / core_sync / rank_sync / buffer_init / unpermute / finalize 都在事件图里
+照常排程并占资源, 但**不计入** `kernel_total_us`。共享专家的 GMM2 排在 core_sync 之后,
+因此也不在执行时间内。要含尾段看 `kernel_dag_end_us`。
+
 ## 输出解读
 
 每次仿真返回以下字段:
