@@ -1,3 +1,0 @@
-json5==0.15.0
-numpy
-pandas

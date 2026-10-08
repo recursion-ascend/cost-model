@@ -103,8 +103,8 @@ t_base(e) = max( max_p( end_p + λ(e,p) ),        ← 前置都结束了
 并发、排队、空闲都是调度的**结果**，不回写进时长。
 
 > **贪心是模型的仿真机制，不是硬件行为。**
-> 这份 kernel 里 tile 到核的分配是一个随程序推进的滚动游标（`mega_moe/op_kernel/arch35/
-> mega_moe_arch35.h` 的 `startBlockIdx_`，跨 stage 与专家连续滚动）；Ascend 上哪个 block 跑哪个
+> 这份 kernel 里 tile 到核的分配是一个随程序推进的滚动游标（`mega_moe_arch35.h` 的
+> `startBlockIdx_`，跨 stage 与专家连续滚动；kernel 源码树不在本仓）；Ascend 上哪个 block 跑哪个
 > tile 也由程序的块索引算术决定，硬件不重分配工作。所以不存在"会做贪心决策的硬件调度器"。
 
 ## 3. 一般性：换规则不改引擎
@@ -138,7 +138,9 @@ combine 一个窗 = 读回(tile + 路由元数据) + 本卡行写 + 跨卡行写
 ```
 
 每个常数带**出处标签**（`spec:` / `algo:` / `impl:` / `measured:` / `assumed:`），并绑**标定域四元组**；
-域外的结果带 `out_of_domain` 判定，不假装通用。
+域外的结果带 `out_of_domain` 判定，不假装通用。源码依据写成 `文件:行号` 的形式记在注释与
+`source_refs` 里；**kernel 源码树不在本仓**（2026-10-08 删除），所以这些引用要人拿着 kernel
+工程核对，仓内只校验引用的形式。
 
 ## 5. 模型怎么证伪自己：三条物理下界
 
@@ -320,7 +322,6 @@ rr = r["rank_results"][r["slowest_rank"]]
 python tools/gen_golden.py --check                    # 40 个配置的调度指纹逐位核对 (约 40 秒)
 python tools/knob_audit.py                            # 每个参数: 生效 / 换对形状才动 / 被拒 / 未建模
 python tools/check_work_conservation.py <场景> --assert-conserving
-python tools/compile_manifest.py --check              # 编译参数与 C++ 源码对账
 python tools/calibration_domain.py --scenario <场景>  # 这次结果在不在标定域内
 python tools/compare_trace_structure.py               # 预测事件图 vs 实测 trace 的结构比对
 python tools/make_report.py <场景>                    # 单页 HTML 甘特图 + 等待归因
@@ -369,7 +370,6 @@ moe-cost-model/
 │   │   ├── adapter.py           #   适配器接口 (stages / accepts / plan / lower)
 │   │   ├── megamoe.py           #   三份实现: a8w8_wave / layered / a8w4 (已声明未建图)
 │   │   ├── megamoe_stages.py    #   MegaMoE 的 stage 词汇表 (五个 stage + 四条边)
-│   │   ├── manifest.py          #   从 C++/CMake 抽编译参数并与 Python 对账
 │   │   └── calibration.py       #   标定域: 一个数只在它量过的四元组里有效
 │   │
 │   ├── scheduler/               # 第 2 层: 通用调度引擎 (不认识任何 stage 名)
@@ -419,6 +419,5 @@ moe-cost-model/
 ├── examples/                    # 场景文件 + 六个实测 run 的复现脚本 + 设计空间扫描
 ├── tools/                       # 指纹核对 / 参数审计 / 标定域 / trace 比对 / 报告
 ├── data/                        # 实测 run 的 trace 与配置 (打点 bin 不入库)
-├── bench/                       # 访存带宽微基准 (标定用)
-└── mega_moe/                    # vendored kernel 源码 (验证点, 不由本项目的 lint 管)
+└── bench/                       # 访存带宽微基准 (标定用)
 ```
