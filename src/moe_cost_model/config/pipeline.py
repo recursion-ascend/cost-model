@@ -107,7 +107,10 @@ def parse_tiling(path) -> Dict[str, int]:
 
 @dataclass(frozen=True)
 class SyncLatency:
-    gmm1_act_handshake_us: float = 0.0   # AIC→AIV0 WaitForVector RTT (WAIT_GMM1_BUFFER median)
+    # 三条 stage 边上的 flag 握手延迟。**全 0 = 未标定**: 仓里没有这三个量的实测
+    # 数字 (trace 里只有 WAIT_GMM1_BUFFER 这类**等待区间**, 它含"生产者还在算"
+    # 那一段, 不能直接当握手 RTT 用)。标定方法与偏差见 Event.dep_latency_overrides。
+    gmm1_act_handshake_us: float = 0.0   # AIC→AIV0 WaitForVector
     act_gmm2_ready_us: float = 0.0       # ACT→GMM2 activationToGmm2Flag
     gmm2_combine_ack_us: float = 0.0     # GMM2→COMBINE slot 归还
 

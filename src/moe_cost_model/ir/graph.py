@@ -198,7 +198,7 @@ class EventGraphView:
         for name, us in getattr(ev, "dep_latency_overrides", ()) or ():
             if name == dep:
                 return float(us)
-        return float(getattr(ev, "dep_latency_us", 0.0) or 0.0)
+        return 0.0
 
     @staticmethod
     def _edge_kind(producer: Optional[TaskNode],

@@ -212,7 +212,6 @@ def _annotate(
             name=ev.name + ".ld", resources=(),
             duration_us=float(load_us), deps=ev.deps, order=ev.order,
             meta=dict(ev.meta, phase="load"),
-            dep_latency_us=ev.dep_latency_us,
             dep_latency_overrides=ev.dep_latency_overrides,
             acquires=(mte2,), releases=(mte2,),
             channel_bytes=ch,
@@ -228,7 +227,6 @@ def _annotate(
     return pre + [Event(
         name=ev.name, resources=ev.resources, duration_us=dur,
         deps=deps, order=ev.order, meta=dict(ev.meta),
-        dep_latency_us=ev.dep_latency_us,
         dep_latency_overrides=ev.dep_latency_overrides,
         acquires=ev.acquires + qs, releases=ev.releases + qs,
         channel_bytes=ch,
@@ -296,7 +294,6 @@ def _expand_gmm1(
         return [Event(
             name=ev.name, resources=ev.resources, duration_us=base_dur,
             deps=ev.deps, order=ev.order, meta=dict(ev.meta),
-            dep_latency_us=ev.dep_latency_us,
             dep_latency_overrides=ev.dep_latency_overrides,
             acquires=ev.acquires + (q,), releases=ev.releases + (q,),
             channel_bytes=ch,
@@ -325,7 +322,6 @@ def _expand_gmm1(
         name=ev.name + ".lg", resources=(), duration_us=overhead,
         deps=_drop_program_order(ev, stage, by_name), order=ev.order,
         meta=dict(ev.meta, phase="grant"),
-        dep_latency_us=ev.dep_latency_us,
         dep_latency_overrides=ev.dep_latency_overrides,
         acquires=(mte,) + carried,
     )
@@ -406,7 +402,6 @@ def _expand_aiv(
         return [Event(
             name=ev.name, resources=ev.resources, duration_us=base_dur,
             deps=ev.deps, order=ev.order, meta=dict(ev.meta),
-            dep_latency_us=ev.dep_latency_us,
             dep_latency_overrides=ev.dep_latency_overrides,
             acquires=ev.acquires + (vec_queue,),
             releases=ev.releases + (vec_queue,),
@@ -422,7 +417,6 @@ def _expand_aiv(
         name=ev.name + ".ld", resources=(), duration_us=load_dur,
         deps=_drop_program_order(ev, stage, by_name), order=ev.order,
         meta=dict(ev.meta, phase="load"),
-        dep_latency_us=ev.dep_latency_us,
         dep_latency_overrides=ev.dep_latency_overrides,
         acquires=ev.acquires + ((f"QUEUE:mte_aiv:{eng}:c{core}", 1),
                                 (f"MTE_AIV:{eng}:c{core}", 1)),

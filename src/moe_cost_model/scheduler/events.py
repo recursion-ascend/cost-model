@@ -41,9 +41,12 @@ class Event:
     #: 并列时的确定性 tie-break
     order: int = 0
     meta: Dict[str, object] = field(default_factory=dict)
-    #: 每条依赖边的传播延迟: flag 握手的 RTT (实测 WAIT_GMM1_BUFFER 中位数)
-    dep_latency_us: float = 0.0
-    #: 逐边覆盖 [(前置名, 延迟)], 优先于 dep_latency_us
+    #: 依赖边上的同步延迟 [(前置名, us)]: 前置已结束, 但 flag 握手还没走完。
+    #: 由 apply_pipeline 从 PipelineConstraints.sync 按 stage 边填 (gmm1->act /
+    #: act->gmm2 / gmm2->combine)。**缺省全 0 = 未标定**, 不是"量过是零"。
+    #: 要标定它, 取的窗口必须是"flag 置位 -> 消费者起跑", 不是整个等待区间 ——
+    #: 后者含"生产者还在算"的那一段, 既与生产者时长重复计费, 又会让这个本该与
+    #: 载荷无关的量带上尺寸依赖。
     dep_latency_overrides: Tuple[Tuple[str, float], ...] = ()
     #: 计数信号量 (资源名, 个数): start 时占用, 由配对事件 end 时归还。
     #: 容量不足则推迟到下一个归还时刻。表达的是**容量**, 不是程序序。
@@ -148,8 +151,8 @@ class ScheduledEvent:
 
 
 def edge_latency(ev: "Event", dep: str) -> float:
-    """这条依赖边的延迟: 逐边覆盖优先于事件级 dep_latency_us."""
+    """这条依赖边的同步延迟; 没给就是 0."""
     for name, lat in ev.dep_latency_overrides:
         if name == dep:
             return lat
-    return ev.dep_latency_us
+    return 0.0

@@ -116,7 +116,7 @@ class EventBuilderBase:
     
 
     def _event(self, name: str, resources, duration_us: float,
-               deps=(), meta=None, dep_latency_us: float = 0.0,
+               deps=(), meta=None,
                acquires=(), releases=(), channel_bytes=()) -> str:
         _rp = f"R{self._rank}."
         dep_tuple = tuple(
@@ -127,7 +127,6 @@ class EventBuilderBase:
             duration_us=max(0.0, float(duration_us)),
             deps=dep_tuple, order=self._order,
             meta=dict(meta or {}, rank=self._rank),
-            dep_latency_us=dep_latency_us,
             acquires=tuple(acquires), releases=tuple(releases),
             channel_bytes=tuple(channel_bytes),
         ))

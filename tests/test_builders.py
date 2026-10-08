@@ -417,7 +417,7 @@ def test_stealing_carries_every_event_field_to_the_new_core():
 
     original = Event(
         "W0.E0.gmm1.m0.n0", ("R0.AIC:3",), 12.5, deps=("dep",), order=7,
-        meta={"stage": "gmm1", "core": 3}, dep_latency_us=0.25,
+        meta={"stage": "gmm1", "core": 3},
         dep_latency_overrides=(("dep", 0.5),),
         acquires=(("R0.Q:aic:c3", 1), ("R0.UB:gmm1act:c3", 1)),
         releases=(("R0.Q:aic:c3", 1),),

@@ -78,7 +78,7 @@ ok, t_cap = capacity_feasible(ev, t)
 end_by_name[d] + edge_latency(ev, d) > t
 ```
 
-前置事件**已经结束**, 但这条边上的同步延迟 (flag 握手 RTT, `dep_latency_us` /
+前置事件**已经结束**, 但这条边上的同步延迟 (flag 握手 RTT,
 `dep_latency_overrides`) 还没走完。缺省 0, 开启时是物理量 (实测 `WAIT_GMM1_BUFFER` 中位数)。
 
 ### ⑦ 非核的共享资源被占
