@@ -331,3 +331,53 @@ def idle_decomposition(scheduled: Sequence, resource_prefix: str = "AIC:",
             busy_us=busy_us, forced_idle_us=forced, avoidable_idle_us=avoidable,
             segments=tuple(segs))
     return out
+
+class WorkConservationViolation(RuntimeError):
+    """调度器在"有就绪的活"时让一个**池化**的核空着 —— 不变量没守住.
+
+    与下界 (BoundViolation) 对举: 下界问"物理上可能吗", 这一条问"这个调度自己有没有
+    浪费"。两者都在模型层抛, 不在入口层 —— 护栏不能被绕过。
+
+    只看派发时刻绑定 (ModelOptions.late_bind_pools) 的那些角色池。静态钉核的池不在
+    其列: 工作钉死在某个核上, 那个核忙而别处空着时搬不过去, 那是**那种分核方式的
+    代价** (量出来就是结论), 不是调度器没做到位。
+    """
+
+    def __init__(self, detail: Mapping[str, float], segments=()):
+        self.detail = dict(detail)
+        self.segments = tuple(segments)
+        worst = ", ".join(f"{k} {v:.1f} 核·us" for k, v in sorted(self.detail.items()))
+        sample = "; ".join(
+            f"[{sg.t_begin:.2f},{sg.t_end:.2f}) 空闲 {len(sg.idle_resources)} 个核, "
+            f"已就绪: {', '.join(sg.waiting_ready[:2])}"
+            for sg in self.segments[:3])
+        super().__init__(
+            f"work-conservation 不变量被打破: {worst}"
+            + (f"\n  前几段: {sample}" if sample else ""))
+
+
+def work_conservation_violations(reports: Mapping[str, object],
+                                 late_bind_pools: Sequence[str],
+                                 *, tol: float = 1e-6) -> Dict[str, float]:
+    """哪些**池化**角色违了不变量: {角色名: 可避免空闲 核·us}.
+
+    reports: rank_result["idle_decomposition"], 键形如 "R0.AIC" / "AIC"。
+    late_bind_pools: 这次运行哪些角色池是派发时刻绑定的。空 = 全静态钉核 = 不检查。
+
+    共位是硬件强制的那一对 (GMM1 -> ACT 必须同核, L0C->UB 的 Fixpipe 只在绑定对内)
+    不随 AIC 入池而自由: 所以 "AIC" 入池隐含 AIV0 随动, AIV0 自身也按池化看待。
+    """
+    pools = set(late_bind_pools or ())
+    if not pools:
+        return {}
+    if "AIC" in pools:
+        pools.add("AIV0")                  # 共位随动: ACT 跟着它的 GMM1 漂
+    out: Dict[str, float] = {}
+    for key, rep in (reports or {}).items():
+        role = str(key).rsplit(".", 1)[-1]
+        if role not in pools:
+            continue
+        got = float(getattr(rep, "avoidable_idle_us", 0.0) or 0.0)
+        if got > tol:
+            out[role] = got
+    return out

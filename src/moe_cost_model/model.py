@@ -18,6 +18,8 @@ from .builders.barriers import apply_barriers
 from .builders.pipeline_expand import CH_HBM_WRITE, apply_pipeline
 from .costs import PrimitiveCosts
 from .analysis.bounds import attach_bounds
+from .analysis.idle import (WorkConservationViolation,
+                            work_conservation_violations)
 from .implementations import CompileConfig, RuntimeConfig, WavePlan
 from .implementations.megamoe import (_BuilderShim, adapter_for,
                                       resolve as resolve_adapter)
@@ -284,7 +286,8 @@ def completion_event(scheduled: Sequence[ScheduledEvent]) -> Optional[ScheduledE
 
 
 class A8W8WaveCostModel:
-    def __init__(self, costs: PrimitiveCosts, options: ModelOptions = ModelOptions()):
+    def __init__(self, costs: PrimitiveCosts, options: ModelOptions = ModelOptions(),
+                 *, check_work_conservation: bool = True):
         # COMBINE 的量化 (CombineQuantMode) 由 KernelConfig.combine_quant_mode 表达, 已建模
         # (写侧每元素字节随之变)。这里原有一道 ModelOptions.combine_no_quant 的门, 拒绝
         # "量化 combine" —— 与 combine_quant_mode=1 能跑互相矛盾, 同一个事实两个说法。
@@ -295,6 +298,13 @@ class A8W8WaveCostModel:
         self.costs = _reconcile_act_to_gmm2(
             costs, options.link("activation", "gmm2").location)
         self.options = options
+        # work-conservation 护栏: 派发时刻绑定的角色池里不许出现"有就绪的活却有核空着"。
+        # 缺省开, 且挂在**模型层**而不是 api 层 —— 与下界同一个理由: 护栏不能被绕过
+        # (tests/golden_cases.run_shapes 这类入口直达 simulate_multi)。
+        # 静态钉核的池不在检查范围内: 工作钉死在某个核上, 那个核忙而别处空着时搬不
+        # 过去, 那是那种分核方式的代价 (量出来就是结论), 不是调度器没做到位。
+        # 给 False 只在排查时用: 它让一个**自己承认有核白闲着**的时长照样返回。
+        self.check_work_conservation = bool(check_work_conservation)
         self._order = 0
         self._rank = 0
         self.cursor_traces: Dict[int, List[CursorTrace]] = {}
@@ -498,6 +508,17 @@ class A8W8WaveCostModel:
             # tests/golden_cases.run_shapes 直达本函数并手工拼结果, 于是四个 golden
             # case 完全没跑下界断言。platform 只有 api 层知道, 所以这里按 platform=None
             # 挂 (带宽下界只用每核带宽 x 核数), api 收到 platform 时会重算一遍。
+            if self.check_work_conservation:
+                bad = work_conservation_violations(
+                    results[rank].get("idle_decomposition") or {},
+                    self.options.late_bind_pools)
+                if bad:
+                    segs = tuple(
+                        sg for key, rep in (results[rank]["idle_decomposition"]).items()
+                        if str(key).rsplit(".", 1)[-1] in bad
+                        for sg in getattr(rep, "segments", ()))
+                    raise WorkConservationViolation(
+                        {f"rank{rank}.{k}": v for k, v in bad.items()}, segs)
             results[rank]["bounds"] = attach_bounds(
                 shape, results[rank], costs=self.costs,
                 kernel=shape.kernel, active_cores=shape.aic_num)

@@ -92,3 +92,47 @@ def test_forced_idle_is_not_counted_as_violation():
     rep = idle_decomposition(sched, "AIC:")[""]
     assert rep.avoidable_idle_us == 0.0, "b 在 a 完成前并未就绪, 不该算违规"
     assert rep.work_conserving
+
+
+# ---- work-conservation 护栏 ----
+
+def _guard_costs():
+    return m.build_analytical_costs(
+        h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency())
+
+
+def test_the_guard_only_covers_pooled_roles():
+    """静态钉核的池不在检查范围: 工作钉死在某个核上, 那个核忙而别处空着时搬不过去,
+    那是**那种分核方式的代价** (量出来就是结论), 不是调度器没做到位。
+    派发时刻绑定的池里出现 avoidable 才是不变量没守住。
+    """
+    rep = type("R", (), {"avoidable_idle_us": 5.0, "segments": ()})()
+    reports = {"R0.AIC": rep, "R0.AIV1": rep}
+    assert m.work_conservation_violations(reports, ()) == {}
+    assert m.work_conservation_violations(reports, ("AIC",)) == {"AIC": 5.0}
+    assert set(m.work_conservation_violations(reports, ("AIC", "AIV1"))) == {"AIC", "AIV1"}
+    # AIC 入池隐含 AIV0 随动 (ACT 与 GMM1 的共位是硬件强制的, 它跟着 GMM1 漂)
+    assert m.work_conservation_violations({"R0.AIV0": rep}, ("AIC",)) == {"AIV0": 5.0}
+    assert m.work_conservation_violations({"R0.AIV0": rep}, ("AIV1",)) == {}
+
+
+def test_the_guard_is_in_the_model_layer_and_on_by_default():
+    """护栏不能被绕过: 它和下界一样挂在 simulate_multi, 不在 api 层.
+
+    缺省绑定 ("AIC","AIV1") 下模型自己必须守住不变量 —— 这里跑一个真形状确认
+    既不抛异常也确实是 0, 否则这条护栏就只是个没触发过的开关。
+    """
+    import dataclasses
+
+    from moe_cost_model.model import A8W8WaveCostModel
+
+    assert A8W8WaveCostModel(_guard_costs()).check_work_conservation is True
+    opts = dataclasses.replace(m.ModelOptions(), late_bind_pools=("AIC", "AIV1"))
+    res = m.simulate_routing_counts(
+        routing_counts=[[[64] * 2 for _ in range(4)] for _ in range(2)],
+        token_num_per_rank=64, h=5120, hidden_dim=9216, aic_num=28, topk=8,
+        p1_override=1, p2_override=1, options=opts, costs=_guard_costs())
+    for rr in res["rank_results"].values():
+        for key, rep in (rr["idle_decomposition"] or {}).items():
+            if key.rsplit(".", 1)[-1] in ("AIC", "AIV0", "AIV1"):
+                assert rep.avoidable_idle_us <= 1e-6, (key, rep.avoidable_idle_us)

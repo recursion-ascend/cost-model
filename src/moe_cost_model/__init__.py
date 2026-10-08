@@ -39,7 +39,8 @@ from .analysis.bounds import (BoundViolation, Bounds, WorkloadFacts,
                               bandwidth_bound_us, check_wall_clock,
                               compute_bound_us, dependency_bound_us,
                               workload_facts)
-from .analysis.idle import idle_decomposition
+from .analysis.idle import (WorkConservationViolation, idle_decomposition,
+                            work_conservation_violations)
 from .analysis.sensitivity import (RANGED, UNCERTAIN_INPUTS, UNKNOWNS, Interval,
                                    Ranged, Unknown, propagate)
 from .config.links import DEFAULT_LINKS, EDGE_AXES, SharedAxis, StageLink
