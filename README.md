@@ -972,7 +972,7 @@ Cube 效率、`BW_L1_GM` 按并发分档、COMBINE 的落点跨度、`BW_REMOTE_
 ```bash
 cd moe-cost-model
 pip install -e .          # 或直接 pytest (pyproject 已配 pythonpath)
-pytest tests/             # 495 项测试 (5 项需 tiling 真值, 见下), 约 23 分钟
+pytest tests/             # 547 项测试 (5 项需 tiling 真值, 见下), 约 25 分钟
 python examples/run_scenario.py    # 场景文件 + 改旋钮对比
 python examples/run_basic.py       # 底层入口
 ```
@@ -1416,7 +1416,7 @@ moe-cost-model/
 │       ├── bounds.py            #   三个物理下界 (模型怎么证伪自己)
 │       ├── design_space.py      #   一次扫一组编排选择
 │       └── sensitivity.py       #   标定值不确定度 -> 结论区间
-├── tests/                       # 41 个文件 / 495 项 (引擎 / 建图 / 实现层 / IR / 校验 / golden / 场景)
+├── tests/                       # 42 个文件 / 547 项 (引擎 / 建图 / 实现层 / IR / 校验 / golden / 场景)
 ├── examples/                    # 场景文件 + 六个实测 run 的复现脚本 + 设计空间扫描
 └── tools/                       # 16 个脚本: 清单对账 / 标定域 / 旋钮审计 / trace 比对 / golden / 报告
 ```

@@ -176,25 +176,62 @@ def test_queue_token_follows_the_role_not_a_hardcoded_engine():
     assert set(QUEUE_TOKENS.values()) == {"Q:aic", "Q:vec0", "Q:aiv1"}
 
 
-def test_moving_combine_moves_its_queue_token_in_the_real_graph():
-    """真实建图里也要一致: 把 combine 挪到 AIV0, 它扣的队列也必须是 AIV0 的那条.
+def _engine_queues(ev):
+    from moe_cost_model.ir import TokenKind, classify_token
+    got = [classify_token(t) for t, _ in ev.acquires]
+    return [q for q in got if q and q.kind is TokenKind.ENGINE_QUEUE]
 
-    必须用**静态发牌** (late_bind_pools=()): 缺省的晚绑定会把这类"自取自还"的按核令牌
-    整个去掉 (model.py: 事件同时独占该核, 同核在途数恒 <= 1, 令牌是空约束), 所以晚绑定下
-    根本看不到它 —— 当年那个不一致也就只在静态发牌时能观察到。
+
+def test_moving_combine_moves_its_queue_token_in_the_built_graph():
+    """建图器挂的队列令牌必须与它占的核是同一个引擎.
+
+    这条守的是 config/roles.queue_token 的那个旧 bug: 事件占着 AIV1 的核却去扣 AIV0
+    的队列。观察点是**排程前的图** —— 排程时 scheduler/normalize 会把持核事件上这种
+    自取自还的令牌删掉 (它是空约束, 见那个模块的判据), 所以 rank_results 里看不到它。
+    删得对不对是另一回事 (test_capacity_tokens 管), 删掉不等于建图器可以挂错。
     """
-    from moe_cost_model.ir import TokenKind, classify_resource, classify_token
+    from moe_cost_model.ir import classify_resource
+    from moe_cost_model.model import A8W8WaveCostModel
+    from moe_cost_model.shape import MegaMoeShape
 
-    res = _run(m.ModelOptions(roles=R({"combine": "AIV0"}), late_bind_pools=()),
-               LOCAL=3, PER=64, aic=4)
-    combines = [e for e in res["events"] if e.meta.get("stage") == "combine"]
+    opts = m.ModelOptions(roles=R({"combine": "AIV0"}))
+    # 本卡 (rank 0) 的收件矩阵: 3 个专家, 每个从 4 个非本卡源各收 64 行。
+    # 每源发出 4 x 3 x 64 = 768 行 = 128 token x top-6, 守恒。
+    rows = tuple(tuple(0 if s == 0 else 64 for s in range(5)) for _ in range(3))
+    shape = MegaMoeShape(
+        expert_tokens=tuple(sum(r) for r in rows), token_num=128, h=5120,
+        hidden_dim=9216, aic_num=4, expert_source_tokens=rows,
+        p1_override=1, p2_override=1, topk=6, kernel=m.KernelConfig())
+    events, _ = A8W8WaveCostModel(
+        m.build_analytical_costs(
+            h=5120, dispatch_mechanistic=m.DispatchMechanisticLatency()),
+        opts).build_events(shape)
+    combines = [e for e in events if (e.meta or {}).get("stage") == "combine"]
     assert combines
     for ev in combines:
         engines = {classify_resource(r).engine.value for r in ev.resources
                    if classify_resource(r)}
         assert engines == {"AIV0"}, engines
-        queues = [classify_token(t) for t, _ in ev.acquires]
-        queues = [q for q in queues if q and q.kind is TokenKind.ENGINE_QUEUE]
+        queues = _engine_queues(ev)
         assert queues, "combine 应当持有一个引擎队列令牌"
         for q in queues:
             assert q.raw.split(".", 1)[-1].startswith("Q:vec0:"), q.raw
+
+
+def test_moving_combine_moves_its_queue_token_where_it_reaches_the_schedule():
+    """同一条一致性在**令牌真到得了排程**的那条路径上端到端再查一遍.
+
+    给了 COMBINE 的 GM 读带宽, pipeline_expand._expand_aiv 会拆出一个读相位, 令牌于是
+    变成跨事件持有 (.ld 取、主事件还) —— 那时它是真约束, 不会被规范化删掉。
+    combine 挪到 AIV0 之后, 这个活着的令牌也必须是 AIV0 那条。
+    """
+    res = _run(m.ModelOptions(
+        roles=R({"combine": "AIV0"}),
+        pipeline=m.PipelineConstraints(
+            phases=m.PhaseRates(combine_load_bw_bytes_per_us=5e4))),
+        LOCAL=3, PER=64, aic=4)
+    queues = {q.raw.split(".", 1)[-1].split(":c")[0]
+              for e in res["events"] if (e.meta or {}).get("stage") == "combine"
+              for q in _engine_queues(e)}
+    assert queues, "拆了读相位之后引擎队列令牌应当活到排程里"
+    assert queues == {"Q:vec0"}, queues
