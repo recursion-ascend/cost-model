@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="396pt" height="266pt" viewBox="0 0 396 266"
+     font-family="Times New Roman, Times, serif" fill="#000">
+  <defs>
+    <marker id="a" viewBox="0 0 8 6" refX="7.4" refY="3" markerWidth="6" markerHeight="4.5" orient="auto">
+      <path d="M0 0 L8 3 L0 6 z" fill="#000"/>
+    </marker>
+    <marker id="ao" viewBox="0 0 8 6" refX="7.4" refY="3" markerWidth="5.5" markerHeight="4" orient="auto">
+      <path d="M0 0 L8 3 L0 6 z" fill="#555"/>
+    </marker>
+  </defs>
+
+  <!-- ================= panel (a) ================= -->
+  <text x="2" y="12" font-size="8" font-style="italic">(a)</text>
+
+  <!-- declaration layer -->
+  <rect x="109" y="20" width="278" height="21" fill="#f2f2f2" stroke="#555"
+        stroke-width="0.5" stroke-dasharray="2.5 1.5"/>
+  <text x="248" y="29.5" font-size="6.6" text-anchor="middle">declarations (operator-independent core reads them, never hard-codes them)</text>
+  <text x="248" y="37.5" font-size="6.6" text-anchor="middle">stage vocabulary · hardware constants · orchestration knobs · provenance + calibration domain</text>
+  <g stroke="#555" stroke-width="0.5" marker-end="url(#ao)">
+    <line x1="148" y1="41" x2="148" y2="55"/>
+    <line x1="248" y1="41" x2="248" y2="55"/>
+  </g>
+
+  <!-- pipeline boxes -->
+  <g stroke="#000" stroke-width="0.7" fill="#fff">
+    <rect x="9" y="56" width="78" height="32"/>
+    <rect x="109" y="56" width="78" height="32"/>
+    <rect x="209" y="56" width="78" height="32"/>
+    <rect x="309" y="56" width="78" height="32"/>
+  </g>
+  <g font-size="7.4" text-anchor="middle">
+    <text x="48" y="68">workload</text>
+    <text x="148" y="68">lowering</text>
+    <text x="248" y="68">list scheduler</text>
+    <text x="348" y="68">schedule</text>
+  </g>
+  <g font-size="6.2" text-anchor="middle" fill="#333">
+    <text x="48" y="77">routing counts</text>
+    <text x="48" y="84.5">shape, compile point</text>
+    <text x="148" y="77">per-implementation</text>
+    <text x="148" y="84.5">adapter + builders</text>
+    <text x="248" y="77">multi-resource,</text>
+    <text x="248" y="84.5">operator-agnostic</text>
+    <text x="348" y="77">times, core binding,</text>
+    <text x="348" y="84.5">utilisation, traffic</text>
+  </g>
+
+  <!-- pipeline arrows -->
+  <g stroke="#000" stroke-width="0.7" marker-end="url(#a)">
+    <line x1="87" y1="72" x2="107" y2="72"/>
+    <line x1="187" y1="72" x2="207" y2="72"/>
+    <line x1="287" y1="72" x2="307" y2="72"/>
+  </g>
+  <g font-size="6" text-anchor="middle" font-style="italic">
+    <text x="97" y="68.5">plan</text>
+    <text x="148" y="99">event DAG: 428 nodes, 1806 edges</text>
+    <text x="197" y="68.5">rewrite</text>
+    <text x="297" y="68.5">commit</text>
+  </g>
+
+  <!-- guardrails -->
+  <rect x="179" y="116" width="208" height="30" fill="#f2f2f2" stroke="#000" stroke-width="0.7"/>
+  <text x="186" y="126" font-size="6.8">lower bounds: compute, bandwidth, dependency chain</text>
+  <text x="186" y="135" font-size="6.8">work conservation: avoidable idle = 0 on pooled roles</text>
+  <text x="186" y="143.5" font-size="6.4" font-style="italic" fill="#333">shape-determined, orchestration-invariant &#8658; violation raises</text>
+  <g stroke="#000" stroke-width="0.7" marker-end="url(#a)">
+    <line x1="348" y1="116" x2="348" y2="90"/>
+  </g>
+
+  <!-- sweep loop -->
+  <path d="M348 146 L348 158 L48 158 L48 90" fill="none" stroke="#555" stroke-width="0.6"
+        stroke-dasharray="2.5 1.5" marker-end="url(#ao)"/>
+  <text x="198" y="164.5" font-size="6.4" text-anchor="middle" font-style="italic" fill="#333">
+    sweep one orchestration or tiling knob; the difference is that choice's cost
+  </text>
+
+  <!-- ================= panel (b) ================= -->
+  <text x="2" y="186" font-size="8" font-style="italic">(b)</text>
+  <line x1="9" y1="172" x2="387" y2="172" stroke="#999" stroke-width="0.4"/>
+
+  <g font-size="7">
+    <text x="22" y="186">An event <tspan font-style="italic">e</tspan> carries exactly five fields; nothing else is expressible.</text>
+  </g>
+  <g font-size="6.6">
+    <text x="22" y="197"><tspan font-style="italic">R</tspan>(<tspan font-style="italic">e</tspan>)</text>
+    <text x="52" y="197">exclusively held resources; a pool placeholder is bound at commit time</text>
+    <text x="22" y="206.5"><tspan font-style="italic">P</tspan>(<tspan font-style="italic">e</tspan>)</text>
+    <text x="52" y="206.5">predecessors, each edge with a synchronisation latency <tspan font-style="italic">&#955;</tspan></text>
+    <text x="22" y="216"><tspan font-style="italic">A</tspan>(<tspan font-style="italic">e</tspan>), <tspan font-style="italic">L</tspan>(<tspan font-style="italic">e</tspan>)</text>
+    <text x="52" y="216">counting semaphores acquired / released &#8212; held <tspan font-style="italic">across</tspan> events (on-chip slots)</text>
+    <text x="22" y="225.5"><tspan font-style="italic">c</tspan>(<tspan font-style="italic">e</tspan>)</text>
+    <text x="52" y="225.5">colocation anchor: must land on the same core as a named event</text>
+    <text x="22" y="235"><tspan font-style="italic">d</tspan>(<tspan font-style="italic">e</tspan>)</text>
+    <text x="52" y="235">duration from a closed-form mechanistic cost, <tspan font-style="italic">independent of concurrency</tspan></text>
+  </g>
+
+  <line x1="22" y1="241" x2="387" y2="241" stroke="#999" stroke-width="0.4"/>
+  <g font-size="7">
+    <text x="22" y="252.5"><tspan font-style="italic">t</tspan><tspan font-size="5" dy="1.6">base</tspan><tspan dy="-1.6">(</tspan><tspan font-style="italic">e</tspan>) = max { max<tspan font-size="5" dy="1.6">p&#8712;P(e)</tspan><tspan dy="-1.6"> [ end(</tspan><tspan font-style="italic">p</tspan>) + <tspan font-style="italic">&#955;</tspan>(<tspan font-style="italic">e</tspan>,<tspan font-style="italic">p</tspan>) ] ,  max<tspan font-size="5" dy="1.6">r&#8712;R(e)</tspan><tspan dy="-1.6"> free(</tspan><tspan font-style="italic">r</tspan>) }</text>
+    <text x="22" y="262.5" font-size="6.6">start(<tspan font-style="italic">e</tspan>) = least <tspan font-style="italic">t</tspan> &#8805; <tspan font-style="italic">t</tspan><tspan font-size="5" dy="1.6">base</tspan><tspan dy="-1.6">(</tspan><tspan font-style="italic">e</tspan>) admissible by <tspan font-style="italic">A</tspan>(<tspan font-style="italic">e</tspan>); concrete resources take the max, pool placeholders the min</text>
+  </g>
+</svg>
