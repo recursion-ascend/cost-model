@@ -12,12 +12,14 @@
 \newcommand{\BW}{\mathrm{BW}}
 \newcommand{\MAC}{\mathrm{MAC}}
 \newcommand{\LB}{\mathrm{LB}}
+\newcommand{\dom}{\mathrm{dom}}
 \newcommand{\TILEM}{\mathrm{TILE\_M}}
 \newcommand{\TILEN}{\mathrm{TILE\_N}}
 \newcommand{\ACTHALF}{\mathrm{ACT\_HALF}}
 \newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\unit}{\mathcal{U}}
 
-\title{MoE 算子 cost model: 理论建模}
+\title{MoE 融合算子 cost model: 事件域的构建、求时与计算}
 \author{}
 \date{}
 
@@ -30,28 +32,34 @@
 \textbf{输入}分四组事实: \emph{形状}给出模型维度与负载, 后者是一个路由计数张量
 $C[\text{dst}][\text{expert}][\text{src}]$ 而不只是 token 总数; \emph{硬件}给出核数与各级
 带宽、容量的规格与标定值; \emph{编译点}给出 tile 几何、L1 组织、量化格式与通信模式这些
-决定二进制的轴; \emph{编排}给出波如何推进、每个 stage 落在哪个执行角色、tile 以多大粒度
-成为一次工作、中间结果落片上还是落显存、tile 到核的绑定在编译期定死还是推迟到派发时刻。
+决定二进制的轴; \emph{编排}给出波如何推进、每个 stage 落在哪个执行角色、工作以多大粒度
+成为一个事件、中间结果落片上还是落显存、工作到核的绑定在构图期定死还是推迟到派发时刻。
 
 \textbf{原理}是不拟合端到端公式, 而是构造并求解一个资源受限调度实例, 并把\emph{成本}与
-\emph{约束}分开表达: 成本在降解期逐 tile 产生 —— 一份工作的时长取其计算量与搬运量的较大
-者, 是局部的 roofline 而非对整个算子套一次; 约束写进事件的五个字段 —— 独占资源、带延迟的
-前驱、跨事件持有的计数额度、共位锚点与时长; 时间则完全在调度期产生, 由表调度在这些约束下
-摆放事件得到。因此``算力绑定还是带宽绑定''是涌现的结论而非假设的前提。算子在给定形状、
-硬件、编译点与编排下被降解成一张带标注的事件图, 执行时间是该图在一套调度规则下的
-makespan。编排因此是模型的\textbf{输入}而非求解目标 —— 给定一种编排, \textbf{输出}是该
-编排下的执行时间与一份可追问的分解: 逐 stage 的忙碌、跨度与三类等待 (依赖、资源、额度),
-关键路径及其上每一跳的阻塞成因, 三条只由形状决定的物理下界与当前被哪一条绑定, 以及每个
-角色池上的空闲按``无活可做''与``有活可做却空着''的切分。模型的主产品是同一份声明下改动
-单个编排或 tiling 旋钮后的时间\emph{差值}: 两次运行共享全部未标定常数, 系统误差同向抵消,
-并各自通过同一组护栏, 故差值可比而非模拟器的假象。
+\emph{约束}分开表达。构图的原子是\textbf{最小单元} —— 由实现声明的``一份自然工作'';
+一个事件覆盖若干相邻的最小单元, 这组单元称为该事件的\textbf{事件域}。事件域既决定成本
+(时长按域内单元逐个求和), 也决定约束 (两个事件域在共享轴上区间相交即连一条依赖边)。
+时间完全在调度期产生: 表调度在独占资源、带延迟的前驱、跨事件持有的计数额度与共位锚点
+这四类约束下摆放事件, makespan 即输出。因此``算力绑定还是带宽绑定''是涌现的结论而非
+假设的前提, 编排是模型的\textbf{输入}而非求解目标。
 
+\textbf{输出}是该编排下的执行时间与一份可追问的分解: 逐 stage 的忙碌、跨度与三类等待
+(依赖、资源、额度), 关键路径及其上每一跳的阻塞成因, 三条只由形状决定的物理下界与当前被
+哪一条绑定, 以及每个角色池上的空闲按``无活可做''与``有活可做却空着''的切分。模型的主
+产品是同一份声明下改动单个编排或 tiling 旋钮后的时间\emph{差值}: 两次运行共享全部未标定
+常数, 系统误差同向抵消, 并各自通过同一组护栏, 故差值可比而非模拟器的假象。
+
+全文按三段组织: 如何构建事件域 (第 \ref{sec:build} 节), 如何由事件域求时间
+(第 \ref{sec:time} 节), 以及各类事件域的时长如何计算 (第 \ref{sec:formula} 节)。
 \end{abstract}
 
 \tableofcontents
 
 %======================================================================
-\section{建模输入}
+\section{事件域的构建}
+\label{sec:build}
+
+\subsection{输入}
 \label{sec:input}
 
 一次运行是一个实例
@@ -60,315 +68,327 @@ I = I(\underbrace{\text{形状}}_{\text{算什么}},\ \underbrace{\text{硬件}}
       \underbrace{\text{编译点}}_{\text{什么二进制}},\ \underbrace{\text{编排}}_{\text{怎么组织}}),
 \label{eq:instance}
 \end{equation}
-四样缺一样, ``跑多久''就没有唯一答案。四组输入的内容如下。
+四样缺一样, ``跑多久''就没有唯一答案。
 
 \begin{center}
-\begin{tabular}{@{}llp{7.1cm}@{}}
+\begin{tabular}{@{}llp{7.0cm}@{}}
 \toprule
 组 & 性质 & 内容 \\
 \midrule
 形状 & 任务事实
  & 模型维度 ($h$, 中间维 $I$); 负载为路由计数张量
    $C[\text{dst}][\text{expert}][\text{src}]$, 不只是 token 总数 ——
-   专家间的不均衡由它直接表达。守恒性 (每源卡发出
-   $\text{tokens}\times\text{topk}$ 行) 是硬约束 \\
+   专家间的不均衡由它直接表达 \\
 硬件 & 规格与标定
- & 核数 $P$; 各级带宽 (显存$\to$L1、片上向量、跨卡读、跨卡写) 与容量
-   (L1 / UB / L0C); Cube 速率。每个常数带出处标签, 分为规格、实测、
-   实现取值与假设四类 \\
+ & 核数 $P$; 各级带宽 (显存$\to$L1、片上向量、跨卡读、跨卡写) 与容量;
+   Cube 速率。每个常数带出处标签, 分为规格、实测、实现取值与假设四类 \\
 编译点 & 二进制事实
- & tile 几何 ($\TILEM$, $\TILEN$, L1 的 $K$ 分块)、L1 缓冲块数、权重布局与
-   是否交织、量化模式与数据类型、通信模式。十余个轴取其规范哈希为
-   \emph{编译指纹} —— 内核自身的 tiling key 只编码其中一部分, 故同一个 key
-   可对应多个二进制 \\
+ & tile 几何 ($\TILEM$, $\TILEN$, L1 的 $K$ 分块)、L1 缓冲块数、权重布局、
+   量化模式与数据类型、通信模式。十余个轴取规范哈希为\emph{编译指纹} ——
+   内核自身的 tiling key 只编码其中一部分, 故同一个 key 可对应多个二进制 \\
 编排 & \textbf{可扫的选择}
- & 波如何推进 (波宽与波序列); 每个 stage 落哪个执行角色; tile 以多大粒度
-   成为一次工作; stage 之间那条边的就绪粒度与中间结果落点 (片上/显存);
-   tile 到核的绑定在降解期定死还是推迟到派发时刻; 就绪队列的排序规则 \\
+ & 波如何推进; 每个 stage 落哪个执行角色; 事件域取多大 (粒度);
+   stage 边的就绪粒度与中间结果落点; 工作到核的绑定在构图期定死还是推迟到
+   派发时刻; 就绪队列的排序规则 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \paragraph{编排是输入, 不是求解目标.} 这是全文的立足点。许多 cost model 把``最优编排''
 当作待求解的对象; 本模型不求解它 —— 给定一种编排, 模型给出它的代价, 比较两种编排就跑
-两次。直接后果是模型的主产品为\emph{差值} $\Delta\widehat{T}$ 而非单次的绝对时间
-(第 \ref{sec:use} 节)。
+两次。直接后果是主产品为\emph{差值}而非单次的绝对时间 (第 \ref{sec:use} 节)。
 
-\paragraph{输入里刻意不含什么.}
-形状与拓扑\textbf{不进编译指纹}: 它们每次运行都变, 混入后指纹就失去``同一个二进制''
-的含义, 二者分属形状域与运行拓扑。输入里也没有任何拟合系数: 每个常数都是机制量
-(带宽、速率、容量、容量深度), 且一个参数必须具有可建模的物理后果才被接受 ——
-否则对它的扫描只会得到``改它没用''的假结论。
+\paragraph{输入里刻意不含什么.} 形状与拓扑\textbf{不进编译指纹}: 它们每次运行都变, 混入后
+指纹就失去``同一个二进制''的含义。输入里也没有任何拟合系数: 每个常数都是机制量 (带宽、
+速率、容量、容量深度), 且一个参数必须具有可建模的物理后果才被接受 —— 否则对它的扫描只会
+得到``改它没用''的假结论。
 
-\paragraph{输入进入模型的位置.} 实现上分六层: 输入事实 $\to$ 适配器 (编排) $\to$ 建图器
-(逐 tile 展开) $\to$ 事件图 $\to$ 调度器 $\to$ 分析。形状与编译点在第一、三层被消耗,
-编排在第二层被声明并在第三、五层生效, 硬件常数在第三层 (成本) 与第六层 (下界) 各用一次。
-\textbf{成本在建图期产生, 时间在调度期产生}, 这是与解析型 cost model 的根本区别; 混淆
-两者是这类模型最常见的错误 —— 例如把贪心调度的结果当成硬件行为。
+%----------------------------------------------------------------------
+\subsection{最小单元: 构图的原子}
+\label{sec:unit}
 
-%======================================================================
-\section{形状算术: workload $\to$ tile $\to$ wave}
-\label{sec:shape}
+每个 stage $s$ 有一个\textbf{最小单元}的概念, 由实现声明而非框架写死:
+\begin{equation}
+\unit(s) = \{\,u : u \text{ 是 } s \text{ 的一份自然工作}\,\}.
+\label{eq:units}
+\end{equation}
+搬运类 stage 的最小单元是\emph{一行} (一个 token 到一个目的专家), 矩阵乘与其后继的最小
+单元是\emph{一个 tile}。最小单元是构图的原子: 比它更细要换一层 —— 切更小的 tile 属于
+编译点 (tile 几何), 把一份工作拆成取数/计算/写出三相属于另一种编排 (相位展开)。
 
-\subsection{路由}
-本卡 $r$ 上专家 $e$ 收到的行数由路由计数张量直接给出:
+\paragraph{单元的枚举.} 本卡 $r$ 上专家 $e$ 收到的行数由路由计数张量给出
 \begin{equation}
 \text{rows}_{r,e} = \sum_{\text{src}=0}^{W-1} C[r][e][\text{src}] ,
 \label{eq:rows}
 \end{equation}
-其中 $W$ 为卡数。守恒性
+$W$ 为卡数。守恒性
 \begin{equation}
 \sum_{r}\sum_{e} C[r][e][\text{src}] = \text{tokens}\cdot\text{topk}
 \quad \forall\, \text{src}
 \label{eq:conserve}
 \end{equation}
-是硬约束, 违反即报错。均匀路由是 $C$ 各元素相等的特例, 此时
-$\text{rows}_{r,e} = \text{tokens}\cdot\text{topk}\cdot W / E_{\text{total}}$;
-\eqref{eq:rows} 不假设均匀, 专家间的不均衡与跨卡的不对称都由 $C$ 承载。
-
-\subsection{tile 网格}
-行方向按 $\TILEM$ 切成 m-group:
+是硬约束, 违反即报错。均匀路由是 $C$ 各元素相等的特例; \eqref{eq:rows} 不假设均匀,
+专家间的不均衡与跨卡的不对称都由 $C$ 承载。行数决定行方向的单元数
 \begin{equation}
-n_m = \left\lceil \text{rows}_{r,e} / \TILEM \right\rceil .
+n_m = \left\lceil \text{rows}_{r,e} / \TILEM \right\rceil ,
+\label{eq:nm}
 \end{equation}
-列方向 GMM1 与 GMM2 的 tile 数\textbf{不同}:
+列方向两个矩阵乘的单元数不同:
 \begin{align}
-n^{(1)}_{\text{tile}} &= \left\lceil \frac{\lceil \mathrm{hidden\_dim}/\ACTHALF \rceil}{\TILEN} \right\rceil
-   , \label{eq:n1}\\
-n^{(2)}_{\text{tile}} &= \left\lceil \frac{h}{\TILEN} \right\rceil
-   . \label{eq:n2}
+n^{(1)}_{\text{tile}} &= \left\lceil \frac{\lceil \mathrm{hidden\_dim}/\ACTHALF \rceil}{\TILEN} \right\rceil ,
+   \label{eq:n1}\\
+n^{(2)}_{\text{tile}} &= \left\lceil \frac{h}{\TILEN} \right\rceil .
+   \label{eq:n2}
 \end{align}
 \eqref{eq:n1} 的调度宽度取 $\mathrm{hidden\_dim}/\ACTHALF$ 而非 $\mathrm{hidden\_dim}$:
-非交织布局下一个 tile 要跑两遍权重块 (SwiGLU 的 gate 与 up)。GMM2 的收缩维
+非交织布局下一个单元要跑两遍权重块 (门控与上投影)。第二个矩阵乘的收缩维
 \begin{equation}
-K_2 = \mathrm{hidden\_dim}/\ACTHALF \quad (=\text{中间维} I).
+K_2 = \mathrm{hidden\_dim}/\ACTHALF \quad (=\text{中间维 } I).
+\label{eq:k2}
 \end{equation}
 
-\subsection{波宽}
-一波覆盖多少个 m-group:
+\paragraph{波.} 单元按\textbf{波}分批投放, 一波覆盖多少个行方向单元为
 \begin{equation}
 \mathrm{mgw} = \max\left(
   \left\lceil \frac{P\,p_1}{\lceil \mathrm{hidden\_dim}/\TILEN \rceil} \right\rceil,\
   \left\lceil \frac{P\,p_2}{\lceil h/\TILEN \rceil} \right\rceil \right),
 \label{eq:mgw}
 \end{equation}
-$P$ 为 Cube 核数, $p_1,p_2$ 是``每核至少领到几个逻辑 tile''的策略值。
-\eqref{eq:mgw} 的含义是\textbf{用波宽保证并行度}: 两个分式分别是 GMM1 与 GMM2 要让每核
-领到 $p_1$ / $p_2$ 个 tile 所需的 m-group 数, 取较大者即同时满足两者。波太窄则核领不满,
-波太宽则下游就绪太晚。
+$p_1,p_2$ 是``每核至少领到几个单元''的策略值。两个分式分别是两个矩阵乘要让每核领满所需
+的行方向单元数, 取较大者即同时满足两者: 波太窄则核领不满, 波太宽则下游就绪太晚。
 
-%======================================================================
-\section{单事件代价}
-\label{sec:cost}
+%----------------------------------------------------------------------
+\subsection{事件域}
+\label{sec:domain}
 
-统一形式是逐 tile 的 roofline:
+一个事件覆盖若干最小单元, 这组单元就是它的\textbf{事件域}
 \begin{equation}
-d(e) = \max\left(\frac{\MAC(e)}{R_{\text{cube}}},\ \frac{\mathrm{bytes}(e)}{\BW}\right).
-\label{eq:roofline}
+\dom(e) \subseteq \unit(s), \qquad
+\big|\dom(e)\big| \le \mathrm{items}(s),
+\label{eq:dom}
 \end{equation}
-取 $\max$ 而非求和, 是``搬运与计算完全重叠''的理想化, 方向偏乐观 —— 因此第
-\ref{sec:bounds} 节的下界检查才有意义 (偏小的模型撞下界说明输入错了)。注意
-\eqref{eq:roofline} 是\textbf{局部}的: 不对整个算子套一次 roofline, 全局的``算力绑定
-还是带宽绑定''是从调度中涌现的结果。
-
-\subsection{dispatch: 行级软流水}
+$\mathrm{items}(s)$ 是该 stage 声明的粒度。事件域不能任取: 域内单元必须\textbf{同属一个
+专家切片、落同一个核、在除打包轴外的各轴上区间相同、且沿打包轴首尾相接}。记单元 $u$ 在
+轴 $a$ 上的区间为 $\mathrm{ivl}_a(u) = [\ell, \hbar)$, 则合并条件为
 \begin{equation}
-T_{\text{seg}} = \max\!\big(\lambda,\ \min(\text{rows}, d_{\text{buf}})\, t_{\text{row}}\big)
-               + \max(0,\ \text{rows}-d_{\text{buf}})\, t_{\text{row}} ,
-\label{eq:dispatch}
+u, u' \text{ 可并} \iff
+\text{slice}(u)=\text{slice}(u') \ \wedge\
+\text{core}(u)=\text{core}(u') \ \wedge\
+\bigwedge_{a \ne a^*} \mathrm{ivl}_a(u)=\mathrm{ivl}_a(u') \ \wedge\
+\hbar_{a^*}(u) = \ell_{a^*}(u'),
+\label{eq:mergeable}
 \end{equation}
-$d_{\text{buf}}$ 为软流水槽数 (由编译点给出),
-$t_{\text{row}} = \text{每行字节}/\BW$, $\lambda$ 为一次往返延迟 (本卡/跨卡不同)。
-$\text{rows}\le d_{\text{buf}}$ 时段时长是一个\textbf{平台}, 不随行数增长: 前
-$d_{\text{buf}}$ 行的取数背靠背发出, 只有在途数达到槽数才等待腾槽。朴素式
-$\lambda + \text{rows}\cdot t_{\text{row}}$ 对实测高估 32\%。
-
-\subsection{GMM1}
-\begin{align}
-L_1 &= \underbrace{\frac{m K}{\BW}}_{\text{A 流 (激活)}}
-     + \underbrace{\frac{w_b\, K\, \text{cols}}{\BW_b}\, f}_{\text{B 流 (权重)}},
+$a^*$ 为打包轴 (缺省取该 stage 第一条出边的共享轴, 即下游真正在读的那条轴)。合并后事件域
+在打包轴上取并集, 其余轴照抄:
+\begin{equation}
+\mathrm{ivl}_{a^*}(e) = \Big[\min_{u\in\dom(e)} \ell_{a^*}(u),\ \max_{u\in\dom(e)} \hbar_{a^*}(u)\Big],
 \qquad
-C_1 = \frac{2\, m\, \text{cols}\, K}{R_{\text{cube}}}, \label{eq:gmm1-phase}\\
-T_{\text{gmm1}} &= \begin{cases}
-  \max(L_1, C_1), & b \ge 2 \quad (\text{双缓冲}),\\
-  L_1 + C_1 + n_{\text{chunk}}\, t_{\text{restart}}, & b = 1 .
-\end{cases}
-\label{eq:gmm1}
-\end{align}
-$w_b$ 为权重块数 ($=\ACTHALF$, 交织布局下为 1), $n_{\text{chunk}} =
-\lceil K/\mathrm{l1\_tile\_k}\rceil$, 系数 2 来自 SwiGLU 双投影。$f$ 为 B 流复用比例:
-一个专家切片内首个 m-group 的 tile 付整份 B 流, 其余各付 $f$; $f=1$ 表示不声称复用。
-当切片只有一个 m-group 时 $f$ 不起作用 —— 此时各 n-tile 载入权重的不同列段, 合起来恰好
-把该专家的权重流过一遍。
-
-\paragraph{两股流相加而非取 $\max$.} 这一点由对照实验判定, 源码读不出来。固定并发核数
-只变 $m$ 时, $\max$ 口径预测斜率为 0 (因 B 流恒大于 A 流), 而实测两对比较分别相差
-36\% 与 86\%; 另有一对固定 $m$ 只变每专家 m-group 数的比较, 说明 $\max$ 在大 batch 上
-的那点支持来自 B 流复用 (L2 命中), 不是重叠。
-
-\subsection{activation}
-\begin{equation}
-T_{\text{act}} = T_{\text{startup}} + \frac{m\,\text{cols}}{V}\cdot\frac{\beta_{\text{vec}}}{\BW_{\mathrm{UB}}},
-\qquad V = \text{每向量元素数},\quad \beta_{\text{vec}} = \text{每向量字节数} .
-\label{eq:act}
+\mathrm{ivl}_{a}(e) = \mathrm{ivl}_{a}(u_1)\ \ (a \ne a^*).
+\label{eq:fuse}
 \end{equation}
-$\beta_{\text{vec}}$ 不是拟合系数, 而是由源码逐句计数得到: 中间缓冲被整体流三遍
-(激活写一遍, 求最大指数读一遍, 量化再读一遍), 漏掉任一遍都会系统性低估。该值可被独立
-验证: 固定 tile 几何只变 $m$ 的两点扫描给出的斜率应等于
-$\beta_{\text{vec}}/\BW_{\mathrm{UB}}$, 实测偏差在千分之一量级。
 
-\subsection{GMM2}
-\begin{align}
-L_2 &= \underbrace{\frac{m K_2}{\BW}\,\mathbb{1}[\text{物化}]}_{\text{A 流}}
-     + \underbrace{\frac{K_2\,\text{cols}}{\BW_b}}_{\text{B 流}},
-\qquad C_2 = \frac{m\,\text{cols}\,K_2}{R_{\text{cube}}}, \label{eq:gmm2-phase}\\
-T_{\text{gmm2}} &= \begin{cases}\max(L_2,C_2), & b\ge 2,\\ L_2+C_2, & b=1.\end{cases}
-\label{eq:gmm2}
-\end{align}
-与 \eqref{eq:gmm1} 的三处差异各有不同性质:
+\paragraph{粒度是上界而非配额.} \eqref{eq:dom} 中是 $\le$ 而不是 $=$: 合并沿打包轴推进,
+遇到边界 (换行、列不连续、切片结束) 就截断, 故 $|\dom(e)|$ 可以小于 $\mathrm{items}(s)$,
+而且\textbf{必须}允许小于。强行凑数会把不相邻的单元并入同一事件, 合并后的区间
+\eqref{eq:fuse} 将覆盖未被计算的坐标, 下游按区间相交挑依赖 (\eqref{eq:depends}) 就会连错。
 
-\begin{center}
-\begin{tabular}{@{}lll@{}}
-\toprule
-差异 & 根源 & 性质 \\
-\midrule
-无系数 2 & 单投影 & 算法事实 \\
-无 $w_b$ & 同上 & 实现事实 \\
-A 流带指示函数 & \code{activation}$\to$\code{gmm2} 的中间结果落点 & \textbf{编排选择} \\
-\bottomrule
-\end{tabular}
-\end{center}
+\paragraph{粒度这笔交换.} 粗粒度买到更少的同步与派发次数, 以及更好的权重复用 (同一份权重
+服务更多单元); 付出的是更粗的并行度 —— \textbf{一个事件只能落一个核}, 故事件数少于核数时
+必有核空闲 —— 以及下游更晚就绪 (域内最后一个单元算完才整体就绪)。两侧都不是常数, 故粒度
+是编排参数而非实现细节。
 
-\noindent 中间结果落片上时 $\mathbb{1}[\text{物化}]=0$, 且 GMM2 必须与产它的 activation
-\textbf{同核} (结果经固定管道直给配对的向量核, 该通路只在绑定对内存在)。因此这一项
-同时改\textbf{公式}与\textbf{图结构}, 是``成本''与``约束''分开建模的典型例子。
+%----------------------------------------------------------------------
+\subsection{事件的五个字段}
+\label{sec:fields}
 
-\subsection{combine}
-\begin{equation}
-T_{\text{comb}} =
-  \underbrace{\frac{m\,(e_{\text{in}} n + \mu)}{\BW_{\text{local}}}}_{\text{读回}}
-+ \underbrace{\frac{(m-r)\, e_{\text{out}} n}{\BW_{\text{local}}}}_{\text{本卡写}}
-+ \underbrace{\frac{r\, e_{\text{out}} n}{\BW_{\text{remote}}}}_{\text{跨卡写}}
-+ \underbrace{m\,\alpha\left(\frac{s}{m}\right)^{\!\gamma}}_{\text{落点跨度}} ,
-\label{eq:combine}
-\end{equation}
-$r$ 为本窗中目的卡不等于本卡的行数 (由路由精确给出), $\mu$ 为每行路由元数据字节,
-$s$ 为落点跨度。$r$ 必须由路由给出而不能省略: 跨卡写的带宽远低于本卡写, 该项通常主导
-\eqref{eq:combine}, 以 $\BW_{\text{local}}$ 近似全部写出会低估一个数量级。$\alpha$ 缺省
-为 0, 即不声称存在跨度效应 —— 现有实测点呈超线性 (时长随 $m$ 的增长快于线性), 按字节与
-按每行固定开销都解释不了, 但点数不足以定 $\gamma$, 故留作带占位系数的待标定项。
-
-\subsection{尾段}
-六个事件串成一条链, 五项为常数, 一项按字节:
-\begin{equation}
-T_{\text{unpermute}} = \frac{\text{tokens}\,(\text{topk}\cdot h\cdot 2 + h\cdot 2)}{\BW_{\text{agg}}} .
-\label{eq:unpermute}
-\end{equation}
-这条链属于某一份具体实现, 不属于框架。
-
-%======================================================================
-\section{图的约束}
-\label{sec:graph}
-
-一个事件是五元组
+事件域确定之后, 一个事件是五元组
 \begin{equation}
 e = \big(R(e),\ (P(e),\lambda),\ (A(e),L(e)),\ c(e),\ d(e)\big),
 \label{eq:event}
 \end{equation}
-语义如下。五个字段就是这套 IR 的表达力上限。
+五个字段就是这套 IR 的表达力上限 —— 表达不了的编排必须改 IR, 不能靠在时长里加常数来凑。
 
 \begin{center}
-\begin{tabular}{@{}llp{6.2cm}@{}}
+\begin{tabular}{@{}llp{6.6cm}@{}}
 \toprule
 字段 & 符号 & 语义与时间跨度 \\
 \midrule
-独占资源 & $R(e)$ & 执行期独占; 可同时占多个; 写成池占位时在派发时刻才绑定 \\
-前驱与边延迟 & $P(e), \lambda$ & 偏序 \\
-计数额度 & $A(e), L(e)$ & \textbf{跨事件}持有: 在 $A$ 处取、在另一事件 $L$ 处还 \\
+独占资源 & $R(e)$
+ & 执行期独占; 可同时占多个 (此时取各资源空闲时刻之最大); 写成池占位时在派发时刻
+   才绑定到成员 \\
+前驱与边延迟 & $P(e), \lambda$ & 偏序; $\lambda$ 为该边的额外延迟 \\
+计数额度 & $A(e), L(e)$
+ & \textbf{跨事件}持有: 在 $A$ 处取、在另一事件 $L$ 处还 \\
 共位锚点 & $c(e)$ & 必须与某事件同核 \\
-时长 & $d(e)$ & 第 \ref{sec:cost} 节的结果 \\
+时长 & $d(e)$ & 第 \ref{sec:formula} 节, 按事件域内单元求和 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\paragraph{为什么双缓冲必须用计数额度而非边.} 依赖边表达``$B$ 不早于 $A$ 结束''。双缓冲
-要表达的是``第 $i+2$ 个生产者不能开始, 直到第 $i$ 个消费者归还缓冲槽'', 约束的两端随
-在途数滑动, 不是固定的一对事件, 画不成静态边。
+\paragraph{资源的来源.} $R(e)$ 由两步确定: 词汇表声明该 stage 的\emph{执行角色}
+(矩阵乘上 Cube, 向量运算与通信上不同的向量角色), 编排再决定角色池内的\emph{核号}。
+核号有两个确定时机 —— 构图期定死 (静态绑定), 或推迟到派发时刻由调度器取最早空闲的成员
+(晚绑定)。两者互斥: 后者会改写前者写入的核号。这两个时机对应两类不同的实现, 而不是同一
+件事的两种近似: 编译期分块的实现运行时零开销地知道自己干哪些单元, 从共享游标动态取活的
+实现要付一次原子操作。
+
+%----------------------------------------------------------------------
+\subsection{边: 按共享轴连接两个事件域}
+\label{sec:edges}
+
+词汇表为每条 stage 边声明一条\textbf{共享轴} $a_{pc}$。生产者 $p$ 的事件与消费者 $c$ 的
+事件之间有依赖, 当且仅当两者同属一个切片, 且\textbf{共有的每条轴上区间都相交}:
+\begin{equation}
+e_p \prec e_c \iff
+\text{slice}(e_p) = \text{slice}(e_c) \ \wedge
+\bigwedge_{a \in \mathcal{A}(e_p) \cap \mathcal{A}(e_c)}
+\mathrm{ivl}_a(e_p) \cap \mathrm{ivl}_a(e_c) \ne \emptyset .
+\label{eq:depends}
+\end{equation}
+
+\paragraph{为什么不能只看共享轴.} 共享轴是\emph{允许只覆盖一部分}的那条轴 —— 分段就绪沿
+它发生; 其余轴只是位置, 位置不同就是另一块输出。只按共享轴判相交会把``同一列、不同行''的
+生产者也连进来, 那是一条不存在的依赖: 它既凭空收紧偏序 (抬高
+\eqref{eq:lb-dep} 的依赖下界), 又会让计数额度的准入搜索无解而死锁。
+
+\paragraph{这条规则与算子无关.} \eqref{eq:depends} 不认识任何 stage 名, 也不认识``行''
+与``列''的含义, 只做区间相交。实现要做的是给每个单元标注它在各轴上的区间, 并声明每条边
+的共享轴是哪一条; 连边由此自动得到。这使得``换一种流水编排''成为写一份声明而非写一个
+建图程序。
+
+%----------------------------------------------------------------------
+\subsection{容量与共位}
+\label{sec:capacity}
+
+stage 边上还有两件事要表达, 都不是偏序。
+
+\paragraph{片上容量.} 中间结果落片上时, 生产者写入的缓冲块数有限。设该边声明深度 $D$, 则
+每个核上有一个容量为 $D$ 的计数额度 $\tau$, 生产者取、消费者还:
+\begin{equation}
+A(e_p) \ni (\tau, 1), \qquad L(e_c) \ni (\tau, 1), \qquad \kappa(\tau) = D .
+\label{eq:credit}
+\end{equation}
+这\textbf{不能}写成依赖边。依赖边表达``$B$ 不早于 $A$ 结束''; 容量要表达的是``第 $i+D$ 个
+生产者不能开始, 直到第 $i$ 个消费者归还'', 约束的两端随在途数滑动, 不是固定的一对事件。
+$D$ 是编排参数: $D=1$ 即无双缓冲, 增大 $D$ 到饱和点后不再有收益。
+
+\paragraph{硬件强制的共位.} 中间结果经固定管道直给\emph{配对}的向量核时, 该通路只在绑定
+对内存在, 于是消费者必须与生产者同核:
+\begin{equation}
+c(e_c) = e_p \quad \Longrightarrow \quad \text{core}(e_c) = \text{core}(e_p).
+\label{eq:coloc}
+\end{equation}
+这是物理约束而非编排选择, 由边上一个独立的标记声明 —— 不能从``中间结果落片上''推出来,
+因为换一个向量角色是允许的, 换到另一个核不是。共位的直接后果是: 被钉住的角色看得见就绪
+的工作也拿不了, 因此它不参与第 \ref{sec:idle} 节的守恒性检查。
 
 %======================================================================
-\section{调度规则}
+\section{由事件域求时间}
+\label{sec:time}
+
+至此得到一张带标注的有向无环图。本节的规则\textbf{不读任何 stage 名}, 只读
+\eqref{eq:event} 的五个字段。
+
+\subsection{调度递推}
 \label{sec:sched}
 
-对每个就绪事件, 最早可行时刻
+对每个就绪事件, 先算最早可行时刻
 \begin{equation}
 t_{\text{base}}(e) = \max\left\{
   \max_{p\in P(e)}\big[\mathrm{end}(p) + \lambda(e,p)\big],\
   \max_{r\in R(e)} \mathrm{free}(r) \right\},
 \label{eq:tbase}
 \end{equation}
-再在额度上做准入搜索
+再在计数额度上做准入搜索
 \begin{equation}
-\mathrm{start}(e) = \min\big\{\, t \ge t_{\text{base}}(e)\ :\ A(e)\ \text{的额度在}\ t\ \text{可满足} \,\big\}.
+\mathrm{start}(e) = \min\big\{\, t \ge t_{\text{base}}(e)\ :\
+   \forall (\tau,q) \in A(e),\ \mathrm{avail}_\tau(t) \ge q \,\big\},
 \label{eq:start}
 \end{equation}
-具体资源对 $R(e)$ 取 $\max$ (都必须空), 池占位取 $\min$ (哪个成员先空用哪个, 即晚绑定)。
-\eqref{eq:start} 是在\textbf{归还时刻}上搜索而不是排队, 因此一个事件可以插到更早的
-归还点, 不必等前面全部走完。就绪队列按 $(\mathrm{start}, \mathrm{order}, \mathrm{name})$
-取最小者提交。模型的输出即该调度的 makespan
 \begin{equation}
-\widehat{T}(I) = C_{\max}\big(\sigma(I)\big) = \max_e \mathrm{end}(e),
+\mathrm{end}(e) = \mathrm{start}(e) + d(e).
+\label{eq:end}
+\end{equation}
+\eqref{eq:start} 是在\textbf{归还时刻}上搜索而不是排队: 一个事件可以插到更早的归还点,
+不必等前面全部走完。\eqref{eq:tbase} 对具体资源取 $\max$ (都必须空), 对池占位取 $\min$
+(哪个成员先空用哪个) —— 后者即晚绑定。就绪队列按
+$(\mathrm{start}, \mathrm{order}, \mathrm{name})$ 取最小者提交, 其中 $\mathrm{order}$ 是
+构图序, 用于在时刻并列时给出确定的结果。模型输出
+\begin{equation}
+\widehat{T}(I) = C_{\max}\big(\sigma(I)\big) = \max_e \mathrm{end}(e).
 \label{eq:makespan}
 \end{equation}
-其中 $\sigma$ 为本节的调度规则。\eqref{eq:instance} 与 \eqref{eq:makespan} 把两个独立的
-建模决定分开: 实例怎么构造 (第 \ref{sec:shape}--\ref{sec:graph} 节), 以及调度规则是什么
-(本节)。
 
-\paragraph{归类与界.} 这是 $P|\mathrm{prec}|C_{\max}$ 的推广 (多资源同时独占、跨事件计数
-额度、共位约束), NP-hard。表调度给出\textbf{可行解}而非最优解。
+\paragraph{归类.} 这是 $P|\mathrm{prec}|C_{\max}$ 的推广 (多资源同时独占、跨事件计数额度、
+共位约束), NP-hard。表调度给出\textbf{可行解}而非最优解, 因此 \eqref{eq:makespan} 是``这
+套调度规则下的时间''而非``这个编排的最优时间''。
 
-\paragraph{时序异常.} 表调度有已知的非单调性: 缩短某事件、放松某约束、增加核数, 都可能
-使 makespan 变大。本模型中观察到过加入一条时长可忽略的边反而使 makespan 下降数个
-百分点的情形。因此\textbf{贪心是模型机制而非硬件行为} (被建模的那份内核按滚动游标在编译期分块,
-硬件不重分配工作), 且 $|\Delta\widehat{T}|$ 很小时其符号不可信。
+\paragraph{贪心是模型机制, 不是硬件行为.} 表调度有已知的非单调性: 缩短某事件、放松某约束、
+增加核数, 都可能使 makespan 变大; 本模型中观察到过加入一条时长可忽略的边反而使 makespan
+下降数个百分点的情形。被建模的实现若在编译期按游标分块, 硬件并不会重分配工作。两点推论:
+不可把 \eqref{eq:makespan} 当作硬件行为的复现, 且 $|\Delta\widehat{T}|$ 很小时其\emph{符号}
+不可信。
 
-%======================================================================
-\section{物理下界}
+\subsection{等待的归因}
+\label{sec:attrib}
+
+调度同时给出每个事件被什么挡住。按 \eqref{eq:tbase}--\eqref{eq:start} 的三项分别记
+\begin{align}
+w_{\text{dep}}(e) &= \max_{p\in P(e)}\big[\mathrm{end}(p)+\lambda\big] - t_{\text{ready}}(e),
+   \label{eq:w-dep}\\
+w_{\text{res}}(e) &= \max_{r\in R(e)} \mathrm{free}(r) -
+   \max_{p\in P(e)}\big[\mathrm{end}(p)+\lambda\big],
+   \label{eq:w-res}\\
+w_{\text{cap}}(e) &= \mathrm{start}(e) - t_{\text{base}}(e),
+   \label{eq:w-cap}
+\end{align}
+取正部。三者分别是``等前驱''、``等核''与``等额度''。它们可加地解释 $\mathrm{start}(e)$,
+因此``这个编排慢在哪里''有唯一答案, 不必靠猜: 逐 stage 汇总三类等待即可区分``依赖链太长''、
+``核不够''与``缓冲太浅''这三种完全不同的瓶颈。关键路径由每个事件记录的``把我挡到最晚的那
+一项''回溯得到, 于是路径上每一跳都带着它的阻塞成因。
+
+\subsection{下界: 与构造无关的校验}
 \label{sec:bounds}
 
-\subsection{算法事实}
-下列两个量只由形状决定, 与 tile 切法、分核方式、编排\textbf{全部无关}:
+下面两个量只由形状决定, 与事件域怎么划分、落哪个核、按什么顺序调度\textbf{全部无关}:
 \begin{align}
-\MAC_{\text{total}} &= \MAC_{\text{gmm1}} + \MAC_{\text{gmm2}},\\
+\MAC_{\text{total}} &= \MAC_{\text{gmm1}} + \MAC_{\text{gmm2}},
+   \label{eq:mac}\\
 \mathrm{bytes}_{\mathrm{GM}\to\mathrm{L1}} &= A_1 + B_1 + A_2 + B_2 ,
+   \label{eq:bytes}
 \end{align}
-其中 $A_i, B_i$ 分别为第 $i$ 个 GEMM 的激活与权重字节, 按``每个元素至少跨
-GM$\to$L1 一次''计 —— 这是任何 tile 切法都无法规避的下限。
-
-\subsection{三条界}
+其中 $A_i, B_i$ 分别为第 $i$ 个矩阵乘的激活与权重字节, 按``每个元素至少跨 GM$\to$L1
+一次''计 —— 这是任何 tile 切法都无法规避的下限。由此得三条界
 \begin{align}
-\LB_{\text{compute}} &= \frac{\MAC_{\text{total}}}{R_{\text{cube}}\, P}, \label{eq:lb-c}\\
+\LB_{\text{compute}} &= \frac{\MAC_{\text{total}}}{R_{\text{cube}}\, P},
+   \label{eq:lb-compute}\\
 \LB_{\text{bw}} &= \frac{\mathrm{bytes}_{\mathrm{GM}\to\mathrm{L1}}}
-                          {\min(\BW_{\text{core}} P,\ \BW_{\text{agg}})}, \label{eq:lb-b}\\
-\LB_{\text{dep}} &= \sum_{s\in\text{chain}} \min_{e\in s} d(e), \label{eq:lb-d}\\
-\LB &= \max(\LB_{\text{compute}},\ \LB_{\text{bw}},\ \LB_{\text{dep}}) .
+                        {\min(\BW_{\text{core}} P,\ \BW_{\text{agg}})},
+   \label{eq:lb-bw}\\
+\LB_{\text{dep}} &= \sum_{s\in\text{chain}} \min_{e \in s} d(e),
+   \label{eq:lb-dep}\\
+\LB &= \max(\LB_{\text{compute}},\ \LB_{\text{bw}},\ \LB_{\text{dep}}).
+   \label{eq:lb}
 \end{align}
-\eqref{eq:lb-c} 与 \eqref{eq:lb-b} 是\textbf{面积论证} (总量除以吞吐),
-\eqref{eq:lb-d} 是\textbf{偏序论证} (必经链上各段的最小一份), 三者相互独立, 故必须都留。
+\eqref{eq:lb-compute} 与 \eqref{eq:lb-bw} 是\textbf{面积论证} (总量除以吞吐),
+\eqref{eq:lb-dep} 是\textbf{偏序论证} (一个 token 必经链上各 stage 的最小一份工作),
+三者相互独立, 故必须都留。\eqref{eq:lb-bw} 的可用速率取每核带宽乘核数与聚合带宽之较小者,
+两者都是硬件规格。
 
-\subsection{双向可证伪}
-\begin{equation}
-\widehat{T} < \LB \ \Longrightarrow\ \text{模型漏算了某项代价},
-\end{equation}
-\begin{equation}
-T_{\text{实测}} < \LB \ \Longrightarrow\ \text{输入事实有错 (下界不含任何编排假设)} .
-\end{equation}
-后者在实践中出现过: 某个形状上的实测最小值低于 \eqref{eq:lb-b} 逾一成。由于
-\eqref{eq:lb-b} 不含任何编排假设, 这只能说明输入事实有误 —— 候选是权重量化位宽、板级
-规格档位, 或测量窗口与模型口径不一致。下界的作用正在于此: 把``模型不准''这种无从下手的
-判断, 变成``四组输入里哪一个错了''这种可查的问题。
+\paragraph{双向可证伪.} 下界给出两条互补的否证
+\begin{align}
+\widehat{T} < \LB &\ \Longrightarrow\ \text{模型漏算了某项资源占用},
+   \label{eq:falsify-model}\\
+T_{\text{实测}} < \LB &\ \Longrightarrow\ \text{四组输入里有一组是错的}.
+   \label{eq:falsify-input}
+\end{align}
+\eqref{eq:falsify-model} 的典型成因是某一相位不占任何资源, 于是它可以无限并行。
+\eqref{eq:falsify-input} 在实践中出现过: 某个形状上实测最小值低于 \eqref{eq:lb-bw} 逾
+一成。由于 \eqref{eq:lb-bw} 不含任何编排假设, 这只能说明输入事实有误 —— 候选是权重量化
+位宽、板级规格档位, 或测量窗口与模型口径不一致。下界的作用正在于此: 把``模型不准''这种
+无从下手的判断, 变成``四组输入里哪一个错了''这种可查的问题。
 
-%======================================================================
-\section{空闲分解与守恒}
+\subsection{空闲分解与守恒}
 \label{sec:idle}
 
 对某个角色池内的每个核,
@@ -376,51 +396,196 @@ T_{\text{实测}} < \LB \ \Longrightarrow\ \text{输入事实有错 (下界不�
 \text{horizon} = \text{busy} + \text{forced} + \text{avoidable} .
 \label{eq:idle}
 \end{equation}
-\code{forced} 指该时刻没有就绪未开始的事件 (不可消除, 只能改图);
-\code{avoidable} 指有就绪事件却仍有核空着, 在池化绑定下这是守恒性违规
+\code{forced} 指该时刻没有就绪未开始的事件 —— 不可消除, 只能靠改图 (改事件域的划分或
+stage 边); \code{avoidable} 指有就绪事件却仍有核空着。在池化绑定下后者是守恒性违规
 \begin{equation}
-\text{avoidable} > 0 \ \Longrightarrow\ \texttt{WorkConservationViolation}.
+\text{avoidable} > 0 \ \Longrightarrow\ \texttt{WorkConservationViolation},
+\label{eq:conserve-idle}
 \end{equation}
+因为 \eqref{eq:tbase}--\eqref{eq:start} 的贪心规则不应留下这种空闲。被 \eqref{eq:coloc}
+钉住的角色不参与这项检查: 它看得见就绪的工作也拿不了, 那是物理约束而非调度缺陷 ——
+排除的依据从图中导出 (哪些角色带共位锚点), 不是手工开的例外。
 
-\paragraph{汇报口径.} 各核空闲量\textbf{求和}得到的``核$\cdot\mu s$''是工作量单位而非
-时间: 核是并行的, 把它当总时长会高估。可与 makespan 相比的量是墙钟并集
+\paragraph{汇报口径.} 各核空闲量\textbf{求和}得到的``核$\cdot\mu s$''是工作量单位而非时间:
+核是并行的, 把它当总时长会高估。可与 \eqref{eq:makespan} 相比的量是墙钟并集
 \begin{equation}
 U = \Big|\bigcup_{k} \{\,t : \text{核 } k \text{ 在 } t \text{ 可避免空闲}\,\}\Big| ,
 \qquad \bar{n} = \frac{\text{avoidable}_{\text{总}}}{U} ,
 \label{eq:idle-union}
 \end{equation}
 即``时间轴上确实有核闲着''的长度 $U$, 以及该期间平均同时空闲的核数 $\bar{n}$。
-二者比各核求和更能说明空闲的性质: $\bar{n}$ 接近核数意味着整段并行度塌陷,
-$\bar{n}$ 接近 1 意味着个别核落后。
+$\bar{n}$ 接近核数意味着整段并行度塌陷, 接近 1 意味着个别核落后 —— 两种情形的处置完全不同。
 
-\paragraph{avoidable 是上界而非账.} 有活就绪不等于搬过去就能缩短 makespan: 若某个空闲
-窗口的右端顶在关键路径的节点上, 把活填进去只是让该核提前忙起来, makespan 不变。因此把
-绑定改为派发时刻后实际回收的时间\textbf{严格小于} $U$, 两者之比刻画了这些空闲里有多少
-真正落在关键路径上。
+\paragraph{avoidable 是上界而非账.} 有活就绪不等于搬过去就能缩短 makespan: 若某个空闲窗口
+的右端顶在关键路径的节点上, 把活填进去只是让该核提前忙起来, \eqref{eq:makespan} 不变。
+因此把绑定改为派发时刻后实际回收的时间\textbf{严格小于} $U$, 两者之比刻画了这些空闲里有
+多少真正落在关键路径上。
+
+%======================================================================
+\section{各事件域的时长计算}
+\label{sec:formula}
+
+\subsection{统一形式}
+\label{sec:unified}
+
+事件时长按域内单元逐个计算再求和:
+\begin{equation}
+d(e) = \sum_{u \in \dom(e)} d(u) \ +\ \theta(e),
+\label{eq:sum}
+\end{equation}
+$\theta(e)$ 为该事件分摊的固定项 (流水填充等)。\textbf{不是}拿合并后的大区间去套单元公式:
+公式里的固定项与权重复用都按单元发生, 合并只省掉事件之间的同步, 不省每个单元的搬运与
+计算。\eqref{eq:sum} 解释了一个容易误判的现象 —— 增大粒度后总忙碌时间不变, 变化的只是
+并行度与就绪时刻。
+
+单元时长的统一形式是逐单元的 roofline
+\begin{equation}
+d(u) = \max\left(\frac{\MAC(u)}{R_{\text{cube}}},\ \frac{\mathrm{bytes}(u)}{\BW}\right).
+\label{eq:roofline}
+\end{equation}
+取 $\max$ 而非求和, 是``搬运与计算完全重叠''的理想化, 方向偏乐观 —— 因此
+\eqref{eq:falsify-model} 的下界检查才有意义。注意 \eqref{eq:roofline} 是\textbf{局部}的:
+不对整个算子套一次 roofline, 故``算力绑定还是带宽绑定''是从调度中涌现的结论。
+
+下面按单元的物理性质分四类给出 $d(u)$。四类的区别不在公式形式, 而在\emph{谁是分母上的
+那条带宽}, 以及\emph{哪些量随编排变}。
+
+\subsection{搬运类: 跨卡/本卡的行搬运}
+\label{sec:f-dispatch}
+
+单元是一行, 但硬件按\emph{段}搬运 (一段 = 同一源卡的连续若干行), 且段内的行在软流水里
+重叠, 故段时长不是行时长之和:
+\begin{equation}
+d(\text{seg}) = \max\!\big(\lambda,\ \min(\text{rows}, d_{\text{buf}})\, t_{\text{row}}\big)
+              + \max(0,\ \text{rows}-d_{\text{buf}})\, t_{\text{row}} ,
+\label{eq:dispatch}
+\end{equation}
+$d_{\text{buf}}$ 为软流水槽数 (由编译点给出), $t_{\text{row}} = \text{每行字节}/\BW$,
+$\lambda$ 为一次往返延迟 (本卡与跨卡取值不同)。$\text{rows}\le d_{\text{buf}}$ 时段时长是
+一个\textbf{平台}, 不随行数增长: 前 $d_{\text{buf}}$ 行的取数背靠背发出, 只有在途数达到
+槽数才等待腾槽。朴素式 $\lambda + \text{rows}\cdot t_{\text{row}}$ 把重叠的行也串行计, 对
+实测高估 32\%; 同一份数据若直接按行数做线性拟合, 会把争用当成每行常数。
+
+\subsection{矩阵乘类}
+\label{sec:f-gmm}
+
+单元是一个输出 tile ($m$ 行 $\times$ \code{cols} 列, 收缩维 $K$)。载入分激活流与权重流,
+计算按乘加数:
+\begin{align}
+L &= \underbrace{\frac{m K}{\BW}}_{\text{A 流}}
+   + \underbrace{\frac{w_b\, K\, \text{cols}}{\BW_b}\, f}_{\text{B 流}},
+\qquad
+C = \frac{\nu\, m\, \text{cols}\, K}{R_{\text{cube}}},
+\label{eq:gmm-phase}\\
+d(u) &= \begin{cases}
+  \max(L, C), & D \ge 2 \quad (\text{双缓冲}),\\
+  L + C + n_{\text{chunk}}\, t_{\text{restart}}, & D = 1 .
+\end{cases}
+\label{eq:gmm}
+\end{align}
+四个随实现或编排变的量:
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+量 & 含义 & 性质 \\
+\midrule
+$\nu$ & 每个输出元素的乘加次数倍率 & \textbf{算法}: 门控与上投影两块权重时 $\nu=2$ \\
+$w_b$ & 一个单元要载入几块权重 & \textbf{实现}: 由权重是否交织决定 \\
+$f$ & 权重流复用比例 & \textbf{待标定}: 见下 \\
+A 流是否计入 & 激活从显存读还是留在片上 & \textbf{编排}: 由 stage 边的落点决定 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{两股流相加而非取 $\max$.} 这一点由对照实验判定, 源码读不出来 —— 两股流都存在,
+是否重叠取决于硬件流水行为。固定并发核数只变 $m$ 时, $\max$ 口径预测斜率为零 (因权重流
+恒大于激活流), 而实测两对比较分别相差 36\% 与 86\%; 另有一对固定 $m$ 只变每专家行方向
+单元数的比较, 说明 $\max$ 在大批量上的那点支持来自权重复用而非重叠。
+
+\paragraph{权重复用 $f$.} 同一专家的多个行方向单元共用同一份权重列段, 故理论上只有首个
+需要整份载入。模型取``首个单元付整份, 其余各付 $f$''; $f=1$ 表示\textbf{不声称存在复用}。
+两个推论: 当一个专家只有一个行方向单元时 $f$ 不起作用 —— 此时各列单元载入权重的不同列段,
+合起来恰好把该专家的权重流过一遍; 而 $f<1$ 的任何结论都是\emph{条件结论}, 依赖一个尚未
+充分标定的量。
+
+\paragraph{激活流是否计入.} 第二个矩阵乘的激活来自前一个 stage 的输出。该中间结果落显存时
+激活流存在, 落片上时为零。这不是硬件常数而是编排选择, 且\textbf{同时}改变公式与图结构 ——
+落片上还附带 \eqref{eq:coloc} 的共位约束与 \eqref{eq:credit} 的容量约束。它是``成本与约束
+分开建模''最清楚的一个例子。
+
+\subsection{向量类}
+\label{sec:f-vec}
+
+单元是一个输出 tile, 计算在向量单元上按固定宽度推进:
+\begin{equation}
+d(u) = T_{\text{startup}} + \frac{m\,\text{cols}}{V}\cdot
+       \frac{\beta_{\text{vec}}}{\BW_{\mathrm{UB}}},
+\label{eq:vec}
+\end{equation}
+$V$ 为每向量元素数, $\beta_{\text{vec}}$ 为每向量的片上访存字节。$\beta_{\text{vec}}$ 不是
+拟合系数, 而是由源码逐句计数得到: 中间缓冲被整体流若干遍 (写一遍、求最大指数读一遍、
+量化再读一遍), 漏掉任一遍都会系统性低估。它可被独立验证 —— 固定 tile 几何只变 $m$ 的两点
+扫描给出的斜率应等于 $\beta_{\text{vec}}/\BW_{\mathrm{UB}}$, 实测偏差在千分之一量级。
+
+\subsection{归约与写回类}
+\label{sec:f-combine}
+
+单元是一个输出 tile, 但写出的目的地分本卡与跨卡两种, 两者带宽差一个量级, 故必须分开:
+\begin{equation}
+d(u) =
+  \underbrace{\frac{m\,(e_{\text{in}} n + \mu)}{\BW_{\text{local}}}}_{\text{读回}}
++ \underbrace{\frac{(m-r)\, e_{\text{out}} n}{\BW_{\text{local}}}}_{\text{本卡写}}
++ \underbrace{\frac{r\, e_{\text{out}} n}{\BW_{\text{remote}}}}_{\text{跨卡写}}
++ \underbrace{m\,\alpha\left(\frac{s}{m}\right)^{\!\gamma}}_{\text{落点跨度}} ,
+\label{eq:combine}
+\end{equation}
+$r$ 为本单元 $m$ 行中目的卡不等于本卡的行数, $\mu$ 为每行路由元数据字节, $s$ 为落点跨度。
+$r$ 必须由路由 \eqref{eq:rows} 给出而不能省略: 跨卡写带宽远低于本卡写, 该项通常主导
+\eqref{eq:combine}, 以 $\BW_{\text{local}}$ 近似全部写出会低估一个数量级。这也是
+\eqref{eq:rows} 要用计数张量而非 token 总数的原因之一 —— $r$ 是逐 (卡, 专家, 源卡) 的量。
+$\alpha$ 缺省为 0, 即不声称存在跨度效应: 现有实测点呈超线性 (时长随 $m$ 的增长快于线性),
+按字节与按每行固定开销都解释不了, 但点数不足以定 $\gamma$, 故留作带占位系数的待标定项。
+
+\subsection{尾段}
+\label{sec:f-tail}
+
+主链之外还有一条收尾链 (计数导出、核间与卡间同步、输出缓冲初始化、反置换、收尾), 其中
+多项为常数, 反置换按字节
+\begin{equation}
+d(u) = \frac{\text{tokens}\,(\text{topk}\cdot h\cdot e + h\cdot e)}{\BW_{\text{agg}}} .
+\label{eq:unpermute}
+\end{equation}
+这条链属于某一份具体实现而非框架: 它的 stage 名、事件个数与依赖形状都由实现声明, 另一份
+实现可以完全不同, 也可以没有尾段。
 
 %======================================================================
 \section{未建模的部分}
 \label{sec:gaps}
 
 \begin{center}
-\begin{tabular}{@{}lp{8.2cm}@{}}
+\begin{tabular}{@{}lp{8.0cm}@{}}
 \toprule
 项 & 状态 \\
 \midrule
-带宽争用 & 事件申报字节只进访存量统计, 不参与准入、不影响时长 \\
-计数门控常数 & 明确未建模; 常数仅作复现记录。要建模应在尾段发一个真实事件 \\
-引擎队列深度 & \textbf{刻意不设为参数}: 没有发射开销或在途计数的物理后果, 四类形状扫过任何取值结果逐位相同 \\
-动态取活开销 & 缺省 0 且标注为假设 —— 0 不表示``没有代价'', 而是``本模型未声称代价是多少'' \\
-落点跨度系数 & $\alpha=0$, 两个实测点不足以定 $\gamma$ \\
-片上容量上界 & $\text{items}\times\text{tile} \le \mathrm{L1/UB}$ 未强制 \\
+带宽争用 & 事件申报的字节只进访存量统计, 不参与 \eqref{eq:start} 的准入, 不影响时长 \\
+计数门控常数 & 明确未建模; 常数仅作复现记录。要建模应在尾段发一个真实事件, 而非在某个
+  时长里加一项 \\
+引擎队列深度 & \textbf{刻意不设为参数}: 没有发射开销或在途计数的物理后果, 对它的扫描在
+  各类形状上结果逐位相同 \\
+动态取活开销 & 缺省 0 且标注为假设 —— 0 不表示``没有代价'', 而是``本模型未声称代价是
+  多少''。不计这笔, 晚绑定就只拿收益不付代价 \\
+落点跨度系数 & $\alpha=0$, 实测点数不足以定 $\gamma$ \\
+片上容量上界 & $|\dom(e)|$ 乘单元字节不超过 L1/UB 这一条未强制 (需在构图期按形状算字节),
+  故可以给出物理上放不进片上的粒度 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\paragraph{参数的存在条件.} 一个参数必须有可建模的物理后果才配存在; 否则扫描会得到
-``改它没用''的假结论。常数按出处分桶 (实现 / 实测 / 规格 / 算法 / 假设), 未标定输入分
-两类: 有实测区间的可传播成结论的区间, 连范围都没有的\textbf{不许编一个范围} ——
-那是把无知包装成精度。
+\paragraph{参数的存在条件.} 一个参数必须具有可建模的物理后果才配存在; 否则对它的扫描只会
+得到``改它没用''的假结论, 而这个假结论与``已经调到最优''在输出里无法区分。常数按出处分桶
+(实现 / 实测 / 规格 / 算法 / 假设), 未标定输入分两类: 有实测区间的可传播成结论的区间,
+连范围都没有的\textbf{不许编一个范围} —— 那是把无知包装成精度。
 
 %======================================================================
 \section{适用的推断}
@@ -431,16 +596,20 @@ $\bar{n}$ 接近 1 意味着个别核落后。
 \toprule
 推断 & 可靠性 & 理由 \\
 \midrule
-同一声明下换一个旋钮的 $\Delta\widehat{T}$ & 可靠 & 两次运行共享全部未标定量, 系统误差同向抵消 \\
-瓶颈归因 (哪条下界绑定) & 可靠 & 下界只依赖形状与硬件常数 \\
-绝对时间 $\widehat{T}$ & 不可靠 & 直接暴露于每个假设类常数 \\
-$|\Delta|$ 很小时的符号 & 不可靠 & 第 \ref{sec:sched} 节的时序异常 \\
+同一声明下改一个旋钮的 $\Delta\widehat{T}$ & 可靠
+  & 两次运行共享全部未标定常数, 系统误差同向抵消 \\
+瓶颈归因 (哪条下界绑定; 三类等待的占比) & 可靠
+  & 下界只依赖形状与硬件常数; 等待由 \eqref{eq:w-dep}--\eqref{eq:w-cap} 可加分解 \\
+绝对时间 $\widehat{T}$ & 不可靠
+  & 直接暴露于每个假设类常数 \\
+$|\Delta\widehat{T}|$ 很小时的符号 & 不可靠
+  & 第 \ref{sec:sched} 节的非单调性 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \noindent 因此本模型的产品是 $\Delta\widehat{T}$: 面向算子开发人员, 在同一份声明下改变
-编排算法或 tiling 粒度并重跑, 差值即该选择的代价; 两次运行通过同一组护栏
-(第 \ref{sec:bounds}--\ref{sec:idle} 节), 故差值可比而非模拟器的假象。
+编排或 tiling 粒度并重跑, 差值即该选择的代价。两次运行通过同一组护栏
+(\eqref{eq:falsify-model} 与 \eqref{eq:conserve-idle}), 故差值可比而非模拟器的假象。
 
 \end{document}
