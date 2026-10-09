@@ -14,7 +14,8 @@ from __future__ import annotations
 from typing import Dict, Iterator, Tuple
 
 from ...costs import DispatchDataLayout
-from ..base import build_dispatch_expert_ir, rows_by_source_rank
+from ..base import rows_by_source_rank
+from ..megamoe_common import build_dispatch_expert_ir
 from ..context import BuildContext
 from ...config.hardware import BW_LOCAL_GM
 from ..pipeline_expand import (CH_COMBINE_READ, CH_DISPATCH_READ,

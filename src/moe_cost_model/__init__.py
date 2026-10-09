@@ -93,9 +93,10 @@ from .costs import (
     PrimitiveCosts, UrmaMechanisticLatency, build_analytical_costs,
 )
 from .builders.base import (
-    DispatchCallIR, DispatchExpertIR, EventBuilderBase,
-    build_dispatch_expert_ir,
+    EventBuilderBase,
 )
+from .builders.megamoe_common import (DispatchCallIR, DispatchExpertIR,
+                                      build_dispatch_expert_ir)
 from .builders.generic import (PipelineSpec, WorkItem, lower_pipeline,
                                onchip_capacities)
 from .builders.mte import MteEventBuilder

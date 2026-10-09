@@ -1,70 +1,23 @@
-"""第 4 层: 事件图构建公共基类 — IR/公共方法/共享专家/GMM1+ACT/GMM2+COMBINE/尾段.
+"""第 4 层: 事件图构建公共基类 — 与算子无关的那部分.
 
-MTE 与 URMA Layered 两个建图器共享本基类; 路径差异在各自子类.
+剩下的三件事都不认识任何 stage 名: 事件工厂 ``_event``、均衡轮转
+``_rotated_balanced_range``、排空栅栏 ``_add_completion`` (要排空哪些 stage 取自
+词汇表的 drain 声明)。另加路由张量上的两个算术 (count_remote_rows /
+rows_by_source_rank), 任何 EP 实现都要用。
+
+MegaMoE 两条路径共用的实现专属建图在 megamoe_common.py: 尾段六个事件、共享专家
+两段、dispatch 段枚举 IR、以及 GMM1 调度宽度取 hidden_dim/activation_n_half 这个
+SwiGLU 假设。放在基类里会让任何新建图器只要继承就**白得一条 MegaMoE 的尾段**。
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
-from ..config.hardware import (
-    BW_UNPERMUTE_AGG, T_CORE_SYNC_BARRIER_US, T_COUNTS_EXPORT_US,
-    T_FINALIZE_US, T_OUTPUT_INIT_US, T_RANK_SYNC_RTT_US, ceil_div,
-)
 from ..config.stages import default_vocabulary
 from ..scheduler.events import Event
-from ..costs import DispatchDataLayout, PrimitiveCosts
-from ..shape import BlockCursor, CursorTrace, MegaMoeShape, ModelOptions
-from ..planning.waves import ExpertSlice, Wave, swizzle_coord
-
-
-# =====================================================================
-# Dispatch 段枚举 IR 
-# =====================================================================
-
-
-@dataclass(frozen=True)
-class DispatchExpertIR:
-    expert: int = 0
-    dst_rank: int = 0
-    row_begin: int = 0
-    row_end: int = 0
-    segments: Tuple[Tuple[int, int], ...] = ()   # (src_rank, rows) in execution order
-    local_segments: int = 0
-    remote_segments: int = 0
-    rows: int = 0
-
-
-@dataclass(frozen=True)
-class DispatchCallIR:
-    dst_rank: int = 0
-    wave: int = 0
-    aiv1: int = 0
-    global_row_begin: int = 0
-    global_row_end: int = 0
-    experts: Tuple[DispatchExpertIR, ...] = ()
-
-
-def build_dispatch_expert_ir(*, expert, dst_rank, source_counts, row_begin, row_end, layout):
-    """Segments of one (core-local) expert row range, src-major order."""
-    segs: List[Tuple[int, int]] = []
-    cur = 0
-    for src, cnt in enumerate(source_counts):
-        nxt = cur + cnt
-        lo = max(row_begin, cur)
-        hi = min(row_end, nxt)
-        if hi > lo:
-            segs.append((src, hi - lo))
-        cur = nxt
-    local = [(s, r) for s, r in segs if s == dst_rank]
-    remote = [(s, r) for s, r in segs if s != dst_rank]
-    return DispatchExpertIR(
-        expert=expert, dst_rank=dst_rank,
-        row_begin=row_begin, row_end=row_end,
-        segments=tuple(segs),
-        local_segments=len(local), remote_segments=len(remote),
-        rows=sum(r for _, r in segs))
+from ..costs import PrimitiveCosts
+from ..shape import CursorTrace, ModelOptions
 
 
 def rows_by_source_rank(source_counts, row_begin: int, row_end: int) -> Tuple[int, ...]:
@@ -147,149 +100,9 @@ class EventBuilderBase:
         count = base + (1 if logical < rem else 0)
         return start, count
 
-    @staticmethod
-    def _gmm1_device_scheduler_n(shape: MegaMoeShape, act_half: int = 2) -> int:
-        return ceil_div(shape.hidden_dim, act_half)
-
-    def _dispatch_call_ir(self, shape: MegaMoeShape, w: Wave, core: int) -> DispatchCallIR:
-        if not shape.expert_source_tokens:
-            raise ValueError("mechanistic Dispatch requires exact expert_source_tokens")
-        layout = shape.dispatch_layout
-        if layout is None:
-            layout = DispatchDataLayout.from_hidden(shape.h)
-        rel_begin, count = self._rotated_balanced_range(w.rows, core, shape.aic_num,
-                                                        w.begin.global_row)
-        core_global_begin = w.begin.global_row + rel_begin
-        core_global_end = core_global_begin + count
-        expert_irs = []
-        if count:
-            for sl in w.slices:
-                overlap_begin = max(core_global_begin, sl.global_row_begin)
-                overlap_end = min(core_global_end, sl.global_row_end)
-                if overlap_begin >= overlap_end:
-                    continue
-                local_begin = sl.row_begin + (overlap_begin - sl.global_row_begin)
-                local_end = sl.row_begin + (overlap_end - sl.global_row_begin)
-                expert_irs.append(build_dispatch_expert_ir(
-                    expert=sl.expert, dst_rank=shape.rank_id,
-                    source_counts=shape.expert_source_tokens[sl.expert],
-                    row_begin=local_begin, row_end=local_end, layout=layout))
-        return DispatchCallIR(
-            dst_rank=shape.rank_id, wave=w.index, aiv1=core,
-            global_row_begin=core_global_begin, global_row_end=core_global_end,
-            experts=tuple(expert_irs))
-
-    # ---- 主入口 ----
-
-
-    def _build_shared_expert(self, shape, km, ACT_HALF, TILE_M, TILE_N, p, c):
-        """共享专家前半段: GMM1 + ACT tile, 排在 MoE dispatch 之前.
-
-        返回门控事件名 (全部共享 ACT 完成), dispatch_call 依赖它.
-        后半段 (共享 GMM2) 在尾段, 见 _add_shared_gmm2.
-        """
-        self.shared_act_by_group = {}
-        if shape.shared_expert_num <= 0:
-            return None
-        m_tot_s = shape.token_num
-        sched_n_s = self._gmm1_device_scheduler_n(shape, ACT_HALF)
-        nt1_s = ceil_div(sched_n_s, TILE_N)
-        mg_s = ceil_div(m_tot_s, TILE_M)
-        g1s, as_events = [], []
-        sc1 = BlockCursor(p, 0)
-        for ti in range(mg_s * nt1_s):
-            mg, nt = swizzle_coord(ti, mg_s, nt1_s, km.swizzle_offset, km.swizzle_direction)
-            m_rows = min(TILE_M, m_tot_s - mg * TILE_M)
-            logical_n = min(TILE_N, sched_n_s - nt * TILE_N)
-            core = sc1.owners(1)[0]
-            g1s.append(self._event(
-                f"shared.gmm1.m{mg}.n{nt}", (self.options.role_resource("shared_gmm1", core),),
-                c.gmm1_tile(m_rows, shape.h, logical_n),
-                meta={"stage": "shared_gmm1", "m_rows": m_rows}))
-            as_events.append(self._event(
-                f"shared.act.m{mg}.n{nt}", (self.options.role_resource("shared_act", core),),
-                c.activation_tile(m_rows, logical_n),
-                deps=(g1s[-1],), meta={"stage": "shared_act", "m_rows": m_rows}))
-            self.shared_act_by_group.setdefault(mg, []).append(as_events[-1])
-        return self._event("shared.head_done", (), 0.0, deps=tuple(as_events),
-                           meta={"stage": "shared_head_done"})
-
-    def _add_shared_gmm2(self, shape, km, ACT_HALF, p, c, after: str) -> str:
-        """共享专家后半段: GMM2 按 tile 建事件, 占 AIC 核, 时长取 GMM2 公式 (纯计算).
-
-        每个 tile 依赖 after (尾段前序事件) 与本 m-group 的全部共享 ACT
-        (GMM2 的输入是该 m-group 的 ACT 产出, 覆盖整个 K).
-        返回汇合事件名 (全部共享 GMM2 tile 完成).
-        """
-        tile_m, tile_n = km.tile_m, km.tile_n
-        k_gmm2 = shape.hidden_dim // ACT_HALF
-        n_tiles = ceil_div(shape.h, tile_n)
-        m_groups = ceil_div(shape.token_num, tile_m)
-        cursor = BlockCursor(p, 0)
-        tiles = []
-        for ti in range(m_groups * n_tiles):
-            mg, nt = swizzle_coord(ti, m_groups, n_tiles,
-                                   km.swizzle_offset, km.swizzle_direction)
-            m_rows = min(tile_m, shape.token_num - mg * tile_m)
-            logical_n = min(tile_n, shape.h - nt * tile_n)
-            core = cursor.owners(1)[0]
-            tiles.append(self._event(
-                f"shared.gmm2.m{mg}.n{nt}", (self.options.role_resource("shared_gmm2", core),),
-                c.gmm2_tile(m_rows, k_gmm2, logical_n),
-                deps=(after, *self.shared_act_by_group.get(mg, ())),
-                meta={"stage": "shared_gmm2", "m_rows": m_rows, "mgroup": mg,
-                      "ntile": nt, "logical_n": logical_n, "core": core}))
-        return self._event("epilogue.shared_gmm2_done", (), 0.0, deps=tuple(tiles),
-                           meta={"stage": "epilogue", "part": "shared_gmm2_done"})
-
     # stage 建图函数在同包各文件: gmm1.py / activation.py / gmm2.py, 通信与归约在
     # comm/{mte,urma}.py (dispatch 与 combine 都在那里, 没有 dispatch.py / combine.py) —
     # 状态经 BuildContext (context.py) 传递.
-
-    # ---- 尾段 ----
-
-    def _add_epilogue(self, shape, km, ACT_HALF, p, c, drains=()):
-        """尾段链. 门是每核三引擎的排空节点 (drains), 不是"每核最后一个 COMBINE".
-
-        内核里 WAIT_GMM_DRAIN (实测 trace 恰好 84 个 = 28 核 x AIC/AIV0/AIV1) 在
-        WAIT_OUTPUT_CORE_SYNC → COUNTS_EXPORT 之前, 三个引擎都要各自排空。只等
-        COMBINE 会漏掉 AIC 的 GMM2 尾块与 AIV0 的 ACT: bs=36 用例里核 2~5 的最后
-        一个 ACT (209.6us) 晚于该核最后一个 COMBINE (149.9us), 只是恰好被核 0/1 的
-        晚 COMBINE (231.0us) 盖住 —— 换个路由就会让尾段起得太早。
-        """
-        # C5: 五项固定开销可配置 (ModelOptions.epilogue_overheads); 缺省沿用实测常数
-        oh = getattr(self.options, "epilogue_overheads", None)
-
-        def _oh(field: str, fallback: float) -> float:
-            if oh is None:
-                return fallback
-            v = getattr(oh, field, 0.0)
-            return v if (v or getattr(oh, "literal", False)) else fallback
-
-        counts_export = self._event("epilogue.counts_export", (),
-                                    _oh("counts_export_us", T_COUNTS_EXPORT_US),
-                                    deps=tuple(drains),
-                                    meta={"stage": "epilogue", "part": "counts_export"})
-        core_sync = self._event("epilogue.output_core_sync", (),
-                                _oh("core_sync_us", T_CORE_SYNC_BARRIER_US),
-                                deps=(counts_export,),
-                                meta={"stage": "epilogue", "part": "output_core_sync"})
-        tail_head = core_sync
-        if shape.shared_expert_num > 0:
-            tail_head = self._add_shared_gmm2(shape, km, ACT_HALF, p, c, after=core_sync)
-        rank_sync = self._event("epilogue.output_rank_sync", (),
-                                _oh("rank_sync_us", T_RANK_SYNC_RTT_US), deps=(tail_head,),
-                                meta={"stage": "epilogue", "part": "output_rank_sync"})
-        out_init = self._event("epilogue.output_buffer_init", (),
-                               _oh("output_init_us", T_OUTPUT_INIT_US), deps=(rank_sync,),
-                               meta={"stage": "epilogue", "part": "output_buffer_init"})
-        unpermute_bytes = shape.token_num * (shape.topk * shape.h * 2 + shape.h * 2)
-        if shape.shared_expert_num > 0:
-            unpermute_bytes += shape.shared_expert_num * shape.token_num * shape.h * 2
-        unpermute = self._event("epilogue.unpermute", (), unpermute_bytes / BW_UNPERMUTE_AGG,
-                                deps=(out_init,), meta={"stage": "epilogue", "part": "unpermute"})
-        self._event("epilogue.finalize", (), _oh("finalize_us", T_FINALIZE_US),
-                    deps=(unpermute,), meta={"stage": "epilogue", "part": "finalize"})
 
     # ---- 完成事件 ----
 

@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import List, Tuple
 
 from .base import EventBuilderBase
+from .megamoe_common import MegaMoeBuilderMixin
 from .comm import UrmaTransport
 from .context import BuildContext
 from .gmm1 import add_gmm1_wave
@@ -40,7 +41,7 @@ from ..planning.waves import Wave
 #: 的 flag_window_bytes), 它是某实现的选择, 可覆盖。
 
 
-class LayeredEventBuilder(EventBuilderBase):
+class LayeredEventBuilder(MegaMoeBuilderMixin, EventBuilderBase):
     """topo_urma=True 的建图器: 复用 GMM1/ACT/GMM2/尾段, 替换 dispatch/combine."""
 
     def __init__(self, costs, options: ModelOptions):

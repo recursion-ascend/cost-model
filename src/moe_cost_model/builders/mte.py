@@ -14,13 +14,14 @@ from ..scheduler.events import Event
 from ..shape import BlockCursor, CursorTrace, MegaMoeShape
 from ..planning.waves import Wave
 from .base import EventBuilderBase
+from .megamoe_common import MegaMoeBuilderMixin
 from .comm import PeerWriteCombine, PeerWriteDispatch
 from .context import BuildContext
 from .gmm1 import add_gmm1_wave
 from .gmm2 import add_gmm2_wave
 
 
-class MteEventBuilder(EventBuilderBase):
+class MteEventBuilder(MegaMoeBuilderMixin, EventBuilderBase):
     def build(self, shape: MegaMoeShape,
               waves: List[Wave]) -> Tuple[List[Event], List[CursorTrace]]:
         km = shape.kernel if shape.kernel is not None else KernelConfig()
