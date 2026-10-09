@@ -96,6 +96,8 @@ from .builders.base import (
     DispatchCallIR, DispatchExpertIR, EventBuilderBase,
     build_dispatch_expert_ir,
 )
+from .builders.generic import (PipelineSpec, WorkItem, lower_pipeline,
+                               onchip_capacities)
 from .builders.mte import MteEventBuilder
 from .builders.pipeline_expand import apply_pipeline
 from .model import A8W8WaveCostModel
