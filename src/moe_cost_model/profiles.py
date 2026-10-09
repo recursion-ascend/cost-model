@@ -106,6 +106,13 @@ class ReferenceProfile:
 # MegaMoe A8W8 Wave 融合算子 (arch35) 的坐标。
 #
 # 每一项都是"那份实现这么做", 不是"物理只能这么做" —— 所以它在这里而不在缺省值里。
+def _megamoe_binding():
+    """仓内 MegaMoE 实现声明的绑定纪律. 懒导入: implementations/ 依赖 config 与
+    profiles, 模块级导入会成环。"""
+    from .implementations.megamoe import A8W8WaveV1
+    return A8W8WaveV1().binding()
+
+
 MEGAMOE_A8W8 = ReferenceProfile(
     name="megamoe-a8w8-wave-arch35",
     name_key="megamoe-a8w8",
@@ -132,7 +139,10 @@ MEGAMOE_A8W8 = ReferenceProfile(
         # 尾段五项固定开销 = 实测残留
         epilogue_overheads=EpilogueOverheads(),
         # tile->核 在建图时定死 (startBlockIdx 旋转), 不是派发时挑
-        late_bind_pools=(),
+        # 绑定纪律不在这里手写: 它是那份实现的事实, 由适配器声明
+        # (implementations/megamoe._MegaMoeAdapterBase.BINDING)。这里引用它, 免得
+        # profile 与适配器各写一份而漂。
+        late_bind_pools=_megamoe_binding(),
         # 波宽由 p1/p2 推导 (kernel 自己按 token 数查表, 见
         # planning.waves.resolve_gmm1_min_logical_tiles_per_core)
         m_groups_per_wave=0,

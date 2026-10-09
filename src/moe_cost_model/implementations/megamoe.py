@@ -35,6 +35,9 @@ class _MegaMoeAdapterBase:
     END_STAGE = "combine"
     #: 这份实现划了哪些 stage (config/stages.py 的 StageVocabulary)
     VOCABULARY = MEGAMOE
+    #: 绑定纪律: 空 = tile->核 在建图期定死 (静态钉核)。两份 MegaMoE 都是编译期分块的
+    #: (滚动游标 startBlockIdx_), 运行时不从共享游标取活, 所以没有池化角色。
+    BINDING: Tuple[str, ...] = ()
 
     def identity(self) -> ImplementationId:
         return self.ID
@@ -42,6 +45,14 @@ class _MegaMoeAdapterBase:
     def stages(self) -> StageVocabulary:
         """这份实现的 stage 词汇表 —— 粒度/边/角色/比对的校验都照它办."""
         return self.VOCABULARY
+
+    def binding(self) -> Tuple[str, ...]:
+        """这份实现自己的绑定纪律 (哪些角色池推迟到派发时刻定核号).
+
+        它是缺省与对账依据, 不是强制: ModelOptions.late_bind_pools 显式给了就按给的跑,
+        不一致时 model.simulate_multi 在结果里记一条 binding_note。
+        """
+        return self.BINDING
 
     def accepts(self, compile_cfg: CompileConfig, options: Any) -> None:
         """不支持的编译点/编排组合在这里拒绝.

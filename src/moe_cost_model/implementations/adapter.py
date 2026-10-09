@@ -54,9 +54,20 @@ class WavePlan:
 class ImplementationAdapter(Protocol):
     """一份具体实现在模型里的全部接口.
 
-    方法分四组:
+    绑定纪律 (binding) 为什么在这里而不是在 ModelOptions 里: "tile 落哪个核" 由谁决定
+    是**那份实现的事实**, 不是使用者的偏好。编译期分好块的 kernel (如仓内两份 MegaMoE,
+    滚动游标 startBlockIdx_) 运行时零开销地知道自己干哪些 tile; 从共享游标动态取活的
+    实现要付一次原子加。两者是不同的实现, 不是同一件事的两种近似。
+
+    它仍然可以被 ModelOptions.late_bind_pools 覆盖 —— 那是**比较**所需: 同一份实现换一
+    种绑定纪律跑一遍, 差值就是这个选择的代价。覆盖与声明不一致时结果里记一条告警
+    (rank_results["implementation"]["binding_note"]), 因为那时模型描述的已经不是声明
+    的那台机器。
+
+    方法分五组:
       身份      identity()                 —— 名字与源码依据
       词汇表    stages()                   —— 这份实现划了哪些 stage、它们之间有哪些边
+      绑定纪律  binding()                  —— tile->核 由谁决定: 建图期还是派发时刻
       接受性    accepts(compile_cfg, opts) —— 这个编译点/编排组合支持吗 (不支持抛 Unsupported)
       降解      plan(...) / lower(...)     —— 波计划与事件图
       观察点    measured_end_stage()       —— 执行时间记到哪个 stage 结束
@@ -65,6 +76,8 @@ class ImplementationAdapter(Protocol):
     def identity(self) -> ImplementationId: ...
 
     def stages(self) -> StageVocabulary: ...
+
+    def binding(self) -> Tuple[str, ...]: ...
 
     def accepts(self, compile_cfg: CompileConfig, options: Any) -> None: ...
 

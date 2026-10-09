@@ -539,6 +539,9 @@ class A8W8WaveCostModel:
                 "compile_fingerprint": compile_cfg.fingerprint,
                 "compile_point": compile_cfg.describe(),
                 "measured_end_stage": adapter.measured_end_stage(),
+                "binding_declared": list(adapter.binding()),
+                "binding_used": list(self.options.late_bind_pools or ()),
+                "binding_note": _binding_note(adapter, self.options),
                 "topology": dataclasses.asdict(
                     RuntimeConfig.from_shape(
                         shape, world_size=len(shapes) if len(shapes) > 1 else None,
@@ -684,6 +687,22 @@ class A8W8WaveCostModel:
             "idle_decomposition": idle_reports,
         }
 
+
+
+def _binding_note(adapter, options) -> str:
+    """覆盖了实现声明的绑定纪律时说一句, 否则空串.
+
+    不报错: 换绑定纪律重跑正是这个项目要支持的比较。但那一次跑的已经不是声明的那台
+    机器, 所以结果里要留下这句话 —— 一个 -12.8% 的"收益"如果来自给静态分核的 kernel
+    开晚绑定, 它说的是另一份实现, 不是优化。
+    """
+    declared = tuple(adapter.binding() or ())
+    used = tuple(options.late_bind_pools or ())
+    if declared == used:
+        return ""
+    fmt = lambda t: ", ".join(t) if t else "静态钉核"
+    return (f"绑定纪律被覆盖: {adapter.identity().key} 声明 {fmt(declared)}, "
+            f"这次按 {fmt(used)} 跑")
 
 
 def _charge_late_bind_fetch(events, late_pools, costs) -> None:
