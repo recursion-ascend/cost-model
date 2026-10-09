@@ -46,8 +46,6 @@ makespan。编排因此是模型的\textbf{输入}而非求解目标 —— 给�
 单个编排或 tiling 旋钮后的时间\emph{差值}: 两次运行共享全部未标定常数, 系统误差同向抵消,
 并各自通过同一组护栏, 故差值可比而非模拟器的假象。
 
-全文的数值实例取 $h=5120$、中间维 $I=4608$、每卡 72 token、$\mathrm{topk}=6$、8 卡每卡
-3 专家、28 个 Cube 核。
 \end{abstract}
 
 \tableofcontents
@@ -113,31 +111,37 @@ I = I(\underbrace{\text{形状}}_{\text{算什么}},\ \underbrace{\text{硬件}}
 \label{sec:shape}
 
 \subsection{路由}
-每个源卡发出 $\text{tokens}\cdot\text{topk}$ 行。均匀路由下每个专家收到
+本卡 $r$ 上专家 $e$ 收到的行数由路由计数张量直接给出:
 \begin{equation}
-\text{rows}_e = \frac{\text{tokens}\cdot\text{topk}\cdot W}{E_{\text{total}}}
-             = \frac{72\times 6\times 8}{24} = 144 .
+\text{rows}_{r,e} = \sum_{\text{src}=0}^{W-1} C[r][e][\text{src}] ,
 \label{eq:rows}
 \end{equation}
-非均匀路由由路由计数张量 $C[\text{dst}][\text{expert}][\text{src}]$ 精确给出, 守恒性
-(每源卡发出 $\text{tokens}\times\text{topk}$ 行) 是硬约束, 违反即报错。
+其中 $W$ 为卡数。守恒性
+\begin{equation}
+\sum_{r}\sum_{e} C[r][e][\text{src}] = \text{tokens}\cdot\text{topk}
+\quad \forall\, \text{src}
+\label{eq:conserve}
+\end{equation}
+是硬约束, 违反即报错。均匀路由是 $C$ 各元素相等的特例, 此时
+$\text{rows}_{r,e} = \text{tokens}\cdot\text{topk}\cdot W / E_{\text{total}}$;
+\eqref{eq:rows} 不假设均匀, 专家间的不均衡与跨卡的不对称都由 $C$ 承载。
 
 \subsection{tile 网格}
 行方向按 $\TILEM$ 切成 m-group:
 \begin{equation}
-n_m = \left\lceil \text{rows}_e / \TILEM \right\rceil = \lceil 144/256\rceil = 1 .
+n_m = \left\lceil \text{rows}_{r,e} / \TILEM \right\rceil .
 \end{equation}
 列方向 GMM1 与 GMM2 的 tile 数\textbf{不同}:
 \begin{align}
 n^{(1)}_{\text{tile}} &= \left\lceil \frac{\lceil \mathrm{hidden\_dim}/\ACTHALF \rceil}{\TILEN} \right\rceil
-   = \lceil 4608/256 \rceil = 18, \label{eq:n1}\\
+   , \label{eq:n1}\\
 n^{(2)}_{\text{tile}} &= \left\lceil \frac{h}{\TILEN} \right\rceil
-   = \lceil 5120/256 \rceil = 20 . \label{eq:n2}
+   . \label{eq:n2}
 \end{align}
 \eqref{eq:n1} 的调度宽度取 $\mathrm{hidden\_dim}/\ACTHALF$ 而非 $\mathrm{hidden\_dim}$:
 非交织布局下一个 tile 要跑两遍权重块 (SwiGLU 的 gate 与 up)。GMM2 的收缩维
 \begin{equation}
-K_2 = \mathrm{hidden\_dim}/\ACTHALF = 4608 \quad (=\text{中间维} I).
+K_2 = \mathrm{hidden\_dim}/\ACTHALF \quad (=\text{中间维} I).
 \end{equation}
 
 \subsection{波宽}
@@ -148,9 +152,10 @@ K_2 = \mathrm{hidden\_dim}/\ACTHALF = 4608 \quad (=\text{中间维} I).
   \left\lceil \frac{P\,p_2}{\lceil h/\TILEN \rceil} \right\rceil \right),
 \label{eq:mgw}
 \end{equation}
-$P$ 为 Cube 核数, $p_1,p_2$ 是``每核至少领到几个逻辑 tile''的策略值。本例
-$\mathrm{mgw} = \max(\lceil 56/36\rceil, \lceil 28/20\rceil) = 2$, 共 2 波。
-\eqref{eq:mgw} 的含义是\textbf{用波宽保证并行度}: 波太窄则核领不满, 波太宽则下游就绪太晚。
+$P$ 为 Cube 核数, $p_1,p_2$ 是``每核至少领到几个逻辑 tile''的策略值。
+\eqref{eq:mgw} 的含义是\textbf{用波宽保证并行度}: 两个分式分别是 GMM1 与 GMM2 要让每核
+领到 $p_1$ / $p_2$ 个 tile 所需的 m-group 数, 取较大者即同时满足两者。波太窄则核领不满,
+波太宽则下游就绪太晚。
 
 %======================================================================
 \section{单事件代价}
@@ -172,7 +177,7 @@ T_{\text{seg}} = \max\!\big(\lambda,\ \min(\text{rows}, d_{\text{buf}})\, t_{\te
                + \max(0,\ \text{rows}-d_{\text{buf}})\, t_{\text{row}} ,
 \label{eq:dispatch}
 \end{equation}
-$d_{\text{buf}}$ 为软流水槽数 (内核 \code{dispatchBufferCount}, 取 6),
+$d_{\text{buf}}$ 为软流水槽数 (由编译点给出),
 $t_{\text{row}} = \text{每行字节}/\BW$, $\lambda$ 为一次往返延迟 (本卡/跨卡不同)。
 $\text{rows}\le d_{\text{buf}}$ 时段时长是一个\textbf{平台}, 不随行数增长: 前
 $d_{\text{buf}}$ 行的取数背靠背发出, 只有在途数达到槽数才等待腾槽。朴素式
@@ -190,8 +195,11 @@ T_{\text{gmm1}} &= \begin{cases}
 \end{cases}
 \label{eq:gmm1}
 \end{align}
-$w_b$ 为权重块数 ($=\ACTHALF$, 交织布局下为 1), $f$ 为 B 流复用比例,
-$n_{\text{chunk}} = \lceil K/\mathrm{l1\_tile\_k}\rceil$。系数 2 来自 SwiGLU 双投影。
+$w_b$ 为权重块数 ($=\ACTHALF$, 交织布局下为 1), $n_{\text{chunk}} =
+\lceil K/\mathrm{l1\_tile\_k}\rceil$, 系数 2 来自 SwiGLU 双投影。$f$ 为 B 流复用比例:
+一个专家切片内首个 m-group 的 tile 付整份 B 流, 其余各付 $f$; $f=1$ 表示不声称复用。
+当切片只有一个 m-group 时 $f$ 不起作用 —— 此时各 n-tile 载入权重的不同列段, 合起来恰好
+把该专家的权重流过一遍。
 
 \paragraph{两股流相加而非取 $\max$.} 这一点由对照实验判定, 源码读不出来。固定并发核数
 只变 $m$ 时, $\max$ 口径预测斜率为 0 (因 B 流恒大于 A 流), 而实测两对比较分别相差
@@ -201,12 +209,13 @@ $n_{\text{chunk}} = \lceil K/\mathrm{l1\_tile\_k}\rceil$。系数 2 来自 SwiGL
 \subsection{activation}
 \begin{equation}
 T_{\text{act}} = T_{\text{startup}} + \frac{m\,\text{cols}}{V}\cdot\frac{\beta_{\text{vec}}}{\BW_{\mathrm{UB}}},
-\qquad V = 64,\quad \beta_{\text{vec}} = 722\ \mathrm{B} .
+\qquad V = \text{每向量元素数},\quad \beta_{\text{vec}} = \text{每向量字节数} .
 \label{eq:act}
 \end{equation}
-$\beta_{\text{vec}}$ 由源码逐句计数得到: bf16 中间缓冲被整体流三遍 (SwiGLU 写一遍,
-求最大指数读一遍, 量化再读一遍)。两点 $m$ 扫独立验证: 实测斜率 $0.007760\ \mu s$/向量,
-而 $\beta_{\text{vec}}/\BW_{\mathrm{UB}} = 0.007763$ (偏差 $+0.05\%$)。
+$\beta_{\text{vec}}$ 不是拟合系数, 而是由源码逐句计数得到: 中间缓冲被整体流三遍
+(激活写一遍, 求最大指数读一遍, 量化再读一遍), 漏掉任一遍都会系统性低估。该值可被独立
+验证: 固定 tile 几何只变 $m$ 的两点扫描给出的斜率应等于
+$\beta_{\text{vec}}/\BW_{\mathrm{UB}}$, 实测偏差在千分之一量级。
 
 \subsection{GMM2}
 \begin{align}
@@ -244,9 +253,10 @@ T_{\text{comb}} =
 \label{eq:combine}
 \end{equation}
 $r$ 为本窗中目的卡不等于本卡的行数 (由路由精确给出), $\mu$ 为每行路由元数据字节,
-$s$ 为落点跨度。$r$ 是必填参数: 跨卡写占实测的约 95\%, 缺了它公式低估一个数量级。
-$\alpha$ 缺省为 0, 即不声称存在跨度效应 —— 实测只有两点且呈超线性 ($m$ 比 3.56 倍而
-时长比 6.62 倍), 按字节与按每行固定开销都解释不了, 两点不足以定 $\gamma$。
+$s$ 为落点跨度。$r$ 必须由路由给出而不能省略: 跨卡写的带宽远低于本卡写, 该项通常主导
+\eqref{eq:combine}, 以 $\BW_{\text{local}}$ 近似全部写出会低估一个数量级。$\alpha$ 缺省
+为 0, 即不声称存在跨度效应 —— 现有实测点呈超线性 (时长随 $m$ 的增长快于线性), 按字节与
+按每行固定开销都解释不了, 但点数不足以定 $\gamma$, 故留作带占位系数的待标定项。
 
 \subsection{尾段}
 六个事件串成一条链, 五项为常数, 一项按字节:
@@ -317,8 +327,8 @@ t_{\text{base}}(e) = \max\left\{
 额度、共位约束), NP-hard。表调度给出\textbf{可行解}而非最优解。
 
 \paragraph{时序异常.} 表调度有已知的非单调性: 缩短某事件、放松某约束、增加核数, 都可能
-使 makespan 变大。本模型中实测到过加入一条 $0.01\ \mu s$ 的边使 makespan 下降 2.81\% 的
-例子。因此\textbf{贪心是模型机制而非硬件行为} (被建模的那份内核按滚动游标在编译期分块,
+使 makespan 变大。本模型中观察到过加入一条时长可忽略的边反而使 makespan 下降数个
+百分点的情形。因此\textbf{贪心是模型机制而非硬件行为} (被建模的那份内核按滚动游标在编译期分块,
 硬件不重分配工作), 且 $|\Delta\widehat{T}|$ 很小时其符号不可信。
 
 %======================================================================
@@ -328,17 +338,19 @@ t_{\text{base}}(e) = \max\left\{
 \subsection{算法事实}
 下列两个量只由形状决定, 与 tile 切法、分核方式、编排\textbf{全部无关}:
 \begin{align}
-\MAC_{\text{total}} &= \MAC_{\text{gmm1}} + \MAC_{\text{gmm2}} = 3.058\times 10^{10},\\
-\mathrm{bytes}_{\mathrm{GM}\to\mathrm{L1}} &= A_1 + B_1 + A_2 + B_2 = 216.5\ \mathrm{MB},
+\MAC_{\text{total}} &= \MAC_{\text{gmm1}} + \MAC_{\text{gmm2}},\\
+\mathrm{bytes}_{\mathrm{GM}\to\mathrm{L1}} &= A_1 + B_1 + A_2 + B_2 ,
 \end{align}
-字节按``每个元素至少跨 GM$\to$L1 一次''计。
+其中 $A_i, B_i$ 分别为第 $i$ 个 GEMM 的激活与权重字节, 按``每个元素至少跨
+GM$\to$L1 一次''计 —— 这是任何 tile 切法都无法规避的下限。
 
 \subsection{三条界}
 \begin{align}
-\LB_{\text{compute}} &= \frac{\MAC_{\text{total}}}{R_{\text{cube}}\, P} = 40.45\ \mu s, \label{eq:lb-c}\\
-\LB_{\text{bw}} &= \frac{\mathrm{bytes}}{\min(\BW_{\text{core}} P,\ \BW_{\text{agg}})} = 149.01\ \mu s, \label{eq:lb-b}\\
-\LB_{\text{dep}} &= \sum_{s\in\text{chain}} \min_{e\in s} d(e) = 84.45\ \mu s, \label{eq:lb-d}\\
-\LB &= \max(\LB_{\text{compute}}, \LB_{\text{bw}}, \LB_{\text{dep}}) = 149.01\ \mu s .
+\LB_{\text{compute}} &= \frac{\MAC_{\text{total}}}{R_{\text{cube}}\, P}, \label{eq:lb-c}\\
+\LB_{\text{bw}} &= \frac{\mathrm{bytes}_{\mathrm{GM}\to\mathrm{L1}}}
+                          {\min(\BW_{\text{core}} P,\ \BW_{\text{agg}})}, \label{eq:lb-b}\\
+\LB_{\text{dep}} &= \sum_{s\in\text{chain}} \min_{e\in s} d(e), \label{eq:lb-d}\\
+\LB &= \max(\LB_{\text{compute}},\ \LB_{\text{bw}},\ \LB_{\text{dep}}) .
 \end{align}
 \eqref{eq:lb-c} 与 \eqref{eq:lb-b} 是\textbf{面积论证} (总量除以吞吐),
 \eqref{eq:lb-d} 是\textbf{偏序论证} (必经链上各段的最小一份), 三者相互独立, 故必须都留。
@@ -350,8 +362,10 @@ t_{\text{base}}(e) = \max\left\{
 \begin{equation}
 T_{\text{实测}} < \LB \ \Longrightarrow\ \text{输入事实有错 (下界不含任何编排假设)} .
 \end{equation}
-本模型当前存在一个后者的未解实例: 实测最小值 $124.977\ \mu s$ 比 \eqref{eq:lb-b} 低
-16.1\%。候选解释是权重量化位宽、板级规格档位, 或测量窗口口径不同。
+后者在实践中出现过: 某个形状上的实测最小值低于 \eqref{eq:lb-b} 逾一成。由于
+\eqref{eq:lb-b} 不含任何编排假设, 这只能说明输入事实有误 —— 候选是权重量化位宽、板级
+规格档位, 或测量窗口与模型口径不一致。下界的作用正在于此: 把``模型不准''这种无从下手的
+判断, 变成``四组输入里哪一个错了''这种可查的问题。
 
 %======================================================================
 \section{空闲分解与守恒}
@@ -359,8 +373,7 @@ T_{\text{实测}} < \LB \ \Longrightarrow\ \text{输入事实有错 (下界不�
 
 对某个角色池内的每个核,
 \begin{equation}
-\text{horizon} = \text{busy} + \text{forced} + \text{avoidable},
-\qquad 200.91 + 51.42 + 49.60 = 301.93\ \mu s .
+\text{horizon} = \text{busy} + \text{forced} + \text{avoidable} .
 \label{eq:idle}
 \end{equation}
 \code{forced} 指该时刻没有就绪未开始的事件 (不可消除, 只能改图);
@@ -369,12 +382,21 @@ T_{\text{实测}} < \LB \ \Longrightarrow\ \text{输入事实有错 (下界不�
 \text{avoidable} > 0 \ \Longrightarrow\ \texttt{WorkConservationViolation}.
 \end{equation}
 
-\paragraph{汇报口径.} 各核空闲量\textbf{求和}得到的``核$\cdot\mu s$''是工作量单位而非时间,
-核是并行的, 把它当总时长会误读。应报墙钟量: 本例时间轴上有核可避免空闲的窗口并集为
-$86.02\ \mu s$ (3 个不相连窗口), 期间平均 16.1 个核 (共 28) 同时空闲。
+\paragraph{汇报口径.} 各核空闲量\textbf{求和}得到的``核$\cdot\mu s$''是工作量单位而非
+时间: 核是并行的, 把它当总时长会高估。可与 makespan 相比的量是墙钟并集
+\begin{equation}
+U = \Big|\bigcup_{k} \{\,t : \text{核 } k \text{ 在 } t \text{ 可避免空闲}\,\}\Big| ,
+\qquad \bar{n} = \frac{\text{avoidable}_{\text{总}}}{U} ,
+\label{eq:idle-union}
+\end{equation}
+即``时间轴上确实有核闲着''的长度 $U$, 以及该期间平均同时空闲的核数 $\bar{n}$。
+二者比各核求和更能说明空闲的性质: $\bar{n}$ 接近核数意味着整段并行度塌陷,
+$\bar{n}$ 接近 1 意味着个别核落后。
 
-\paragraph{avoidable 是上界而非账.} 有活就绪不等于搬过去就能缩短 makespan: 本例开启
-晚绑定实际回收 $37.07\ \mu s$, 为上界的 43\%, 因为最大的那个窗口右端顶在关键路径节点上。
+\paragraph{avoidable 是上界而非账.} 有活就绪不等于搬过去就能缩短 makespan: 若某个空闲
+窗口的右端顶在关键路径的节点上, 把活填进去只是让该核提前忙起来, makespan 不变。因此把
+绑定改为派发时刻后实际回收的时间\textbf{严格小于} $U$, 两者之比刻画了这些空闲里有多少
+真正落在关键路径上。
 
 %======================================================================
 \section{未建模的部分}
