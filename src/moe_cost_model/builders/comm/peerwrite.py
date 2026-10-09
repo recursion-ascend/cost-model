@@ -217,10 +217,10 @@ def _combine_channel_bytes(c, shape, rows: int, cols: int, by_dst, remote_rows: 
       本卡读  读回 GMM2 tile + 每行的路由元数据 (GM->UB)
       本卡写  目的卡 == 本卡的那些行的写出
 
-    2026-10-08 之前 per_tile 与 per_expert 各写一份申报, 而 per_expert 那份**只申报了
-    片间两条**, 本卡的读回与写出一股没申报。于是把 combine_granularity 从 per_tile 改到
-    per_expert, scenario_basic 上 R0.combine_read 的 6.7MB 整个消失、R0.hbm_write 从
-    2.7MB 掉到 1.1MB —— 而 per_expert 照样要把 GMM2 的输出从 GM 读回来, 它少读的只有
+    per_tile 与 per_expert 各写一份申报时, per_expert 那份容易**只报片间两条**而漏掉
+    本卡的读回与写出: 那样把 combine_granularity 从 per_tile 改到 per_expert, 在
+    scenario_basic 上 R0.combine_read 的 6.7MB 会整个消失、R0.hbm_write 从 2.7MB 掉到
+    1.1MB —— 而 per_expert 照样要把 GMM2 的输出从 GM 读回来, 它少读的只有
     重复的元数据 (每行一次而不是每 n-tile 一次)。那是漏申报, 不是口径差异: 它会让带宽
     下界随一个编排参数变松, 也让 traffic_bytes 在两种粒度之间不可比。
     一个函数两处调用, 这类分叉就不会再出现 (tests/test_combine_audit.py 钉住)。

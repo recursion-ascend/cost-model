@@ -142,7 +142,7 @@ class BufferSlots:
 class QueueDepths:
     """核内引擎队列深度 = **在飞上限 / 缓冲槽数**: 能攒多少笔待处理. 深度 1 = 串行.
 
-    **这不是"同时能跑几笔"。** 两件事必须分开, 混在一起是 2026-10-05 那个 bug 的根源:
+    **这不是"同时能跑几笔"。** 两件事必须分开:
 
       队列深度 (本类)   能提前多少发起 —— 由缓冲槽数决定 (L1 槽、UB 槽), 是编排/
                         编译期选择, 所以它是参数。
@@ -162,7 +162,7 @@ class QueueDepths:
       cube     -> 无需另给: .cb 相位本身独占 AIC 核资源
       vec      -> 无需另给: ACT/COMBINE 主事件本身独占 AIV 核资源
 
-    **cube / vec 这两个深度在图里已经没有作用对象** (2026-10-08): 它们的 token
+    **cube / vec 这两个深度在图里没有作用对象**: 它们的 token
     (``QUEUE:cube`` / ``QUEUE:vec``) 挂在持核事件上, 自取自还, 按
     ``scheduler/normalize`` 的判据是空约束, 建图后即被删掉 —— 核的独占已经把
     "同核在途数 <= 1" 表达完了。所以调这两个字段不会有任何后果; 要让它们有后果,
@@ -187,8 +187,8 @@ class PhaseRates:
     # FixPipe 带宽 (B/µs)。**当前没有任何读者**: 结果写出 (数据释放事件) 按口径忽略
     # 不计, 所以 fix 相位时长恒为 0, 见 builders/pipeline_expand.py 的 fix 相位。
     # 字段保留以备改口径, 但**给了值会直接报错而不是静默无效** ——
-    # 2026-10-05 审计发现它是全项目唯一"声明了却没有读者"的参数, 一个会静默吞掉
-    # 用户输入的参数比没有这个参数更糟 (与 weight_nz 必须显式给 NZ 带宽同一个道理)。
+    # 一个会静默吞掉用户输入的参数比没有这个参数更糟 (与 weight_nz 必须显式给
+    # NZ 带宽同一个道理)。
     fix_bw_bytes_per_us: Optional[float] = None
     act_load_bw_bytes_per_us: Optional[float] = None  # ACT GM→UB 读带宽
     combine_load_bw_bytes_per_us: Optional[float] = None  # COMBINE GM 读带宽
@@ -212,7 +212,7 @@ class PipelineConstraints:
                 "PhaseRates.fix_bw_bytes_per_us 当前没有任何读者: 结果写出 (数据释放"
                 "事件) 按口径忽略不计, fix 相位时长恒为 0, 给这个带宽不会改变任何结果。"
                 "与其静默吞掉你的输入, 这里直接报错 —— 要让它生效得先改"
-                "builders/pipeline_expand.py 的 fix 相位口径 (那会动所有 golden)。")
+                "builders/pipeline_expand.py 的 fix 相位口径。")
         q = self.queues
         if q.mte_aic < 1 or q.cube < 1 or q.fix < 1 or q.vec < 1 or q.mte_aiv < 1:
             raise ValueError("queue depths must be >= 1")

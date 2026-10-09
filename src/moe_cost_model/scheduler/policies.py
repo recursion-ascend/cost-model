@@ -30,7 +30,7 @@ class SchedulingPolicy:
     work_conserving: bool = True
     #: 要不要状态视图。True 时引擎每步构造一个只读 SchedulerView 并改调
     #: event_key_with_view —— 策略因此能做一步前瞻 (见 scheduler/view.py)。
-    #: 缺省 False: 不构造, 不走那条分支, 现有策略与结果逐位不变。
+    #: 缺省 False: 不构造, 不走那条分支。
     wants_view: bool = False
     #: 要不要"从这个事件起到 sink 的最长链"。True 时引擎反向拓扑算一遍写进 meta。
     needs_remaining_path: bool = False
@@ -95,9 +95,9 @@ class WorkConservingCriticalPath(SchedulingPolicy):
 class PriorityByStage(SchedulingPolicy):
     """按阶段优先级: 指定 stage 排序, 同级按最早启动.
 
-    名字必须与建图器真正发出的 stage 对齐。2026-10-05 之前缺省写的是 "act", 而没有任何
-    建图器发这个名字 (发的是 "activation", builders/activation.py) —— 于是 ACT 瓦片全部
-    落到兜底优先级 99, **排在 combine 之后**, 与这个策略声称的顺序相反, 而且一声不响。
+    名字必须与建图器真正发出的 stage 对齐。写成 "act" 这类不存在的名字 (建图器发的是
+    "activation", builders/activation.py) 会让该 stage 的瓦片全部落到兜底优先级 99,
+    **排在 combine 之后**, 与这个策略声称的顺序相反, 而且一声不响。
 
     这一层不该知道 MegaMoE 的 stage 词表 (调度器要与 kernel 无关), 所以这里不校验名字;
     缺省列表与建图器的对齐由 tests/test_scheduler.py 守 —— 它从一次真实建图里取出实际
@@ -105,8 +105,8 @@ class PriorityByStage(SchedulingPolicy):
     **有意**的: stage_order 只排它关心的那几个。
     """
 
-    #: 按优先级排意味着"宁可让核空着也先排高优先级的 stage" —— 实测 golden 的
-    #: policy_priority_by_stage 形状在派发时刻绑定下留下 41879 核·us 的可避免空闲。
+    #: 按优先级排意味着"宁可让核空着也先排高优先级的 stage" —— 实测在派发时刻绑定下
+    #: 留下 41879 核·us 的可避免空闲。
     #: 那是这个策略的语义, 所以护栏跳过它。
     work_conserving = False
 
@@ -135,7 +135,7 @@ class LookaheadOneStep(SchedulingPolicy):
     排序键 = (start, bound, order, name)。两项都不含资源争用与按核信号量的后效, 所以是
     下界, 评分 admissible。
 
-    **实测结论 (2026-10-08, golden 的三个形状, 单 rank 直达 model)**:
+    **实测结论 (三个形状, 单 rank 直达 model)**:
 
         形状              earliest    bound 当首项    (start, bound)    同刻按链最长
         skewed             247.466     364.277 (+47%)   247.466 (±0)     247.625 (+0.06%)

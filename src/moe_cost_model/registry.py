@@ -56,8 +56,7 @@ _REGISTRY: Dict[str, Dict[str, Callable[..., object]]] = {
 # builder_class 里对 ALIASES 的判断), 本表留着它们是为了 names("orchestration") 的提示
 # 与自定义建图器的注册入口。用适配器而不是建图器类的区别: 适配器自带波计划, 所以
 # orchestration="layered" 会用 Layered 的宏波规划, 而不是"Layered 建图器 + m-group 波宽"
-# 那种错配组合 (后者是 2026-10-05 之前的行为; 仓内没有任何用例依赖它 ——
-# tests/test_tiling.py 的两个用例都把 orchestration="layered" 与 topo_urma=True 配对)。
+# 那种错配组合。
 _ORCHESTRATION: Dict[str, str] = {
     "mte": "moe_cost_model.builders.mte:MteEventBuilder",
     "layered": "moe_cost_model.builders.layered:LayeredEventBuilder",

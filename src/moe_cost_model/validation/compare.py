@@ -37,7 +37,7 @@ def time_groups(starts: Sequence[float]) -> int:
     是 7/10/3/5/14 段, 彼此矛盾 (28 个核的事件交错, 轮内间隔本身差异很大)。所以这里只报
     段数这个**证据**, 归一化交给人: 把一个靠不住的推断写进比值, 比不写更糟。
 
-    **"采集含多轮"这个假设已被证伪** (2026-10-08): bs128 rank0 的 108 条 GMM1 标记里,
+    **"采集含多轮"这个假设已被证伪**: bs128 rank0 的 108 条 GMM1 标记里,
     54 个 (波,专家,核,引擎) 元组各出现两次, 两次的 ts 与 dur **逐位相同** —— 多轮会有不同
     的时刻。真正的原因是那个 trace 文件含**同一次运行的两个视图** (两个 pid: "完整流水"
     与 "隐藏 WAIT"), 而读取器把两个都收了; 已在 validation/trace.py 改成只读一个视图。
@@ -177,7 +177,7 @@ def _model_counts(events, stage: str):
         if meta.get("expert") is not None:
             experts[int(meta["expert"])] = experts.get(int(meta["expert"]), 0) + 1
         # 用 IR 的分类器, 不自己解字符串: 核号有 "AIC:0" 与 "AIC:c7" 两种写法, 自己解
-        # 很容易只认一种 (这里原先只认带 c 的, 于是模型侧核数恒为 0)。
+        # 两种都要认: 只认带 c 的那种会让模型侧核数恒为 0。
         for res in getattr(ev, "resources", ()) or ():
             got = classify_resource(res)
             if got is None:

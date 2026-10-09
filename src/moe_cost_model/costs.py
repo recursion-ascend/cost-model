@@ -107,7 +107,7 @@ class DispatchMechanisticLatency:
         字节仍要过互连, 但并发争用由片间信道的速率服务器裁决 —— 不折进这里
         (这个容器的契约就是"无争用基础服务")。
 
-        旧式 λ + rows·b_row/BW 把重叠的行也串行计了, 对 20260930 run 的 dispatch
+        朴素的 λ + rows·b_row/BW 会把重叠的行也串行计, 对 20260930 run 的 dispatch
         内层高估 32%: 实测 1~3 行是平台 (远端 2.17-2.42us, 与 T_LAT_REMOTE=2.43
         吻合), 不是线性上升。同一份数据若直接按行数拟合, 会把争用当成每行常数。
         """
@@ -212,17 +212,14 @@ class PrimitiveCosts:
     combine_write_bytes_per_row: Callable[[float], float]
     # 读回一个 GMM2 tile + 路由元数据的本卡字节 (GM→UB), 供 builder 申报 combine_read 通路。
     # **必填**, 与 combine_write_bytes_per_row 同一个原则: 做成可选 (缺省 None = 不申报)
-    # 会让手工构造 PrimitiveCosts 的调用点与 build_analytical_costs **静默分叉** ——
-    # 2026-10-05 就是这么踩的: 扩充 golden 指纹后发现场景路径申报 combine_read
-    # 8264448 字节而手工路径一个字节都不申报, 两条入口对同一个形状给出不同的访存量。
-    # 申报量不该少于算法必搬的字节 (见 analysis/bounds.py)。
+    # 会让手工构造 PrimitiveCosts 的调用点与 build_analytical_costs **静默分叉**:
+    # 两条入口对同一个形状给出不同的访存量。申报量不该少于算法必搬的字节
+    # (见 analysis/bounds.py)。
     combine_read_bytes: Callable[[int, int], float]
 
     # COUNTS_EXPORT -> 首个 dispatch 的门 (T_COUNT_GATE = 53.9 µs) **没有建模**:
-    # 2026-10-05 之前这里有个 count_table_prepare_us 字段承接它, 但 builders/ 与
-    # model.py 里**没有任何读者** —— 53.9 µs 被存进来又丢掉, 而 Calibration 还给它开了
-    # 一个参数 (改了什么都不会发生)。字段与参数都已删, 常数留在 config/hardware.py
-    # 作复现记录 (provenance 的 measured 桶里)。要建模这道门, 应当在尾段发一个真实事件。
+    # 常数留在 config/hardware.py 作复现记录 (provenance 的 measured 桶里)。要建模这道
+    # 门, 应当在尾段发一个真实事件 —— 存一个没人读的字段等于把 53.9 µs 丢掉。
 
     # 晚绑定 (ModelOptions.late_bind_pools 非空) 下每取一次活的开销: 真实 kernel 要做
     # 一次原子加 / 核间同步标志的读改写, 静态分核不需要 (编译期算好)。
@@ -337,16 +334,10 @@ class AnalyticalGmmCosts:
         不计入: 按"数据释放事件忽略不计"的口径。
         b_load: 本 tile 付多少比例的 B 流 (1.0 = 整份; 见 KernelConfig.gmm1_b_reuse_frac)。
 
-        口径沿革与实测依据 (这一项反复过三次, 全部记下来):
-
-          2026-09-30(1) 取 max(A,B)。依据: bs36 (m=72) 与 bs8192 (m=256) 的单 tile 实测
-            55.0 / 53.8 us 几乎不随 m 变。**当时就知道那是混淆变量** —— bs8192 同时
-            变了 m (72->256) 与每专家 m-group 数 (1->12)。
-          2026-09-30(2) 改回相加。bs128 (m=256 但仍 1 个 m-group) 把两者分开。
-          2026-10-03 又按口径决定改成 max, 与两个单 m-group 实测点冲突 (低估 9%~32%),
-            理由是 max 在 bs8192 上只差 -6.1%。
-          2026-10-04 定为相加。把三个 run 按"并发核数"与"每专家 m-group 数"分开看,
-            max 的那点支持是巧合, 真正的原因是 B 流复用:
+        口径是**相加**, 不是 max(A,B)。max 看起来被 bs8192 支持 (单 tile 实测 53.8 us
+        几乎不随 m 变), 但那是混淆变量: bs8192 同时变了 m (72->256) 与每专家 m-group
+        数 (1->12)。把三个 run 按"并发核数"与"每专家 m-group 数"分开看, max 的支持是
+        巧合, 真因是 B 流复用:
 
           证据 1 — 固定并发核数, 只变 m (两对独立比较, max 预测斜率为 0):
             | 波 | 并发核 | bs36 (m=72) | bs128 (m=256) | 实测斜率 |
@@ -448,7 +439,7 @@ class AnalyticalActCosts:
 
     ---- 已知偏差 ----
 
-    1. **每向量字节数已改为源码真值 722** (`ACT_BYTES_PER_VEC`, 2026-09-30)。
+    1. **每向量字节数取源码真值 722** (`ACT_BYTES_PER_VEC`)。
        源码 (blaze/epilogue/block_epilogue_activation_mx_quant.h): bf16 中间缓冲被
        **整体流三遍** —— SwiGLU 写一遍, ComputeMaxExp 读一遍, ComputeFp8Data 再读一遍;
        旧值 580 漏了第三遍 (128B/向量) 与 maxExp/inverseMxScale 的往返 (~14B)。
@@ -577,14 +568,14 @@ class AnalyticalCombineCosts:
     什么粒度是**编排**, 本模型目前只能表达一种 (AIV1 与 GMM2 tile 1:1 配对同核) ——
     那是表达力缺口。两件事在参考实现里恰好绑在
     一个模板参数上, 但那是那份实现的耦合, 不是物理。
-    meta: 见上 (缺省 16B/行)。2026-10-04 之前写死 8B —— 既不是算法下界也不是任何
-          实现的取值, 同一个仓库里 dispatch 侧早就按 32B 算了。
+    meta: 见上 (缺省 16B/行)。写死 8B 既不是算法下界也不是任何实现的取值,
+          dispatch 侧按 32B 算。
 
     公式: T = m·(e_in·n + meta)/BW_local
             + (m-remote)·e_out'·n/BW_local
             + remote·e_out'·n/BW_remote        (e_out' = e_out + scale)
 
-    **与实测的对照 (2026-10-04 复核 20260930 三个 noshared run, rank0; trace 里每条
+    **与实测的对照 (20260930 三个 noshared run, rank0; trace 里每条
     COMBINE 被 pid=0/pid=1 各记一遍, 去重后每 run 的真实事件数 = 专家数 x N-tile 数)**:
 
         payload 低 16 位 = n_tile x mGroups + m_group, 所以每条事件的 (专家, 波次,
@@ -607,8 +598,7 @@ class AnalyticalCombineCosts:
          硬速率; 同一个 run 里 m 组 9/10/11 中位 55-58us, 行数字节完全一样。
          本模型只按资源独占排程, 不建模带宽争用, 所以 COMBINE 应当对标**最快**那条。
       3. 对标最快那条, 可以反扣出跨卡写带宽 ~8.6 GB/s/核 (见 hardware.BW_REMOTE_WRITE
-         的注释), 把原先"与读侧对称 = 31 GB/s"的假设否掉。这是现有数据能给的最硬的
-         一条结论。
+         的注释), 这否掉了"与读侧对称 = 31 GB/s"。这是现有数据能给的最硬的一条结论。
       4. **分不开的**: 路由是 cyclic 近均匀 (每专家来自四卡 62-66 行, ±3%), 而专家间
          COMBINE 时长差 ±12% —— 跨卡行数的差异太小, 没法把 R3 (跨度) 与 R4 (字节)
          分开。要分开得按每行字节扫 (R4) 和固定 m/n 只扫 token 数 (R3)。
@@ -752,9 +742,9 @@ def build_analytical_costs(
     if platform is not None and active_cores > 0:
         bw_a = platform.gm_bw_per_core(active_cores, bw_a)
         # NZ 布局的 B 流也要受聚合带宽约束: 它和 A 流走同一条 HBM。
-        # 2026-10-05 之前只给 bw_a 加帽, 于是一个够大的 bw_l1_gm_b_nz 能让 28 个核
-        # 合起来抽出超过整卡 HBM 的带宽 —— 下界断言会抓住它 (实测给 80000 时墙钟
-        # 低于带宽下界 30.8%)。加帽之后"物理上不可能"的组合会被自动收敛到规格。
+        # 只给 bw_a 加帽的话, 一个够大的 bw_l1_gm_b_nz 能让 28 个核合起来抽出超过
+        # 整卡 HBM 的带宽 (给 80000 时墙钟低于带宽下界 30.8%, 下界断言会抓住)。
+        # 加帽之后"物理上不可能"的组合会被自动收敛到规格。
         if bw_b_nz > 0:
             bw_b_nz = platform.gm_bw_per_core(active_cores, bw_b_nz)
     gmm = AnalyticalGmmCosts(

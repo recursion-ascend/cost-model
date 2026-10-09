@@ -100,9 +100,9 @@ def simulate_routing_counts(
     latency is the max-rank completion time, measured to the end of the last
     COMBINE (kernel_total_us); kernel_dag_end_us additionally covers the
     epilogue.  Cross-rank fabric contention is
-    not modelled: the rate-server channel model was retired on 2026-10-03
-    (its two fabric constants are on different scales and stacking them would
-    double-count contention; see model.simulate_multi). Events still declare
+    not modelled: the rate-server channel model is not enabled (its two fabric
+    constants are on different scales and stacking them would double-count
+    contention; see model.simulate_multi). Events still declare
     channel_bytes, which are only summed into rank_results["traffic_bytes"].
 
     wave_packing / core_assignment / scheduling_policy / tile_grid: 策略对象,

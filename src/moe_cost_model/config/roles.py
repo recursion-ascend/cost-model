@@ -6,7 +6,7 @@
     AIV0    向量核 0
     AIV1    向量核 1
 
-"哪个 stage 用哪个角色"原先是建图代码里写死的 f-string, 于是这些编排问不出来:
+"哪个 stage 用哪个角色"若是建图代码里写死的 f-string, 这些编排就问不出来:
   * combine 交给 AIV0 (A8W8 下 AIV0 做完 ACT 就闲着 —— 实测两个向量核利用率都不到 6%)
   * dispatch 分给两个 AIV
   * A8W4 的角色互换 (激活搬到 AIV1, AIV0 做权重 W4->W8 解压)
@@ -100,9 +100,10 @@ class RoleAssignment:
     def queue_token(self, stage: str, core: int) -> str:
         """该 stage 在 core 号核上的引擎队列令牌名, **跟着角色走**.
 
-        2026-10-06 之前建图器各自写死 f-string (activation 写 "Q:vec0:c{core}",
-        combine/dispatch 写 "Q:aiv1:c{core}"), 而资源名已经走 resource()。于是
-        `roles={"combine": "AIV0"}` 这类覆盖会让一个事件**占着 AIV0 的核、扣着 AIV1 的队列**
+        队列 token 必须和资源名走同一个角色: 建图器各自写死 f-string (activation 写
+        "Q:vec0:c{core}", combine/dispatch 写 "Q:aiv1:c{core}") 而资源名走 resource()
+        时, `roles={"combine": "AIV0"}` 这类覆盖会让一个事件**占着 AIV0 的核、扣着
+        AIV1 的队列**
         —— 两个名字说的是两个不同的引擎。
 
         今天这三个令牌都是空约束 (容量恒 1, 而事件同时独占该核), 所以那个不一致不改时长;

@@ -94,9 +94,8 @@ def _rewrite_for_late_binding(events: List[Event], roles: Sequence[str], aic_num
             #
             # 起不了约束的那些 (Q:aic:c7 之类的引擎队列) 已经被
             # scheduler/normalize.prune_inert_semaphores 在**进这里之前**删掉了 ——
-            # 2026-10-08 之前这一步在本函数里做, 于是只有晚绑定路径删, 静态钉核留着,
-            # 两种绑定方式拿到两张图、两把尺子 (静态那把松: 实测掩掉 1454.67 核·µs 的
-            # avoidable 空闲)。
+            # 两种绑定方式必须拿到同一张图: 只在晚绑定路径上删, 静态钉核那把尺子会
+            # 松掉 (实测掩掉 1454.67 核·µs 的 avoidable 空闲)。
             def _norm(tok):
                 t, k = tok
                 if not _CORE_SUFFIX.search(t):
@@ -126,10 +125,9 @@ def _rewrite_for_late_binding(events: List[Event], roles: Sequence[str], aic_num
 
     # 相位拆分事件 (.lg/.ld/.cb/fix 以及 AIV 的 .ld/main) 自己不持核资源 —— 它们代表
     # 同一个核里不同引擎 (MTE / Cube / Fixpipe) 的工作, 在时间上重叠, 所以不能各自
-    # 独占核资源 (那就被迫串行, 拆了等于没拆)。它们"属于哪个核"原先靠名字里写死核号的
-    # 按核计数信号量 (QUEUE:mte_aic:c7) 记着, 而晚绑定下核号到派发时刻才定, 于是:
-    #   * 回填不了 -> 工作在 3 号核跑、L1 槽从 7 号核扣, 约束等于失效 (偏快);
-    #   * 这就是原先直接拒绝两者同用的原因。
+    # 独占核资源 (那就被迫串行, 拆了等于没拆)。用名字里写死核号的按核计数信号量
+    # (QUEUE:mte_aic:c7) 记"属于哪个核"在晚绑定下不成立: 核号到派发时刻才定, 回填不
+    # 了, 工作在 3 号核跑而 L1 槽从 7 号核扣, 约束等于失效 (偏快)。
     #
     # 现在用**核组**解决: 同一个 tile 的几个相位编成一组, 核号由该组最先派发的那个
     # 事件选定, 同组其余事件跟随 (Event.core_group, 引擎的 group_core)。为什么不能用
@@ -291,7 +289,6 @@ class A8W8WaveCostModel:
         # COMBINE 的量化 (CombineQuantMode) 由 KernelConfig.combine_quant_mode 表达, 已建模
         # (写侧每元素字节随之变)。这里原有一道 ModelOptions.combine_no_quant 的门, 拒绝
         # "量化 combine" —— 与 combine_quant_mode=1 能跑互相矛盾, 同一个事实两个说法。
-        # 2026-10-05 删掉那个字段与门, 只留 combine_quant_mode 一个真相。
         # 编排与公式必须同口径: activation->gmm2 这条边落片上时 GMM2 的 A 不付 GM
         # 字节, 落 GM 时要付。调用方给的 costs 可能两边都不是, 这里按选定的编排改写
         # 公式, 不让两套口径混在一张图里 (混着就会把物化算成近乎免费)。
@@ -300,7 +297,6 @@ class A8W8WaveCostModel:
         self.options = options
         # work-conservation 护栏: 派发时刻绑定的角色池里不许出现"有就绪的活却有核空着"。
         # 缺省开, 且挂在**模型层**而不是 api 层 —— 与下界同一个理由: 护栏不能被绕过
-        # (tests/golden_cases.run_shapes 这类入口直达 simulate_multi)。
         # 静态钉核的池不在检查范围内: 工作钉死在某个核上, 那个核忙而别处空着时搬不
         # 过去, 那是那种分核方式的代价 (量出来就是结论), 不是调度器没做到位。
         # 给 False 只在排查时用: 它让一个**自己承认有核白闲着**的时长照样返回。
@@ -323,8 +319,8 @@ class A8W8WaveCostModel:
         """这个 shape 用哪份实现的适配器.
 
         优先 shape.orchestration (场景文件里写 orchestration = "layered" 之类, 或直接给
-        适配器/建图器类), 否则按编译点的 comm_mode 选 —— 即原先的 `km.topo_urma` 分支,
-        现在走 CompileConfig.comm_mode (对应 kernel 的 TILINGKEY_COMM_MODE)。
+        适配器/建图器类), 否则按编译点的 comm_mode 选 (CompileConfig.comm_mode, 对应
+        kernel 的 TILINGKEY_COMM_MODE)。
         """
         want = getattr(shape, "orchestration", None)
         if want is not None:
@@ -340,8 +336,8 @@ class A8W8WaveCostModel:
         """波计划, 每个 (rank, 形状) 只算一次.
 
         为什么缓存: _postprocess 要把 wave_count / m_groups_per_wave / waves 放进结果
-        (wave_count 进 golden 指纹), 而它原先**第二次调用** self.waves(shape) 重算。
-        算两遍就有两条路径可以漂, 所以这里算一次, 建图与后处理共用同一个对象。
+        (wave_count 进结果), 若在那里**第二次调用** self.waves(shape) 重算, 两条路径
+        就都能漂。所以这里算一次, 建图与后处理共用同一个对象。
         """
         key = (shape.rank_id, id(shape))
         got = self._wave_plans.get(key)
@@ -370,7 +366,7 @@ class A8W8WaveCostModel:
                        restructure=None) -> Dict[int, Dict[str, object]]:
         """多 rank 调度: 核/队列资源按 rank 前缀隔离.
 
-        信道模型 (速率服务器) 已于 2026-10-03 停用: 事件的 channel_bytes 仍然申报
+        信道模型 (速率服务器) 未启用: 事件的 channel_bytes 仍然申报
         字节, 但只在 rank_results["traffic_bytes"] 里汇总成访存量, 不参与准入、
         不影响任何时长。片间 fab 通路同理 —— 它的两个常数本来就不同尺度
         (聚合 BW_WINDOW=33000 是整卡值, 逐事件 BW_REMOTE_GM=31000 是从 28 核并发
@@ -380,7 +376,6 @@ class A8W8WaveCostModel:
         见 _ranks_independent); 否则全部事件进同一个调度器.
         """
         # 路由守恒是算法事实, 在**这里**查而不是只在 api 里查: run_shapes 这类直达
-        # simulate_multi 的入口原先绕过了它 (golden 有两个 case 一直在给不可能的输入建图)。
         # 与 attach_bounds 放在这里是同一个理由 —— 没有入口能绕过护栏。
         bad = check_shape_conservation(shapes)
         if bad:
@@ -455,9 +450,6 @@ class A8W8WaveCostModel:
             #
             # 为什么深度不是参数: 要表达"更深的队列"必须先有发射开销或在途计数的物理
             # 后果, 模型里没有, 给个参数只会让扫描得到"深了也没用"的假结论。
-            # 2026-10-05 之前这里是 EngineQueueDepths(aic/vec0/aiv1): 四类形状逐个扫过,
-            # 任何取值都与容量 1 逐位相同 (golden 的 pipeline_engine_queue2 与
-            # pipeline_split 指纹全同可证), 所以它是个无法生效的参数, 已删。
             ub_depth = self.options.gmm1_act_link(shape.kernel).depth
             for core in range(shape.aic_num):
                 capacities[pre + f"Q:aic:c{core}"] = 1
@@ -509,9 +501,8 @@ class A8W8WaveCostModel:
             evs = [e for e in scheduled if e.meta.get("rank") == rank]
             results[rank] = self._postprocess(shape, evs, all_caps)
             results[rank]["traffic_bytes"] = dict(sorted(traffic[rank].items()))
-            # 下界挂在**这一层**, 不是 api 层 —— 护栏不能被绕过。2026-10-05 发现
-            # tests/golden_cases.run_shapes 直达本函数并手工拼结果, 于是四个 golden
-            # case 完全没跑下界断言。platform 只有 api 层知道, 所以这里按 platform=None
+            # 下界挂在**这一层**, 不是 api 层 —— 任何直达本函数的入口都不能绕过护栏。
+            # platform 只有 api 层知道, 所以这里按 platform=None
             # 挂 (带宽下界只用每核带宽 x 核数), api 收到 platform 时会重算一遍。
             # 策略可能是注册名 (api 入口允许), 先解析成对象再问它承诺不承诺守恒
             pol = getattr(self, "_sched_policy", None)

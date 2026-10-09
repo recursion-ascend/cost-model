@@ -250,7 +250,7 @@ class EventGraphView:
         return tuple(out)
 
     def transfer_totals(self) -> Dict[Tuple[Optional[MemorySpace], Optional[MemorySpace]], float]:
-        """按 (源, 目的) 聚字节 —— 原先只能按通路名聚, 方向藏在名字里."""
+        """按 (源, 目的) 聚字节 (而不是按通路名聚, 那样方向藏在名字里)."""
         out: Dict[Tuple[Optional[MemorySpace], Optional[MemorySpace]], float] = {}
         for task in self.tasks:
             for tr in task.transfers:

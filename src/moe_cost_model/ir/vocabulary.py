@@ -19,7 +19,7 @@ _drop_program_order), 访存方向只能靠 `k.endswith("gm_to_l1")` 这种判�
 本模块把约定**提升为类型**, 并且只做这一件事:
 
   * 它是**只读视图**: 从现有 Event 的字段解析出类型化记录, 不改 Event, 不改调度。
-    所以它对时长、事件名、Event.order 零影响 (判据: golden 39 个指纹不变)。
+    所以它对时长、事件名、Event.order 零影响。
   * 它把**不可表达的东西写成明文**: 例如异步发射 (issue) 与执行 (execution) 现在只有
     一个 duration_us, 模型用"把事件拆成相位"来近似; 这不是能靠加字段解决的, 见
     UNREPRESENTABLE。写出来比沉默好 —— 沉默会被当成"已经建模了"。
@@ -112,7 +112,7 @@ class TransferDirection(str, Enum):
     READ_WRITE = "read_write"
 
 
-#: 访存通路 -> (源, 目的, 方向, 协议)。方向与两端内存原先只藏在通路名里。
+#: 访存通路 -> (源, 目的, 方向, 协议)。方向与两端内存不该只藏在通路名里。
 #: 协议: "mte" = 核内搬运指令; "window" = 跨卡窗口读写 (common/mega_moe_peermem.h);
 #:       "urma" = Layered 的 Hcomm GET/PUT (stage/mega_moe_layered_dispatch.h)。
 CHANNEL_SEMANTICS = {
@@ -158,8 +158,8 @@ UNREPRESENTABLE = {
         "身份也没有 set/wait 配对。kernel 侧有 20 多个 flag, 哪三个对应这三个字段并无记载 "
         "—— 这是一条真缺口, 不是命名问题。",
     "bandwidth_contention":
-        "带宽域没有争用: channel_bytes 只做字节汇总, 不参与准入 (2026-10-03 停用速率"
-        "服务器, 原因是两个 fab 常数尺度不同, 叠加会把争用计两遍)。所以 Transfer 有 "
+        "带宽域没有争用: channel_bytes 只做字节汇总, 不参与准入 (速率服务器未启用, "
+        "因为两个 fab 常数尺度不同, 叠加会把争用计两遍)。所以 Transfer 有 "
         "bandwidth_domain 这个**标签**, 但没有共享速率的后果。",
     "cross_core_flag_wait":
         "跨核等待只以依赖边出现, 没有「等谁的哪个 flag」。idle.py 的 avoidable_idle_us "

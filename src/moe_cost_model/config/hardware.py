@@ -21,7 +21,7 @@ L1_TILE_K = SourcedInt(256, 'impl:一次载入覆盖的 K 维行数')
 # GMM1 的 A 流用到它, B 流不建模 — 口径已变, 数值待按新公式重新标定.
 # 单核值。两条独立标定互相不一致, 都记下来:
 #   旧口径 (B=64 H 扫描差分单点) 反解 51900;
-#   2026-10-04 按"固定并发核数只变 m"的 A 流斜率反解: 28 核 45300, 18 核 37000
+#   按"固定并发核数只变 m"的 A 流斜率反解: 28 核 45300, 18 核 37000
 #   —— 随并发核数变, 所以它不是一个常数。
 # 聚合上界另有约束: 单核值 x 活跃核数 不得超过平台聚合 HBM 带宽 (config/platform.py
 # 的 PlatformSpec.gm_bw_per_core)。950PR 在 28 核上 51900 已占聚合的 91%。
@@ -29,7 +29,7 @@ BW_L1_GM = SourcedValue(51900.0, 'measured:片外内存到片上 L1 的载入带
 # 标定: ACT 大 m tile 单点.
 # ACT 从 UB 读输入、向 UB 写输出, 读写流量都按此速率折算成时长.
 #
-# 出处待重标 (2026-09-30): 这个值是**用 ACT_BYTES_PER_VEC=580 在单点上反解**的,
+# 出处待重标: 这个值是**用 ACT_BYTES_PER_VEC=580 在单点上反解**的,
 # 而 580 已被证明与源码不符 (真值 722, 漏了 ComputeFp8Data 那一遍 bf16 重读)。
 # 同一个标定点按 722 重算会给 93000x722/580 = 115769; 而 20260930 的两点 m 扫
 # (bs36 m=72 / bs8192 m=256) 定出斜率 0.007760 us/向量, 对应 bw = 93041。
@@ -42,24 +42,20 @@ BW_WINDOW = SourcedValue(33000.0, 'measured:跨卡读数据的片间带宽, disp
 # 标定: B=64 随机路由反推;
 # 只剩本卡侧口径: COMBINE 现在把 GM→UB 读回与本卡行写按 BW_LOCAL_GM 计,
 # 跨卡行写按 BW_REMOTE_WRITE 计, 本常数不再进 COMBINE 公式 (留给旧标定复现).
-# 2026-10-05: 确认**真的没有任何公式再用它**。此前标着"已不用", 但
-# builders/pipeline_expand.py 还在用 "base_dur x BW_SCATTER" 从时长倒推 COMBINE 的
-# hbm_write 字节 —— 方向反了, 而且那股字节只在开相位流水时出现 (换编排参数不该改变
-# 搬了多少字节)。现在 COMBINE 的本卡读回与本卡行写由 builders/comm/peerwrite.py 按字节直接
+# COMBINE 的本卡读回与本卡行写由 builders/comm/peerwrite.py 按字节直接
 # 申报, 这个常数只作为旧标定的复现记录保留, 不进任何公式、不进任何申报。
 BW_SCATTER = SourcedValue(139500.0, 'measured:COMBINE 散射写带宽 (旧口径); 域受限 (B=64 随机路由标定); 已退役, 不进任何公式, 仅留复现记录')
 # COMBINE 的跨卡行写 (CombineTokens 每行一次 DataCopyPad 直写目的卡窗口) 没有直测,
-# 只能从 COMBINE 事件的总时长里反扣。2026-10-04 之前这里取的是"与读侧对称"的假设值
-# 31000 —— 现已被现有 trace 排除, 见下。
+# 只能从 COMBINE 事件的总时长里反扣 (见下)。
 BW_REMOTE_WRITE = SourcedValue(8600.0, 'measured:跨卡写目的卡窗口的带宽 (每核); COMBINE 用')
-# 8600 B/us 的来历 (2026-10-04, 20260930 三个 noshared run, rank0, 去掉 pid 重复记录):
+# 8600 B/us 的来历 (20260930 三个 noshared run, rank0, 去掉 pid 重复记录):
 #   取每个形状**最快**的 COMBINE tile (未被别的阶段挤的那一条), 把读回与本卡行写按
 #   BW_LOCAL_GM 扣掉, 余下时间除以跨卡字节:
 #     bs8192  m=256 floor 11.46us (206 个样本, p10=11.30, 分布极紧 -> 是硬速率)  -> 9.5 GB/s
 #     bs36    m= 72 min   3.86us                                                -> 7.8 GB/s
 #     bs128   m=256 min  22.74us (该 run 全程被挤, 这个"min"仍含排队)           -> 4.5 GB/s
-#   前两个取中 ~8.6 GB/s; 第三个是下界。**原先的 31000 是"取远端读对称值"的假设,
-#   现有 trace 已经把它排除掉了 (差 3-7 倍)**。要定准仍需 R4 (按每行字节扫)。
+#   前两个取中 ~8.6 GB/s; 第三个是下界。"取远端读对称值" (31000) 与这三点差 3-7 倍,
+#   已被这些 trace 排除。要定准仍需 R4 (按每行字节扫)。
 
 # 流水线启动/填充延迟
 # 暂取 0; 实测存在 68ns/tile 的缺口 (n 系差分), 机制待推导.
@@ -83,14 +79,14 @@ BW_LOCAL_GM = SourcedValue(157000.0, 'measured:读本卡内存的带宽, dispatc
 BW_REMOTE_GM = SourcedValue(31000.0, 'measured:读远端卡内存的带宽, dispatch 远端段用')
 # GMM1 计算与首个远端段部分重叠, 此为补偿项. 标定: w≥1 首位流差分.
 #
-# 待清理 (2026-09-30): 这一项有两个问题, 都是框架层面的, 不是数值层面的。
+# 待清理: 这一项有两个问题, 都是框架层面的, 不是数值层面的。
 #   1) 它把**跨 stage 的调度交互**写成了加在单事件时长上的常数。本项目的口径是
 #      把执行过程建成事件 DAG, 让 GMM1 与 dispatch 的重叠由依赖边和核资源互斥
 #      在离散事件引擎里自己走出来 —— 而不是折进 dispatch 事件的时长里。这是
 #      roofline 式补偿项的残留。
 #   2) 它的标定基于 segment_us 的旧形态 (λ + rows·b_row/BW, 把流水里重叠的行也
-#      串行计了)。2026-09-30 segment_us 改成 buffer_count 槽的行级软流水后, 它当初
-#      吸收的残差已经变了, 标定失效。
+#      串行计了)。segment_us 现在是 buffer_count 槽的行级软流水, 它当初吸收的
+#      残差已经不同, 标定失效。
 #   实际影响不小: 20260930 bs=36 run 里它落在 61 个 dispatch 事件中的 44 个 (72%),
 #   模型单事件中位 3.330 vs 实测 2.779 (+19.8%); 去掉它是 2.430 (-12.6%)。
 #   两个数都不对 —— 说明要的是把重叠建成边, 不是换个常数。故先不动值, 只标明。
@@ -99,7 +95,7 @@ T_GMM1_OVERLAP = SourcedValue(0.9, 'measured:dispatch 调用首个远端段的�
 # CopyTokensAndMetaForDispatch 是 bufferCount 槽的行级软流水: 前 bufferCount 行的
 # Fetch 背靠背发出 (模板参数 Wait=false), 只有 issueIdx >= bufferCount 才等
 # MTE3_MTE2 让槽腾出来。所以一段里不超过 bufferCount 行是重叠的, 段时长由一次
-# 往返延迟封底, 不随行数线性增长。缺省 6 = 20260930 run 的 tiling 真值。
+# 往返延迟封底, 不随行数线性增长。缺省 6 = tiling 真值。
 DISPATCH_BUFFER_COUNT = SourcedInt(6, 'impl:dispatchBufferConfig.bufferCount, 行级软流水槽数')
 # 标定: COUNTS_EXPORT→首 dispatch span.
 T_COUNT_GATE = SourcedValue(53.9, 'measured:COUNTS_EXPORT 到首个 dispatch 的最短间隔')
@@ -257,8 +253,8 @@ def select_kl1(m_rows: int, k: int, override=None, tile_m: int = TILE_M,
 
     k_l1_base: K-chunk 基线, KernelConfig.l1_tile_k 可设; 缺省 = 源码 256.
 
-    **2026-10-06 去掉了 n_windows 参数** (原先由 KernelConfig.l1_buf_num 传入, 缺省 2):
-    那是把两个不同的量当成了一个。kernel 的容量判据里乘的是固定的 `maxKL1Units = 2U`
+    **没有 n_windows 参数**: 它会把两个不同的量当成一个。kernel 的容量判据里乘的是
+    固定的 `maxKL1Units = 2U`
     (见 MAX_KL1_UNITS), 而 `MEGAMOE_L1_BUF_NUM` 在 CalcAdaptiveL1Params 的三个比较式里
     **一次都没出现** —— 它只进 `L1Params{.l1BufNum = ...}`, 管的是 ping-pong 的缓冲块数
     (模型侧对应 AnalyticalGmmCosts 的 serial: l1_buf_num==1 时单缓冲, 换块要停顿)。
@@ -307,9 +303,7 @@ class EpilogueOverheads:
     —— 它是真实的数据搬运, 由 token 数 x topk x h 的字节量除以 BW_UNPERMUTE_AGG 算出来,
     属于物理。
 
-    **哪个缺省是什么, 2026-10-05 把话说清** (原先这段写"缺省沿用实测值, 这样默认结果
-    不变", 那句描述的是本类自己的行为, 却被读成"模型缺省沿用实测值" —— 我自己照着它
-    误报过好几轮"实测残留藏在缺省值里"):
+    **哪个缺省是什么**:
 
       literal=False (本类的缺省)   五项里为 0 的回落到模块实测常数
                                    (T_COUNTS_EXPORT_US / T_CORE_SYNC_BARRIER_US / ...)。
@@ -360,14 +354,14 @@ class KernelConfig:
     """kernel 编译期参数. 默认值 = 源码/CMake 缺省.
 
     对应: MEGAMOE_TILE_M/TILE_N/L1_BUF_NUM/TOPO_URMA/TOPK_PREFETCH
-    (mega_moe/include/CMakeLists.txt:28-32) 与 Blaze BlockSchedulerSwizzle<3,0>
-    模板参数. 修改后模型的 wave 规划/tile 网格/分核轮转随之改变.
+    (上游 include/CMakeLists.txt 的 MEGAMOE_* cache 变量) 与 Blaze
+    BlockSchedulerSwizzle<3,0> 模板参数. 修改后模型的 wave 规划/tile 网格/
+    分核轮转随之改变.
     """
 
     # 权重 GM 布局: Z(线性) / NZ(分形)。**影响时长**: NZ 时 GMM 的 B 流 (权重载入) 改用
     # NZ 路径的 GM->L1 带宽 (Calibration.bw_l1_gm_b_nz, 必须实测给出, 不给直接报错 ——
-    # 不声称 NZ 与 Z 同速)。2026-10-05 之前这里写"不影响时长: B 流不进 GMM tile 公式",
-    # 那是 B 流还没进公式时的旧话; 现在 b_load = k·cols / bw_b, bw_b 由本字段选。
+    # 不声称 NZ 与 Z 同速)。b_load = k·cols / bw_b, bw_b 由本字段选。
     weight_nz: bool = False
     tile_m: int = 256                 # MEGAMOE_TILE_M: 每个 m-group 的行数
     tile_n: int = 256                 # MEGAMOE_TILE_N: scheduler N tile
@@ -382,10 +376,8 @@ class KernelConfig:
     # Direction=0 = "m first": loopFirst = ceil(M/tileM) = m 组数, loopSecond = n-tile 数
     # (block_scheduler_swizzle.h:41-47 构造函数, :85-93 GetBlockCoord 的返回分支)。
     #
-    # 2026-10-05 之前这里缺省 1, 注释也声称 kernel 用 <3, 1> —— 与仓内源码相反。
-    # 它**影响时长**: tile->核 的轮转顺序变了 (planning/tile_grid.py:96 ->
-    # planning/waves.py:154)。planning/waves.py:155 的函数缺省一直是 0 (与源码一致),
-    # 所以两个 Python 缺省自己也不一致。
+    # 它**影响时长**: tile->核 的轮转顺序随之变 (planning/tile_grid.py:96 ->
+    # planning/waves.py:154)。
     swizzle_offset: int = 3
     swizzle_direction: int = 0
     activation_n_half: int = ACTIVATION_N_HALF   # SwiGLU 双投影
@@ -409,8 +401,8 @@ class KernelConfig:
     #   3. 每个行块多一次 topk 权重的 GM->UB 读 (m x META_BYTES_PER_ROW)。
     # **影响时长**: 2、3 两项的字节要搬, 且 kernel 用 MTE2_V 标志把搬运与向量计算
     # 严格串起来 (同文件 353-356: SetFlag/WaitFlag 紧挨着), 所以读回时间不与计算重叠。
-    # 缺省 0: mega_moe/include/CMakeLists.txt:28 的 cache 变量就是 0
-    # (include/kernel.cpp:24-26 的 #ifndef 兜底同样是 0)。
+    # 缺省 0: 上游 include/CMakeLists.txt 的 cache 变量就是 0
+    # (include/kernel.cpp 的 #ifndef 兜底同样是 0)。
     topk_weights_prefetch: bool = False
     l1_tile_k: int = 256              # K-chunk 基线 (select_kl1 自适应)
     # GMM1 B 复用: 切片内首个 m-group 的 tile 付整份 B 流, 其余 m-group 的 tile 各付

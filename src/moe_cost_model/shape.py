@@ -131,8 +131,7 @@ class ModelOptions:
     pipeline: Optional[PipelineConstraints] = None
     gmm2_kl1: Optional[int] = None
     # stage 之间那条边: 消费者等多少 / 中间结果放哪 / 片上存几块。
-    # 一条边一个 StageLink, 见 config/links.py。取代原先三个各自为政的参数
-    # (gmm2_k_segments / act_to_gmm2 / InstancePolicy.gmm1_activation_depth)。
+    # 一条边一个 StageLink, 见 config/links.py。
     links: Tuple[object, ...] = DEFAULT_LINKS     # config.links.StageLink
     # 哪个 stage 跑在哪个执行角色上 (AIC / AIV0 / AIV1), 见 config/roles.py。
     # 缺省: 矩阵乘上 Cube, ACT 占一个向量角色, 通信与 combine 占另一个。

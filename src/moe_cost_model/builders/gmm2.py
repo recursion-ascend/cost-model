@@ -89,7 +89,7 @@ def add_gmm2_wave(builder, ctx: BuildContext, w, shape, km, p, c, core_assign,
             phases = _sum_phases(c, members, k_gmm2)
             # GM→L1 访存量: B 流权重 K2·cols (每个 tile 都要读) + A 流激活 m·K2
             # (只在物化编排下存在: ACT 写 GM, GMM2 读回)。
-            # 2026-10-05 之前只申报 A 流 —— B 流进了时长公式 (gmm2_phases 的
+            # A 流与 B 流都要申报: 只报 A 流时 B 流进了时长公式 (gmm2_phases 的
             # b_load = k2·cols/bw_b) 却没进字节申报, 于是全卡申报量**低于算法必搬的
             # 字节** (scenario_basic: 1660.9MB vs 2420.1MB, 差 759.2MB ≈ GMM2 权重
             # 805.3MB)。申报量低于算法下界在物理上不可能, 那是漏账不是口径差异。

@@ -21,8 +21,8 @@
   variant            同一实现的版本, 例如 "v1"。源码改了编排就要换它。
 
 为什么不把编译参数编进名字: 编译点有十几个轴 (见 config/hardware.KernelConfig 与
-mega_moe/include/CMakeLists.txt 的 MEGAMOE_* 宏), 塞进名字会得到一个没人能念的字符串,
-而且 kernel 自己的 tiling key 也只编码 5 个轴 (mega_moe_tiling_key.h:33-45), 不含
+上游 include/CMakeLists.txt 的 MEGAMOE_* 宏), 塞进名字会得到一个没人能念的字符串,
+而且 kernel 自己的 tiling key 也只编码 5 个轴 (mega_moe_tiling_key.h), 不含
 TILE_M/TILE_N/L1_BUF_NUM/IsGmm1Interleaved。所以编译点用**指纹**表达, 见 compile.py。
 """
 from __future__ import annotations
@@ -53,8 +53,10 @@ class ImplementationId:
     hardware_id: str
     implementation_id: str
     variant: str
-    #: 源码依据: 指向仓内文件的相对路径 (可带行号), 说明这个身份对应哪份实现。
-    #: 自由文本不行 —— 它是这一层存在的理由之一, 所以要求能被 tools 核对的路径。
+    #: 源码依据: 指向**上游 MegaMoE 仓**的相对路径, 说明这个身份对应哪份实现。
+    #: 本仓不内置那棵树, 所以路径的存在性在这里核不了 —— 形式仍然强制 (必须是
+    #: 路径, 不是一句自由文本), 指向的文件要人拿着 kernel 工程看。不写行号: 行号
+    #: 随上游改动漂移, 是无法核对的伪精确。
     source_refs: Tuple[str, ...] = ()
 
     def __post_init__(self) -> None:

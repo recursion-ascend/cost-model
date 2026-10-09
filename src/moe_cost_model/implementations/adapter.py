@@ -14,11 +14,9 @@
 散在 model.py 里按 `topo_urma` 分支。第三份实现 (A8W4 多一个权重解压阶段, A4W4 换数据
 格式) 无处落脚。
 
-**本步只做归位, 不动行为。** 适配器把现有建图器原样包起来: `lower()` 的实现就是调用
-`MteEventBuilder.build` / `LayeredEventBuilder.build`, 一行代码都没有搬进搬出。判据是
-golden 的 39 个指纹逐位不变 (tools/gen_golden.py --check --explain: 行为类零差异)。
-把 DRAIN_STAGES / 尾段链 / 共位规则这些真正属于适配器的东西搬过来, 是后面的步骤 ——
-它们会动 Event.order 与事件名, 必须单独一步、单独一次 golden 重生成。
+适配器把建图器包起来: `lower()` 调用 `MteEventBuilder.build` /
+`LayeredEventBuilder.build`。DRAIN_STAGES / 尾段链 / 共位规则这些同样属于适配器的
+东西还留在 model.py 与 builders/base.py —— 搬过来会动 Event.order 与事件名。
 """
 from __future__ import annotations
 
@@ -33,8 +31,8 @@ from .identity import ImplementationId
 class Unsupported(NotImplementedError):
     """这个适配器不支持给定的编译点/编排组合.
 
-    继承 NotImplementedError 是为了与现存的拒绝保持同一个类型 (model.py 原先直接
-    raise NotImplementedError), 调用方的 except 不必改。
+    继承 NotImplementedError 是为了与 model.py 里的拒绝保持同一个类型, 调用方的
+    except 不必改。
     """
 
 
@@ -43,7 +41,7 @@ class WavePlan:
     """波计划: 波宽 + 波序列. 适配器算一次, 建图与后处理都用这一份.
 
     为什么要缓存成对象: model._postprocess 会**再算一遍** waves 并把结果放进输出
-    (wave_count 进 golden 指纹)。两次计算走不同路径就有漂移风险, 所以算一次传下去。
+    (wave_count 进结果)。两次计算走不同路径就有漂移风险, 所以算一次传下去。
     """
 
     m_groups_per_wave: int

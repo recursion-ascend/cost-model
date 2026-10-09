@@ -116,11 +116,10 @@ def unknown_categories(entries: Dict[str, Tuple[float, str]]) -> Dict[str, str]:
 def run_provenance(costs, kernel=None):
     """一次运行用到的全部常数出处报告.
 
-    提到这一层 (原先内联在 api.simulate_routing_counts 里) 是为了让**每条入口都给出
-    同一份报告**: 2026-10-05 发现 tests/golden_cases.run_shapes 直达
-    A8W8WaveCostModel.simulate_multi 并手工拼结果, 于是那几个 case 的出处报告是空的 ——
-    而 test_scenario_matches_golden 的前提正是"场景路径与 API 路径给出同一份指纹"。
-    内联的组装逻辑一旦被第二个入口复制, 两边就会漂。
+    单独一层 (而不是内联在 api.simulate_routing_counts 里) 是为了让**每条入口都给出
+    同一份报告**: 直达 A8W8WaveCostModel.simulate_multi 并手工拼结果的入口会得到一份
+    空报告, 而"场景路径与 API 路径给出同一份指纹"正是对账的前提。内联的组装逻辑一旦
+    被第二个入口复制, 两边就会漂。
     """
     from . import hardware as _hw, policy as _pol
     prov = collect_provenance(vars(_hw))

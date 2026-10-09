@@ -9,11 +9,11 @@ config/policy.InstancePolicy 里, 拓扑散落在 MegaMoeShape.aic_num 与 Workl
 把它们聚到一个对象上, 第 8 步的标定键才有东西可取。
 
 kernel 侧的对应物 (运行期从 tiling data 读, 不在 ABI 之外):
-  numMaxTokensPerRank   tiling @212,
-                        mega_moe/op_host/op_tiling/arch35/mega_moe_tiling.cpp:924-925
-  rankNumPerServer      tiling @216, 同文件 :926-927 (仅 URMA 用)
-  epWorldSize           tiling @16, :917
-  aicNum / blockAivNum  tiling @32 / @36, :2516-2517
+  numMaxTokensPerRank   tiling @212
+  rankNumPerServer      tiling @216 (仅 URMA 用)
+  epWorldSize           tiling @16
+  aicNum / blockAivNum  tiling @32 / @36
+取值出处见上游 op_host/op_tiling/arch35/mega_moe_tiling.cpp。
 这四项里前两项与 ranks_per_server 当前**不在** config/pipeline.TILING_FIELDS 里, 所以
 tiling 真值护栏核不到它们 —— 记在这里, 第 4 步补。
 """

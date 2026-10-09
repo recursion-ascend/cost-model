@@ -81,8 +81,8 @@ def _remap_token(token: str, old_core: str, new_core: str) -> str:
 def _moved(ev: Event, new_core: str, old_core: str, meta_extra: Dict) -> Event:
     """同名、同依赖、同时长, 只把资源与队列 token 换到新核.
 
-    **必须逐字段搬全**。2026-10-06 之前这里漏了三个字段 —— colocate_with / core_group /
-    once_per_core —— 于是被转移的事件静默丢掉约束:
+    **必须逐字段搬全**。漏掉 colocate_with / core_group / once_per_core 这三个字段会
+    让被转移的事件静默丢掉约束:
 
       colocate_with  共位是硬件通路 (GMM1 的 L0C -> 配对 AIV0 的 UB, Fixpipe 只在绑定对内)。
                      丢了它, 调度器就不再强制 ACT 与它的 GMM1 同核。本模块是成组搬的

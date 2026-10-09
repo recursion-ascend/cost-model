@@ -1,6 +1,6 @@
 """读实测 trace (Chrome Trace Event 格式), 并把它翻成模型的词表.
 
-数据事实 (data/ 下 6 个 run x 4 rank = 24 个文件, 2026-10-05 核过):
+数据事实 (data/ 下 6 个 run x 4 rank = 24 个文件):
   * 16 个文件完整可解析 (bs36 与 bs128 两组, 各 4 rank);
   * 8 个文件**被截断** —— 两个 bs8192 run 的全部 rank, 都在 7602176 字节处断在一条记录
     中间 (同一个字节数, 说明是采集侧的写入上限, 不是随机损坏)。
@@ -176,8 +176,8 @@ def read_trace(path) -> TraceFile:
 
     # 一个文件里可能有**同一次运行的多个视图** (本仓的 trace 有两个 pid:
     # "完整流水" 与 "隐藏 WAIT", 事件逐位相同)。全读进来等于每个事件数两遍 ——
-    # 2026-10-08 之前就是这样, 于是结构比对里实测条数恒为模型的 2 倍。
-    # 只取一个视图: 事件最多的那个 (完整视图必然 >= 隐藏视图), 并列取 pid 最小的。
+    # 两个视图都算会让结构比对里实测条数恒为模型的 2 倍。只取一个: 事件最多的那个
+    # (完整视图必然 >= 隐藏视图), 并列取 pid 最小的。
     per_pid: Dict[object, int] = {}
     for rec in records:
         if rec.get("ph") == "X":
@@ -267,7 +267,7 @@ def read_run_config(run_dir) -> Dict[str, object]:
     #   hidden       输入维                   -> h          (目录名里的 h5120)
     #   intermediate 专家中间维 I             -> hidden_dim = **2I** (SwiGLU 的 gate+up
     #                两半), 目录名里的 i4608 是 I; config.json5 自己也注明 hiddenDim = 2I。
-    #                2026-10-08 之前这里直接把 I 当 hidden_dim 返回, 于是
+    #                直接把 I 当 hidden_dim 返回会让
     #                tools/compare_trace_structure.py 按这个 cfg 建出来的模型只有一半的
     #                GMM1 n-tile (9 个而不是 18 个) —— 那正是"模型与 trace tile 数差 4x"
     #                里的一个 2 倍。原始 I 仍以 intermediate 键给出。

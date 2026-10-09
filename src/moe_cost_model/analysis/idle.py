@@ -28,8 +28,6 @@ GMM1 还在等 dispatch_ready (AIV1 产出), 所以开头那段**所有 AIC 必�
 不这么算的话, 等 UB 槽、等跨卡通道都会被报成"有活不干" —— 实测 serialize_dispatch_comm
 下虚报 5814.8 核·us, UB 深度改成容量后又虚报 262.8 核·us。
 
-(信道那一关 ④ 已随信道模型于 2026-10-03 一起去掉。)
-
 avoidable 仍是**上界**
 ----------------------
 ①③ 由引擎精确给出 (actionable_us), ⑦ 从排好的时间线精确反推。但有**两种"核挪不动"
@@ -41,7 +39,7 @@ avoidable 仍是**上界**
                 搬进**某个核的 L1**, cube 相位只能在那个核上算 —— 数据在那儿。所以
                 cube 相位即使"前置齐备且别处有空闲核"也挪不过去。
 
-所以真实可回收量 <= avoidable_idle_us。实测 (2026-10-04, examples/scenario_basic.toml):
+所以真实可回收量 <= avoidable_idle_us。实测 (examples/scenario_basic.toml):
 开了晚绑定之后所有配置的 avoidable 都是 0, **只有相位流水那一档剩 1637.5 核·us** ——
 逐段挖进去看, 等着的全是 .cb 相位, 且每一个都在它那个核空出来的**同一时刻**就开跑
 (例: W2.E8.S0.gmm1.m0.n0.cb 绑在 AIC:12, AIC:12 的上一个活跑到 168.97, 它就在

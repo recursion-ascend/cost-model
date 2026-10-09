@@ -5,16 +5,13 @@
   ascend950.megamoe.layered.v1     mega_moe/op_kernel/arch35/mega_moe_layered.h
                                    (URMA Layered 路径; 建图器 builders/layered.py)
 
-**行为冻结**: 两个适配器的 plan/lower 逐行复刻原先 model.py 里按 topo_urma 分支的那三处
-(m_groups_per_wave / waves / build_events), 没有改任何计算。golden 的判据见 adapter.py。
-
-尚未搬进适配器、仍留在 model.py 与 builders/base.py 的实现专属知识 (下一步的清单):
+仍留在 model.py 与 builders/base.py 的实现专属知识 (搬进适配器会改事件名或
+Event.order):
   DRAIN_STAGES (stage -> 引擎)        builders/base.py:296-301
   尾段链与其五个常数                  builders/base.py:250-291
   ACT 与 GMM1 共位 / dispatch_call    model.py 的 _rewrite_for_late_binding
   onchip act->gmm2 的整组共位         model.py 的 _apply_onchip_act_to_gmm2
   gmm2 的 K 段命名约定 (.h / .k{j})   builders/gmm2.py
-它们都会改事件名或 Event.order, 所以必须各自单独一步 + 单独一次 golden 重生成。
 """
 from __future__ import annotations
 
@@ -49,8 +46,8 @@ class _MegaMoeAdapterBase:
     def accepts(self, compile_cfg: CompileConfig, options: Any) -> None:
         """不支持的编译点/编排组合在这里拒绝.
 
-        **目前没有被拒的组合。** 原先这里拒 TopkWeightsPrefetch=true; 2026-10-06 起
-        它建模了 (见 config.links.effective_gmm1_act_link 与
+        **目前没有被拒的组合。** TopkWeightsPrefetch=true 已建模 (见
+        config.links.effective_gmm1_act_link 与
         builders/activation.py): epilogue 行块 256->128、GMM1 的输出改走 GM 往返、
         每行块多一次 topk 权重读。保留这个钩子是因为"拒绝"必须有地方说 ——
         适配器接受的是一个编译点集合, 不是任意取值。
@@ -174,7 +171,7 @@ class _BuilderShim:
     为什么保留: registry.register("orchestration", name, cls) 的契约是"值是建图器类",
     examples/ 与 tests/ 都按这个契约注册过自定义建图器。适配器接口是新的, 不能让旧注册
     失效 —— 所以这里给一个薄壳: 身份标成 custom, 接受性不额外设限 (自定义建图器自己负责),
-    波计划沿用 A8W8 Wave 的算法 (原先这些建图器拿到的就是 model.waves 的结果)。
+    波计划沿用 A8W8 Wave 的算法。
     """
 
     def __init__(self, builder_cls):

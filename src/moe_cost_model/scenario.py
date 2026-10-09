@@ -209,8 +209,8 @@ class Scenario:
     #      聚合带宽, 那在物理上不可能。
     #   2. 让带宽下界把聚合 HBM 这条规格算进去 (analysis/bounds.py)。
     #
-    # 2026-10-05 之前**这个字段不存在**, 于是第 1 条在场景文件这条日常路径上完全失效
-    # (build_costs() 不传 platform)。缺省标定下看不出来 —— BW_L1_GM 51900 x 28 核 =
+    # 没有这个字段时第 1 条在场景文件这条日常路径上完全失效 (build_costs() 不传
+    # platform)。缺省标定下看不出来 —— BW_L1_GM 51900 x 28 核 =
     # 1.45 TB/s 在 950PR 的 1.60 规格内 —— 但 NZ 布局或更高的带宽标定就会漏过去:
     # 实测给 bw_l1_gm_b_nz=80000 时 28 核合计 2.24 TB/s, 超规格 40%。
     #
@@ -295,10 +295,9 @@ class Scenario:
         硬错两类, 都无歧义:
           - 与显式给出的 tiling 真值矛盾 (场景声称的形状与跑出数据的 kernel 配置不符)。
           - 路由不守恒: 每源 rank 发出行数 != tokens x topk。这是算法事实 (每个 token
-            恰好选 topk 个路由专家)。2026-10-05 之前它只是警告, 理由是"tokens 与 counts
-            在本模型里是两个独立输入, 测试夹具就故意让它们不一致" —— 那是夹具的方便,
-            不是事实: 不守恒时主 stage 按 counts 计、lag 阈值/共享专家/UNPERMUTE 按
-            tokens 计, 产出一张看似有效的 DAG。
+            恰好选 topk 个路由专家)。这是硬错不是警告: 不守恒时主 stage 按 counts 计、
+            lag 阈值/共享专家/UNPERMUTE 按 tokens 计, 产出一张看似有效的 DAG。
+            "两个独立输入, 夹具故意让它们不一致" 是夹具的方便, 不是事实。
         """
         errors: List[str] = []
         warnings: List[str] = []
@@ -478,9 +477,9 @@ _MAP_NESTED = {
 }
 # 值为"stage -> 字符串"映射的字段: 场景文件里写 [options.roles] 下 combine = "AIV0"。
 # 与 granularity 同形 (每 stage 一个取值), 只是取值是角色名而不是整数。
-# 2026-10-05 之前 options.roles 在场景文件/with_overrides 这条日常路径上**根本写不出来**
-# (会报"应为数值"), 于是"哪个 stage 跑在哪个核上"这一类编排只能在 Python 里构造对象 ——
-# 一个在日常路径上写不出的参数等于没有。epilogue_overheads 同病, 它走 _NESTED。
+# options.roles 必须能在场景文件/with_overrides 这条日常路径上写出来: 否则"哪个 stage
+# 跑在哪个核上"这类编排只能在 Python 里构造对象, 而一个在日常路径上写不出的参数等于
+# 没有。epilogue_overheads 同理, 它走 _NESTED。
 _MAP_STR_NESTED = {
     (ModelOptions, "roles"): lambda v: RoleAssignment(overrides=dict(v or {})),
 }

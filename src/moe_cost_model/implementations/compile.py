@@ -5,11 +5,11 @@
 调度器模板, 但**不**决定 token 怎么路由 (那是 workload) 也不决定每波怎么推进 (runtime)。
 
 为什么要指纹而不是把参数编进名字: kernel 自己的 tiling key 只编码 5 个轴
-(mega_moe/op_kernel/arch35/mega_moe_tiling_key.h:33-45: dispatch 量化模式 / dispatch
+(上游 mega_moe_tiling_key.h: dispatch 量化模式 / dispatch
 量化输出类型 / combine 量化输出类型 / 通信模式 / topk 权重类型), 而
 TILE_M、TILE_N、L1_BUF_NUM、IsGmm1Interleaved、TOPK_PREFETCH 都在 key 之外, 是纯编译轴
-(mega_moe/include/CMakeLists.txt:28-32 的 MEGAMOE_* cache 变量 +
-mega_moe_apt.cpp:51-53 的 MEGA_MOE_WEIGHT1_INTERLEAVED)。所以"同一个 tiling key"可以对应
+(上游 include/CMakeLists.txt 的 MEGAMOE_* cache 变量 +
+mega_moe_apt.cpp 的 MEGA_MOE_WEIGHT1_INTERLEAVED)。所以"同一个 tiling key"可以对应
 多个不同的二进制 —— 单靠 key 认不出来, 必须另给一个覆盖全部编译轴的指纹。
 
 **指纹只盖编译轴**。形状 (h / hidden_dim / token 数) 与拓扑 (核数 / world) 不进指纹:
@@ -44,30 +44,30 @@ class CompileConfig:
     """一个编译点的全部轴. 缺省值 = 仓内 kernel 当前的编译点.
 
     出处 (每一项都能在仓内指到):
-      tile_m / tile_n          MEGAMOE_TILE_M / _TILE_N, mega_moe/include/CMakeLists.txt:29-30,
-                               缺省见 common/mega_moe_constants.h:82-87
-      l1_tile_k                L1_TILE_K, common/mega_moe_gmm_common.h:30 (无宏可覆盖)
-      l1_buf_num               MEGAMOE_L1_BUF_NUM, mega_moe/include/CMakeLists.txt:31,
-                               common/mega_moe_gmm_common.h:114-116
+      tile_m / tile_n          MEGAMOE_TILE_M / _TILE_N, 上游 include/CMakeLists.txt,
+                               缺省见 common/mega_moe_constants.h
+      l1_tile_k                L1_TILE_K, common/mega_moe_gmm_common.h (无宏可覆盖)
+      l1_buf_num               MEGAMOE_L1_BUF_NUM, 上游 include/CMakeLists.txt,
+                               common/mega_moe_gmm_common.h
       weight_nz                **不是编译轴**: kernel 按 groupedMatmulMode 在运行期选
-                               (stage/mega_moe_gmm1_activation.h:1074-1088 两个特化都实例化)。
+                               (stage/mega_moe_gmm1_activation.h 两个特化都实例化)。
                                这里保留它是因为模型的公式要知道走哪条带宽, 见下面 runtime_selected。
       gmm1_interleaved         IsGmm1Interleaved <- MEGA_MOE_WEIGHT1_INTERLEAVED,
-                               mega_moe_apt.cpp:51-58, 缺省 0
+                               mega_moe_apt.cpp, 缺省 0
       topk_weights_prefetch    TopkWeightsPrefetch <- MEGAMOE_TOPK_PREFETCH,
-                               include/kernel.cpp:24-28, 缺省 0。它有可建模的后果:
-                               EPILOGUE_TILE_M = prefetch ? 128 : 256 (mega_moe_arch35.h:161)
-      activation_n_half        ACTIVATION_N_HALF = 2, common/mega_moe_constants.h:92 (算法常数)
-      swizzle_offset/direction BlockSchedulerSwizzle<3, 0>, common/mega_moe_gmm_common.h:33
+                               include/kernel.cpp, 缺省 0。它有可建模的后果:
+                               EPILOGUE_TILE_M = prefetch ? 128 : 256 (mega_moe_arch35.h)
+      activation_n_half        ACTIVATION_N_HALF = 2, common/mega_moe_constants.h (算法常数)
+      swizzle_offset/direction BlockSchedulerSwizzle<3, 0>, common/mega_moe_gmm_common.h
       combine_quant_mode       combineQuantMode (运行期 attr, tiling @40; key 值 0/3/4,
-                               mega_moe_tiling_key.h:25-27)
+                               mega_moe_tiling_key.h)
       combine_meta_bytes_per_row  META_INFO_SIZE(8) x int32 = 32B
-                               (common/mega_moe_constants.h:73);
+                               (common/mega_moe_constants.h);
                                模型缺省 16 是"四个具名字段"的下界口径, 见 KernelConfig
-      dispatch_quant_mode      DISPATCH_QUANT_MODE_MXFP = 4 (mega_moe_tiling_key.h:21)
-      dispatch_quant_out_dtype 3=E5M2 / 4=E4M3FN / 5=E2M1 (mega_moe_tiling_key.h:22-24)
-      x_dtype / weight_dtype   mega_moe_apt.cpp:102-111 限定 X=Y=BF16, weight1 ∈ {E5M2,E4M3FN,E2M1}
-      comm_mode                TILINGKEY_TPL_MTE=0 / URMA=1 (mega_moe_tiling_key.h:28-29)
+      dispatch_quant_mode      DISPATCH_QUANT_MODE_MXFP = 4 (mega_moe_tiling_key.h)
+      dispatch_quant_out_dtype 3=E5M2 / 4=E4M3FN / 5=E2M1 (mega_moe_tiling_key.h)
+      x_dtype / weight_dtype   mega_moe_apt.cpp 限定 X=Y=BF16, weight1 ∈ {E5M2,E4M3FN,E2M1}
+      comm_mode                TILINGKEY_TPL_MTE=0 / URMA=1 (mega_moe_tiling_key.h)
     """
 
     tile_m: int = 256

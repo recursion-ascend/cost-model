@@ -12,9 +12,8 @@
 事件只能落一个核, 粒度越粗可参与的核越少) 与更晚的下游就绪。这笔交换该由算子
 工程师来扫, 所以它是参数。
 
-2026-10-04 之前只有 ``combine_granularity`` 一个参数 (缺口 11 的产物, 为回答一个
-具体问题就地加的), dispatch 的粒度叫 ``dispatch_rows_per_item``, 而 GMM1 / SwiGLU /
-GMM2 的粒度写死为 1。那是提问历史留下的洞, 不是物理。本模块把这个维度统一起来。
+每个 stage 的粒度都是同一个维度上的取值, 不该每个 stage 一个专名参数 (只对一条边
+说话), 也不该把 GMM1 / SwiGLU / GMM2 写死成 1 —— 那是提问历史留下的洞, 不是物理。
 
 自然工作单元 (下表是仓内 MegaMoE 实现声明的那五个 stage, 见
 implementations/megamoe_stages.py; 另一份实现声明自己的单元与上界)
@@ -35,9 +34,8 @@ combine        一个 GMM2 tile 的输出       items x tile 输出字节 <= UB
 **上表的"物理上界"目前只强制了一条**: activation 的粒度不得超过 UB 槽数
 (``StageLink("gmm1","activation").depth``), 在 ``builders/activation.ActBatcher`` 构造时查
 —— 槽不够会死锁, 所以必须拦。**按字节的容量上界 (items x tile 字节 <= L1/UB) 没有强制**:
-它要在建图时按形状算字节, 还没接线。原先这里放了一个 ``validate_capacity`` 函数,
-但它从未被任何地方调用 (2026-10-05 审计删除) —— 一个没人调的校验函数比没有更糟,
-它让人以为这条约束已经在查了。
+它要在建图时按形状算字节, 还没接线。这里**不放** ``validate_capacity`` 这类没人调
+的校验函数 —— 它比没有更糟, 让人以为这条约束已经在查了。
 """
 from __future__ import annotations
 

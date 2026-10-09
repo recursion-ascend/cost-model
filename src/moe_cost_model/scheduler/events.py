@@ -7,7 +7,7 @@ Event 是模型的表达能力上界 —— 表达不出来的约束, 模型就�
     容量           acquires / releases: 计数信号量, 占多少还多少
     落核约束      colocate_with / core_group: 必须与谁同核
 
-channel_bytes 是第五种的残留: 带宽争用曾经建模过, 现在只申报字节、不影响时长。
+channel_bytes 属于第五种: 它只申报字节, 不影响时长 —— 带宽争用没有建模。
 """
 from __future__ import annotations
 

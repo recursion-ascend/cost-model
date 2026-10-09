@@ -42,9 +42,8 @@ class ReferenceProfile:
     options / kernel / policy 是模型入口直接吃的三个对象; 其余是 MegaMoeShape 上的
     策略字段, 经 shape_kw() 一次性给出。
 
-    身份与编译点见 implementation / compile_config (2026-10-05 加): 在它们之前这个类只有
-    name 与自由文本 source, 没有机器可核对的实现 id, 也没有编译指纹 —— 于是标定常数只能
-    是一套覆盖所有编排的全局量。
+    身份与编译点见 implementation / compile_config: 没有机器可核对的实现 id 与编译
+    指纹时, 标定常数只能是一套覆盖所有编排的全局量。
     """
 
     name: str
@@ -111,7 +110,7 @@ MEGAMOE_A8W8 = ReferenceProfile(
     name="megamoe-a8w8-wave-arch35",
     name_key="megamoe-a8w8",
     source=(
-        "mega_moe/op_kernel/arch35 + mega_moe/include/CMakeLists.txt:28-32; "
+        "上游 op_kernel/arch35 + include/CMakeLists.txt 的 MEGAMOE_*; "
         "固定开销来自 20260930 的实测 trace"
     ),
     options=ModelOptions(

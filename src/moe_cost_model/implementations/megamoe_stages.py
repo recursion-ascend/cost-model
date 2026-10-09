@@ -4,7 +4,7 @@
 MegaMoE 把自己划成 dispatch/GMM1/ACT/GMM2/combine 五个 stage 并把它们钉在
 AIC/AIV0/AIV1 上, 这是这份 kernel 的编排, 换一个算子就换一份声明。
 
-每一项的出处 (2026-10-08 之前这些字面量散在七个文件里):
+每一项的出处:
   pipeline / unit_of / default_items   config/granularity.py
   edges                                config/links.py EDGE_AXES
   roles / cube_only                    config/roles.py
@@ -18,7 +18,6 @@ from __future__ import annotations
 from ..config.stages import AIC, AIV0, AIV1, SharedAxis, StageVocabulary
 
 #: 仓内两份 MegaMoE 实现 (a8w8_wave / layered) 共用的词汇表。
-#: 内容逐项等于 2026-10-08 之前散在七个文件里的字面量, 出处写在每一项上。
 MEGAMOE = StageVocabulary(
     operator="megamoe",
     pipeline=("dispatch", "gmm1", "activation", "gmm2", "combine"),

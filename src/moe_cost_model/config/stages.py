@@ -9,9 +9,8 @@ stage 名写成了字面量 (粒度表、边的共享轴、角色缺省表、必
 解压阶段, 或 MoonEP 那种 stage 划分) 要么改七个文件, 要么被 ``STAGES`` 校验直接
 拒掉。
 
-本模块把那七处的字面量收到一个值对象里。``MEGAMOE`` 这一份声明的内容**与原先
-逐处写死的完全相同** —— 这一步只是归位, 不动行为 (判据: golden 指纹零差异)。
-第二份实现要做的事就是再写一个 ``StageVocabulary``, 把它传给
+本模块把那七处的字面量收到一个值对象里。第二份实现要做的事就是再写一个
+``StageVocabulary``, 把它传给
 ``GranularityAssignment`` / ``RoleAssignment`` / ``validate_links``。
 
 词汇表里放什么、不放什么
@@ -181,8 +180,8 @@ def default_vocabulary() -> StageVocabulary:
 
     这是**向后兼容的缺省**, 不是框架假设: 核心 (scheduler/timing) 不认识 stage 名,
     而 config/analysis 里的校验与缺省表需要一份词汇表才能工作。不传 vocab 时取这一份,
-    于是仓内现有的调用与 golden 保持不变; 另一份实现把自己的 StageVocabulary 传进
-    GranularityAssignment / RoleAssignment / validate_links 即可, 不必改这些模块。
+    于是仓内现有的调用不必改; 另一份实现把自己的 StageVocabulary 传进
+    GranularityAssignment / RoleAssignment / validate_links 即可。
 
     懒导入是为了让依赖方向成立: 具体实现依赖 config, 不是反过来。
     """
