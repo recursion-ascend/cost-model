@@ -1,139 +1,232 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="400pt" height="548pt" viewBox="0 0 400 548" font-family="Times New Roman, Times, serif" fill="#000">
+<svg xmlns="http://www.w3.org/2000/svg" width="396pt" height="380pt" viewBox="0 0 396 380" font-family="'Times New Roman', Times, 'Liberation Serif', FreeSerif, serif" fill="#000">
   <defs>
-    <marker id="a" viewBox="0 0 8 6" refX="7.4" refY="3" markerWidth="5.2" markerHeight="3.8" orient="auto">
-      <path d="M0 0 L8 3 L0 6 z" fill="#000"/></marker>
-    <marker id="ag" viewBox="0 0 8 6" refX="7.4" refY="3" markerWidth="4.8" markerHeight="3.4" orient="auto">
-      <path d="M0 0 L8 3 L0 6 z" fill="#666"/></marker>
+    <marker id="a" viewBox="0 0 8 6" refX="7.2" refY="3" markerWidth="4.6"
+            markerHeight="3.4" orient="auto"><path d="M0 0 L8 3 L0 6 z" fill="#000"/></marker>
+    <marker id="ag" viewBox="0 0 8 6" refX="7.2" refY="3" markerWidth="4.2"
+            markerHeight="3.2" orient="auto"><path d="M0 0 L8 3 L0 6 z" fill="#777"/></marker>
   </defs>
-  <text x="2" y="10" font-size="7.4" text-anchor="start" font-style="italic">(a)</text>
-  <text x="14" y="10" font-size="6.6" text-anchor="start">路由决定每个专家收多少行, 切 tile 决定有多少份活, 一份活就是一个事件</text>
-  <text x="8" y="26" font-size="6.0" text-anchor="start">路由计数</text>
-  <rect x="8" y="30" width="52" height="24" fill="none" stroke="#000" stroke-width="0.6"/>
-  <text x="34" y="40" font-size="5.4" text-anchor="middle">C[卡][专家][源卡]</text>
-  <text x="34" y="49" font-size="5.2" text-anchor="middle" fill="#333">→ 每专家收到的行数</text>
-  <path d="M62 42 L76 42" fill="none" stroke="#666" stroke-width="0.6" marker-end="url(#ag)"/>
-  <text x="78" y="26" font-size="6.0" text-anchor="start">按 TILE_M / TILE_N 切</text>
-  <rect x="78" y="30" width="18" height="12" fill="#e8e8e8" stroke="#000" stroke-width="0.5"/>
-  <rect x="96" y="30" width="18" height="12" fill="none" stroke="#000" stroke-width="0.5"/>
-  <rect x="114" y="30" width="18" height="12" fill="none" stroke="#000" stroke-width="0.5"/>
-  <rect x="78" y="42" width="18" height="12" fill="none" stroke="#000" stroke-width="0.5"/>
-  <rect x="96" y="42" width="18" height="12" fill="none" stroke="#000" stroke-width="0.5"/>
-  <rect x="114" y="42" width="18" height="12" fill="none" stroke="#000" stroke-width="0.5"/>
-  <text x="87.0" y="38.0" font-size="4.8" text-anchor="middle">tile</text>
-  <path d="M78 57 L132 57" fill="none" stroke="#666" stroke-width="0.4"/>
-  <text x="105.0" y="64" font-size="5.0" text-anchor="middle" fill="#333">n-tile 方向 (TILE_N)</text>
-  <text x="76" y="42" font-size="5.0" text-anchor="end" fill="#333">m-group</text>
-  <text x="76" y="49" font-size="5.0" text-anchor="end" fill="#333">(TILE_M)</text>
-  <text x="142" y="34" font-size="5.6" text-anchor="start">一个 tile = 一份活 = 一个事件</text>
-  <text x="142" y="42" font-size="5.4" text-anchor="start" fill="#333">GMM1 的 n-tile 数按 hidden_dim/2 算 (SwiGLU 两块权重),</text>
-  <text x="142" y="49" font-size="5.4" text-anchor="start" fill="#333">GMM2 按 h 算, 两者不同</text>
-  <text x="142" y="59" font-size="5.4" text-anchor="start" fill="#333">dispatch 不是一行一个事件 —— 行在软流水里重叠,</text>
-  <text x="142" y="66" font-size="5.4" text-anchor="start" fill="#333">一段连续行 (同源卡同目的) 作为一份活</text>
-  <text x="8" y="78" font-size="6.0" text-anchor="start">波: m-group 分批投放, 一波装几个由"每核至少领到几个 tile"反推</text>
-  <text x="8" y="88" font-size="5.6" text-anchor="start" fill="#333">粒度: 也可以把相邻几个 tile 合成一份活 —— 少几次同步, 但这份活只能占一个核, 且要等里面最后一个 tile 算完</text>
-  <text x="8" y="106" font-size="6.2" text-anchor="start">依赖边 = 同一专家、同一块行列范围, 前一阶段交给后一阶段</text>
-  <rect x="20" y="114" width="32" height="12" fill="none" stroke="#000" stroke-width="0.6"/>
-  <text x="36" y="122.5" font-size="5.4" text-anchor="middle">GMM1</text>
-  <text x="36" y="133" font-size="5.0" text-anchor="middle" fill="#333">行 [0,256) 列 [0,256)</text>
-  <path d="M54 120 L76 120" fill="none" stroke="#000" stroke-width="0.6" marker-end="url(#a)"/>
-  <rect x="78" y="114" width="32" height="12" fill="none" stroke="#000" stroke-width="0.6"/>
-  <text x="94" y="122.5" font-size="5.4" text-anchor="middle">ACT</text>
-  <text x="94" y="133" font-size="5.0" text-anchor="middle" fill="#333">行 [0,256) 列 [0,256)</text>
-  <text x="65" y="116" font-size="6.2" text-anchor="middle">✓</text>
-  <rect x="196" y="114" width="32" height="12" fill="none" stroke="#000" stroke-width="0.6"/>
-  <text x="212" y="122.5" font-size="5.4" text-anchor="middle">GMM1</text>
-  <text x="212" y="133" font-size="5.0" text-anchor="middle" fill="#333">行 [256,512) 列 [0,256)</text>
-  <path d="M230 120 L252 120" fill="none" stroke="#999" stroke-width="0.6" stroke-dasharray="2 1.6"/>
-  <path d="M238 116 L244 124" fill="none" stroke="#000" stroke-width="0.6"/>
-  <path d="M244 116 L238 124" fill="none" stroke="#000" stroke-width="0.6"/>
-  <rect x="254" y="114" width="32" height="12" fill="none" stroke="#000" stroke-width="0.6"/>
-  <text x="270" y="122.5" font-size="5.4" text-anchor="middle">ACT</text>
-  <text x="270" y="133" font-size="5.0" text-anchor="middle" fill="#333">行 [0,256) 列 [0,256)</text>
-  <text x="241" y="110" font-size="5.0" text-anchor="middle" fill="#333">行范围不同</text>
-  <text x="292" y="119" font-size="5.2" text-anchor="start" fill="#333">列对上但行没对上, 是并排的两块</text>
-  <text x="292" y="126" font-size="5.2" text-anchor="start" fill="#333">数据, 不该连</text>
-  <text x="8" y="146" font-size="5.6" text-anchor="start">GMM2 是唯一一个可以只等一部分的: 它沿 K 累加, 第 j 段只等覆盖这段 K 的 ACT 算完; 其余三条边都要整块对齐。</text>
-  <path d="M0 158 L400 158" fill="none" stroke="#bbb" stroke-width="0.4"/>
-  <text x="2" y="172" font-size="7.4" text-anchor="start" font-style="italic">(b)</text>
-  <text x="14" y="172" font-size="6.6" text-anchor="start">每个事件记五件事, 其中两件不是"等谁算完"</text>
-  <rect x="10" y="180" width="96" height="58" fill="none" stroke="#000" stroke-width="0.7"/>
-  <text x="58" y="190" font-size="6.2" text-anchor="middle">一个事件记什么</text>
-  <text x="16" y="201" font-size="5.4" text-anchor="start">落哪个核</text>
-  <text x="58" y="201" font-size="5.4" text-anchor="start" fill="#333">AIC / AIV0 / AIV1</text>
-  <text x="16" y="209" font-size="5.4" text-anchor="start">等哪些前驱</text>
-  <text x="58" y="209" font-size="5.4" text-anchor="start" fill="#333">上一阶段同块数据</text>
-  <text x="16" y="217" font-size="5.4" text-anchor="start">占几个缓冲槽</text>
-  <text x="58" y="217" font-size="5.4" text-anchor="start" fill="#333">L1 / UB 的槽位</text>
-  <text x="16" y="225" font-size="5.4" text-anchor="start">是否必须同核</text>
-  <text x="58" y="225" font-size="5.4" text-anchor="start" fill="#333">Fixpipe 直给时</text>
-  <text x="16" y="233" font-size="5.4" text-anchor="start">算多久</text>
-  <text x="58" y="233" font-size="5.4" text-anchor="start" fill="#333">见 (c) 下方四类公式</text>
-  <text x="122" y="190" font-size="6.0" text-anchor="start">缓冲槽 (深度 D): GMM1 写 UB, ACT 读完才释放</text>
-  <rect x="122" y="196" width="32" height="12" fill="none" stroke="#000" stroke-width="0.6"/>
-  <text x="138" y="204.5" font-size="5.4" text-anchor="middle">GMM1</text>
-  <rect x="180" y="196" width="32" height="12" fill="none" stroke="#000" stroke-width="0.6"/>
-  <text x="196" y="204.5" font-size="5.4" text-anchor="middle">ACT</text>
-  <path d="M156 202 L178 202" fill="none" stroke="#444" stroke-width="0.5" stroke-dasharray="1.8 1.4" marker-end="url(#a)"/>
-  <text x="167" y="198" font-size="5.2" text-anchor="middle">槽</text>
-  <text x="122" y="217" font-size="5.4" text-anchor="start" fill="#333">第 i+D 个 GMM1 要等第 i 个 ACT 把槽释放 —— 约束的两端随在飞数滑动,</text>
-  <text x="122" y="224" font-size="5.4" text-anchor="start" fill="#333">不是固定的一对事件, 所以不能写成依赖边。D=1 就是没有双缓冲。</text>
-  <text x="122" y="234" font-size="5.4" text-anchor="start" fill="#333">必须同核: GMM1 的结果经 Fixpipe 直给配对的 AIV0, 这条通路只在绑定对内存在,</text>
-  <text x="122" y="241" font-size="5.4" text-anchor="start" fill="#333">所以 ACT 的核号被 GMM1 钉住, 不是可以挑的。</text>
-  <path d="M0 252 L400 252" fill="none" stroke="#bbb" stroke-width="0.4"/>
-  <text x="2" y="266" font-size="7.4" text-anchor="start" font-style="italic">(c)</text>
-  <text x="14" y="266" font-size="6.6" text-anchor="start">每个事件排在哪: 前驱算完、核空出来、槽也空出来, 三个条件里最晚的那个</text>
-  <text x="57" y="286.4" font-size="5.8" text-anchor="end">AIV1</text>
-  <path d="M62 289.6 L348 289.6" fill="none" stroke="#ccc" stroke-width="0.4"/>
-  <rect x="62.0" y="280" width="43.741176470588236" height="9" fill="#dcdcdc" stroke="#000" stroke-width="0.5"/>
-  <text x="83.87058823529412" y="286.3" font-size="5.2" text-anchor="middle">dispatch 段</text>
-  <rect x="284.0705882352941" y="280" width="53.83529411764706" height="9" fill="#dcdcdc" stroke="#000" stroke-width="0.5"/>
-  <text x="310.98823529411766" y="286.3" font-size="5.2" text-anchor="middle">combine</text>
-  <text x="57" y="299.9" font-size="5.8" text-anchor="end">AIC</text>
-  <path d="M62 303.1 L348 303.1" fill="none" stroke="#ccc" stroke-width="0.4"/>
-  <rect x="105.74117647058824" y="293.5" width="84.11764705882354" height="9" fill="#dcdcdc" stroke="#000" stroke-width="0.5"/>
-  <text x="147.8" y="299.8" font-size="5.2" text-anchor="middle">GMM1 tile</text>
-  <rect x="223.50588235294117" y="293.5" width="84.11764705882354" height="9" fill="#dcdcdc" stroke="#000" stroke-width="0.5"/>
-  <text x="265.56470588235294" y="299.8" font-size="5.2" text-anchor="middle">GMM1 tile</text>
-  <text x="57" y="313.4" font-size="5.8" text-anchor="end">AIV0</text>
-  <path d="M62 316.6 L348 316.6" fill="none" stroke="#ccc" stroke-width="0.4"/>
-  <rect x="189.85882352941178" y="307.0" width="26.91764705882353" height="9" fill="#dcdcdc" stroke="#000" stroke-width="0.5"/>
-  <text x="203.31764705882355" y="313.3" font-size="5.2" text-anchor="middle">ACT</text>
-  <text x="57" y="326.9" font-size="5.8" text-anchor="end">AIC</text>
-  <path d="M62 330.1 L348 330.1" fill="none" stroke="#ccc" stroke-width="0.4"/>
-  <rect x="216.7764705882353" y="320.5" width="67.29411764705883" height="9" fill="#dcdcdc" stroke="#000" stroke-width="0.5"/>
-  <text x="250.42352941176472" y="326.8" font-size="5.2" text-anchor="middle">GMM2 tile</text>
-  <rect x="189.85882352941178" y="293.5" width="33.64705882352939" height="9" fill="none" stroke="#999" stroke-width="0.5" stroke-dasharray="1.5 1.5"/>
-  <text x="206.68235294117648" y="299.8" font-size="4.8" text-anchor="middle" font-style="italic" fill="#555">等槽</text>
-  <path d="M216.7764705882353 316.6 L216.7764705882353 303.1" fill="none" stroke="#444" stroke-width="0.5" stroke-dasharray="1.6 1.4"/>
-  <path d="M216.7764705882353 303.1 L223.50588235294117 299.5" fill="none" stroke="#444" stroke-width="0.5" stroke-dasharray="1.6 1.4" marker-end="url(#a)"/>
-  <text x="226.87058823529412" y="313.5" font-size="5.2" text-anchor="start" fill="#333">ACT 读完释放槽, 下一个 GMM1 才能开始</text>
-  <path d="M193.2235294117647 303.1 L193.2235294117647 307.0" fill="none" stroke="#444" stroke-width="0.5"/>
-  <text x="196.58823529411765" y="305.0" font-size="5.0" text-anchor="start" fill="#333">同核 (Fixpipe)</text>
-  <path d="M337.9058823529412 276 L337.9058823529412 334.5" fill="none" stroke="#000" stroke-width="0.7"/>
-  <text x="339.9058823529412" y="274" font-size="5.8" text-anchor="start">端到端耗时 = 最后一个 combine 结束</text>
-  <path d="M62 336.5 L354 336.5" fill="none" stroke="#000" stroke-width="0.5"/>
-  <text x="62" y="343.5" font-size="5.4" text-anchor="middle">0</text>
-  <text x="356" y="338.5" font-size="5.6" text-anchor="start" font-style="italic">时间</text>
-  <text x="14" y="362" font-size="5.8" text-anchor="start">排的办法: 对每个还没排的事件, 算出它最早能开始的时刻 = max(前驱都算完, 它要的核空出来); 如果它还要占缓冲槽,</text>
-  <text x="14" y="370" font-size="5.8" text-anchor="start">再推迟到槽空出来的那一刻。所有能开始的事件里, 谁最早就先排谁, 一个一个排完整张图。</text>
-  <text x="14" y="380" font-size="5.8" text-anchor="start">每个事件被挡的时间分成等前驱 / 等核 / 等槽三份, 加起来就是它开始的时刻 —— 逐阶段汇总就能看出瓶颈是依赖链太长、</text>
-  <text x="14" y="388" font-size="5.8" text-anchor="start">核不够, 还是缓冲太浅, 这三件事的改法完全不同。</text>
-  <text x="14" y="406" font-size="6.4" text-anchor="start">一份活算多久: 按物理性质分四类</text>
-  <rect x="14" y="412" width="372" height="50" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="2.5 1.5"/>
-  <text x="20" y="422" font-size="5.6" text-anchor="start">dispatch 一段</text>
-  <text x="104" y="422" font-size="5.6" text-anchor="start" fill="#333">max(一次往返延迟, 槽内重叠的行的字节时间) + 超出槽数的行按每行节拍串上去</text>
-  <text x="20" y="431" font-size="5.6" text-anchor="start">GMM1 / GMM2 一个 tile</text>
-  <text x="104" y="431" font-size="5.6" text-anchor="start" fill="#333">双缓冲取 max(载入, 计算); 单缓冲是载入 + 计算 + 每个 K 块的重启</text>
-  <text x="20" y="440" font-size="5.6" text-anchor="start">ACT 一个 tile</text>
-  <text x="104" y="440" font-size="5.6" text-anchor="start" fill="#333">向量启动开销 + 元素数/向量宽度 x 每向量的 UB 字节 / UB 带宽</text>
-  <text x="20" y="449" font-size="5.6" text-anchor="start">combine 一个 tile</text>
-  <text x="104" y="449" font-size="5.6" text-anchor="start" fill="#333">读回 + 本卡写 + 跨卡写 (两条带宽差一个量级, 必须分开) + 落点跨度项</text>
-  <text x="20" y="458" font-size="5.4" text-anchor="start" fill="#333">载入与计算取 max 不是相加, 是因为它们重叠; 但 GMM 的两股载入 (激活 + 权重) 之间是相加, 这一条由对照实验定的。</text>
-  <text x="14" y="478" font-size="6.4" text-anchor="start">MegaMoE 在这套算法里的具体选择</text>
-  <rect x="14" y="484" width="372" height="48" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="2.5 1.5"/>
-  <text x="20" y="494" font-size="5.6" text-anchor="start">五段 dispatch → GMM1 → ACT → GMM2 → combine; GMM1/GMM2 上 AIC, ACT 上 AIV0, dispatch 与 combine 上 AIV1。</text>
-  <text x="20" y="503" font-size="5.6" text-anchor="start">GMM1→ACT 这条边既占 UB 槽又必须同核 (Fixpipe 直给); ACT→GMM2 缺省经显存往返, 所以 GMM2 的载入要算激活那一股。</text>
-  <text x="20" y="512" font-size="5.6" text-anchor="start">tile 到核的分配在建图时就定死 (编译期按游标分块), 不是运行时抢 —— 换成运行时抢是另一种实现, 要另付一次原子操作。</text>
-  <text x="20" y="521" font-size="5.6" text-anchor="start">这些选择换一个取值就重跑一次, 两次的时间差就是这个选择的代价。</text>
-  <text x="20" y="530" font-size="5.6" text-anchor="start"></text>
+  <text x="3.00" y="11.00" font-size="7.2"><tspan font-style="italic">(a)</tspan></text>
+  <text x="16.00" y="11.00" font-size="6.3"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">建图</tspan><tspan>: </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">路由计数</tspan><tspan> → tile → </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">事件图</tspan></text>
+  <text x="8.00" y="22.00" font-size="5.4" fill="#444"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">路由计数</tspan></text>
+  <rect x="16.00" y="26.00" width="30.00" height="22.00" fill="#fff" stroke="#999" stroke-width="0.4"/>
+  <rect x="12.00" y="30.00" width="30.00" height="22.00" fill="#fff" stroke="#999" stroke-width="0.4"/>
+  <rect x="8.00" y="34.00" width="30.00" height="22.00" fill="#fff" stroke="#000" stroke-width="0.55"/>
+  <path d="M18.00 34.00 L18.00 56.00" fill="none" stroke="#bbb" stroke-width="0.3"/>
+  <path d="M8.00 41.33 L38.00 41.33" fill="none" stroke="#bbb" stroke-width="0.3"/>
+  <path d="M28.00 34.00 L28.00 56.00" fill="none" stroke="#bbb" stroke-width="0.3"/>
+  <path d="M8.00 48.66 L38.00 48.66" fill="none" stroke="#bbb" stroke-width="0.3"/>
+  <text x="8.00" y="64.00" font-size="5.4"><tspan font-style="italic">C</tspan><tspan>[r][e][s]</tspan></text>
+  <path d="M48.00 45.00 L62.00 45.00" fill="none" stroke="#777" stroke-width="0.5" marker-end="url(#ag)"/>
+  <text x="52.76" y="41.00" font-size="5.0" fill="#444"><tspan>Σ</tspan><tspan dy="1.50" font-size="3.60">s</tspan></text>
+  <text x="66.00" y="22.00" font-size="5.4" fill="#444"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">每专家行数</tspan></text>
+  <rect x="66.00" y="30.00" width="40.00" height="7.00" fill="#dcdcdc" stroke="#000" stroke-width="0.45"/>
+  <text x="108.00" y="35.40" font-size="4.4" fill="#666"><tspan>e0</tspan></text>
+  <rect x="66.00" y="39.00" width="26.00" height="7.00" fill="#dcdcdc" stroke="#000" stroke-width="0.45"/>
+  <text x="94.00" y="44.40" font-size="4.4" fill="#666"><tspan>e1</tspan></text>
+  <rect x="66.00" y="48.00" width="48.00" height="7.00" fill="#dcdcdc" stroke="#000" stroke-width="0.45"/>
+  <text x="116.00" y="53.40" font-size="4.4" fill="#666"><tspan>e2</tspan></text>
+  <text x="66.00" y="64.00" font-size="5.4"><tspan font-style="italic">m</tspan><tspan dy="1.62" font-size="3.89">e</tspan></text>
+  <path d="M124.00 45.00 L138.00 45.00" fill="none" stroke="#777" stroke-width="0.5" marker-end="url(#ag)"/>
+  <text x="123.08" y="41.00" font-size="5.0" fill="#444"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">切</tspan><tspan> tile</tspan></text>
+  <rect x="142.00" y="28.00" width="17.00" height="9.00" fill="#e4e4e4" stroke="#000" stroke-width="0.42"/>
+  <rect x="142.00" y="37.00" width="17.00" height="9.00" fill="#fff" stroke="#000" stroke-width="0.42"/>
+  <rect x="142.00" y="46.00" width="17.00" height="5.00" fill="#fff" stroke="#000" stroke-width="0.42"/>
+  <rect x="159.00" y="28.00" width="17.00" height="9.00" fill="#fff" stroke="#000" stroke-width="0.42"/>
+  <rect x="159.00" y="37.00" width="17.00" height="9.00" fill="#fff" stroke="#000" stroke-width="0.42"/>
+  <rect x="159.00" y="46.00" width="17.00" height="5.00" fill="#fff" stroke="#000" stroke-width="0.42"/>
+  <rect x="176.00" y="28.00" width="17.00" height="9.00" fill="#fff" stroke="#000" stroke-width="0.42"/>
+  <rect x="176.00" y="37.00" width="17.00" height="9.00" fill="#fff" stroke="#000" stroke-width="0.42"/>
+  <rect x="176.00" y="46.00" width="17.00" height="5.00" fill="#fff" stroke="#000" stroke-width="0.42"/>
+  <text x="146.37" y="34.20" font-size="4.3"><tspan>tile</tspan></text>
+  <path d="M138.50 28.00 L138.50 37.00" fill="none" stroke="#000" stroke-width="0.45"/>
+  <path d="M137.00 28.00 L140.00 28.00" fill="none" stroke="#000" stroke-width="0.45"/>
+  <path d="M137.00 37.00 L140.00 37.00" fill="none" stroke="#000" stroke-width="0.45"/>
+  <text x="119.23" y="34.00" font-size="4.3"><tspan>TILE_M</tspan></text>
+  <path d="M142.00 24.50 L159.00 24.50" fill="none" stroke="#000" stroke-width="0.45"/>
+  <text x="142.12" y="23.00" font-size="4.3"><tspan>TILE_N</tspan></text>
+  <text x="196.00" y="72.00" font-size="4.3" fill="#666"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">末组不满</tspan></text>
+  <path d="M193.00 48.50 L195.00 70.00" fill="none" stroke="#888" stroke-width="0.35"/>
+  <text x="142.00" y="64.00" font-size="5.4"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">一个</tspan><tspan> tile = </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">一个事件</tspan></text>
+  <text x="222.00" y="30.00" font-size="5.1"><tspan>m-group </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">数</tspan><tspan> = ceil(</tspan><tspan font-style="italic">m</tspan><tspan dy="1.53" font-size="3.67">e</tspan><tspan dy="-1.53"> / TILE_M)</tspan></text>
+  <text x="222.00" y="39.00" font-size="5.1"><tspan>GMM1 </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">的</tspan><tspan> n-tile </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">数</tspan><tspan> = ceil((</tspan><tspan font-style="italic">hidden_dim</tspan><tspan>/2) / TILE_N)</tspan></text>
+  <text x="222.00" y="48.00" font-size="5.1"><tspan>GMM2 </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">的</tspan><tspan> n-tile </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">数</tspan><tspan> = ceil(</tspan><tspan font-style="italic">h</tspan><tspan> / TILE_N),  </tspan><tspan font-style="italic">K</tspan><tspan dy="1.53" font-size="3.67">2</tspan><tspan dy="-1.53"> = </tspan><tspan font-style="italic">hidden_dim</tspan><tspan>/2</tspan></text>
+  <text x="222.00" y="57.00" font-size="4.6" fill="#666"><tspan>(/2 </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">是</tspan><tspan> SwiGLU </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">的</tspan><tspan> gate+up </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">两块</tspan><tspan>)</tspan></text>
+  <text x="222.00" y="64.00" font-size="4.6"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">一波投放</tspan><tspan> mgw </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">个</tspan><tspan> m-group (</tspan><tspan font-style="italic">P</tspan><tspan> = AIC </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">数</tspan><tspan>; </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">波策略按逻辑</tspan><tspan> tile </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">计</tspan><tspan>, </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">不除</tspan><tspan> 2):</tspan></text>
+  <text x="222.00" y="71.00" font-size="4.5"><tspan>mgw = max(ceil(</tspan><tspan font-style="italic">P p</tspan><tspan dy="1.35" font-size="3.24">1</tspan><tspan dy="-1.35">/ceil(</tspan><tspan font-style="italic">hidden_dim</tspan><tspan>/TILE_N)), ceil(</tspan><tspan font-style="italic">P p</tspan><tspan dy="1.35" font-size="3.24">2</tspan><tspan dy="-1.35">/ceil(</tspan><tspan font-style="italic">h</tspan><tspan>/TILE_N)))</tspan></text>
+  <text x="18.02" y="78.00" font-size="5.2"><tspan>dispatch</tspan></text>
+  <text x="93.40" y="78.00" font-size="5.2"><tspan>GMM1</tspan></text>
+  <text x="140.70" y="78.00" font-size="5.2"><tspan>ACT</tspan></text>
+  <text x="185.40" y="78.00" font-size="5.2"><tspan>GMM2</tspan></text>
+  <text x="229.26" y="78.00" font-size="5.2"><tspan>combine</tspan></text>
+  <rect x="10.00" y="82.00" width="36.00" height="9.00" fill="#d6d6d6" stroke="#000" stroke-width="0.5"/>
+  <text x="25.80" y="88.00" font-size="4.5"><tspan>s0</tspan></text>
+  <rect x="10.00" y="100.00" width="36.00" height="9.00" fill="#d6d6d6" stroke="#000" stroke-width="0.5"/>
+  <text x="25.80" y="106.00" font-size="4.5"><tspan>s1</tspan></text>
+  <rect x="56.00" y="82.00" width="14.00" height="27.00" fill="#fff" stroke="#000" stroke-width="0.5" stroke-dasharray="1.6 1.2"/>
+  <text x="60.80" y="94.00" font-size="4.4"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">组</tspan></text>
+  <text x="58.60" y="101.00" font-size="4.4"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">就绪</tspan></text>
+  <rect x="82.00" y="82.00" width="36.00" height="9.00" fill="#fff" stroke="#000" stroke-width="0.5"/>
+  <text x="97.80" y="88.00" font-size="4.5"><tspan>n0</tspan></text>
+  <rect x="82.00" y="100.00" width="36.00" height="9.00" fill="#fff" stroke="#000" stroke-width="0.5"/>
+  <text x="97.80" y="106.00" font-size="4.5"><tspan>n1</tspan></text>
+  <rect x="128.00" y="82.00" width="36.00" height="9.00" fill="#b9b9b9" stroke="#000" stroke-width="0.5"/>
+  <text x="143.79" y="88.00" font-size="4.5"><tspan>n0</tspan></text>
+  <rect x="128.00" y="100.00" width="36.00" height="9.00" fill="#b9b9b9" stroke="#000" stroke-width="0.5"/>
+  <text x="143.79" y="106.00" font-size="4.5"><tspan>n1</tspan></text>
+  <rect x="174.00" y="82.00" width="36.00" height="9.00" fill="#8e8e8e" stroke="#000" stroke-width="0.5"/>
+  <text x="189.79" y="88.00" font-size="4.5" fill="#fff"><tspan>n0</tspan></text>
+  <rect x="174.00" y="100.00" width="36.00" height="9.00" fill="#8e8e8e" stroke="#000" stroke-width="0.5"/>
+  <text x="189.79" y="106.00" font-size="4.5" fill="#fff"><tspan>n1</tspan></text>
+  <rect x="220.00" y="82.00" width="36.00" height="9.00" fill="#ececec" stroke="#000" stroke-width="0.5"/>
+  <text x="235.79" y="88.00" font-size="4.5"><tspan>n0</tspan></text>
+  <rect x="220.00" y="100.00" width="36.00" height="9.00" fill="#ececec" stroke="#000" stroke-width="0.5"/>
+  <text x="235.79" y="106.00" font-size="4.5"><tspan>n1</tspan></text>
+  <path d="M46.00 86.50 L56.00 90.00" fill="none" stroke="#000" stroke-width="0.45" marker-end="url(#a)"/>
+  <path d="M46.00 104.50 L56.00 101.00" fill="none" stroke="#000" stroke-width="0.45" marker-end="url(#a)"/>
+  <path d="M70.00 90.00 L82.00 86.50" fill="none" stroke="#000" stroke-width="0.45" marker-end="url(#a)"/>
+  <path d="M70.00 101.00 L82.00 104.50" fill="none" stroke="#000" stroke-width="0.45" marker-end="url(#a)"/>
+  <path d="M118.00 86.50 L128.00 86.50" fill="none" stroke="#000" stroke-width="0.45" marker-end="url(#a)"/>
+  <path d="M210.00 86.50 L220.00 86.50" fill="none" stroke="#000" stroke-width="0.45" marker-end="url(#a)"/>
+  <path d="M118.00 104.50 L128.00 104.50" fill="none" stroke="#000" stroke-width="0.45" marker-end="url(#a)"/>
+  <path d="M210.00 104.50 L220.00 104.50" fill="none" stroke="#000" stroke-width="0.45" marker-end="url(#a)"/>
+  <path d="M164.00 86.50 L174.00 86.50" fill="none" stroke="#000" stroke-width="0.4" marker-end="url(#a)"/>
+  <path d="M164.00 86.50 L174.00 104.50" fill="none" stroke="#000" stroke-width="0.4" marker-end="url(#a)"/>
+  <path d="M164.00 104.50 L174.00 86.50" fill="none" stroke="#000" stroke-width="0.4" marker-end="url(#a)"/>
+  <path d="M164.00 104.50 L174.00 104.50" fill="none" stroke="#000" stroke-width="0.4" marker-end="url(#a)"/>
+  <rect x="159.01" y="93.97" width="19.97" height="4.64" fill="#fff" stroke="none"/>
+  <text x="160.01" y="97.50" font-size="4.3" fill="#333"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">沿</tspan><tspan> </tspan><tspan font-style="italic">K</tspan><tspan> </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">汇入</tspan></text>
+  <path d="M146.00 91.00 Q124.00 96.00 100.00 100.00" fill="none" stroke="#555" stroke-width="0.5" stroke-dasharray="1.8 1.3" marker-end="url(#ag)"/>
+  <rect x="119.85" y="91.07" width="6.30" height="4.64" fill="#fff" stroke="none"/>
+  <text x="120.85" y="94.60" font-size="4.3" fill="#555"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">槽</tspan></text>
+  <text x="21.90" y="117.00" font-size="4.8" fill="#666"><tspan>AIV1</tspan></text>
+  <text x="95.10" y="117.00" font-size="4.8" fill="#666"><tspan>AIC</tspan></text>
+  <text x="139.90" y="117.00" font-size="4.8" fill="#666"><tspan>AIV0</tspan></text>
+  <text x="187.10" y="117.00" font-size="4.8" fill="#666"><tspan>AIC</tspan></text>
+  <text x="231.90" y="117.00" font-size="4.8" fill="#666"><tspan>AIV1</tspan></text>
+  <text x="6.37" y="123.50" font-size="4.3" fill="#666"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">一段</tspan><tspan> = </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">一个源卡的一批</tspan></text>
+  <text x="262.00" y="85.00" font-size="4.7" fill="#444"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">实线</tspan><tspan> = </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">数据依赖</tspan></text>
+  <text x="262.00" y="92.50" font-size="4.7" fill="#444"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">虚线</tspan><tspan> = UB </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">槽</tspan><tspan>: GMM1 </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">取</tspan><tspan>, ACT </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">还</tspan></text>
+  <text x="262.00" y="100.00" font-size="4.7" fill="#444"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">核在建图时就定死</tspan><tspan> (</tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">静态钉核</tspan><tspan>)</tspan></text>
+  <text x="262.00" y="107.50" font-size="4.7" fill="#444"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">此处</tspan><tspan> ×2 </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">专家</tspan><tspan> × ceil(</tspan><tspan font-style="italic">m</tspan><tspan dy="1.41" font-size="3.38">e</tspan><tspan dy="-1.41">/TILE_M) </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">组</tspan></text>
+  <text x="262.00" y="115.00" font-size="4.7" fill="#444"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">共</tspan><tspan> 29 </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">事件</tspan><tspan> / 50 </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">边</tspan></text>
+  <text x="10.00" y="130.00" font-size="5.2"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">事件记录</tspan><tspan> (</tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">真值</tspan><tspan>):</tspan></text>
+  <text x="10.00" y="138.00" font-size="4.5" fill="#777"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">事件</tspan></text>
+  <text x="76.00" y="138.00" font-size="4.5" fill="#777"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">核</tspan></text>
+  <text x="104.00" y="138.00" font-size="4.5" fill="#777"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">前驱</tspan></text>
+  <text x="150.00" y="138.00" font-size="4.5" fill="#777"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">取</tspan></text>
+  <text x="216.00" y="138.00" font-size="4.5" fill="#777"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">还</tspan></text>
+  <text x="288.00" y="138.00" font-size="4.5" fill="#777"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">时长</tspan><tspan> µs</tspan></text>
+  <path d="M10.00 140.00 L320.00 140.00" fill="none" stroke="#aaa" stroke-width="0.35"/>
+  <text x="10.00" y="147.00" font-size="4.6"><tspan>gmm1.m0.n0</tspan></text>
+  <text x="76.00" y="147.00" font-size="4.6"><tspan>AIC:0</tspan></text>
+  <text x="104.00" y="147.00" font-size="4.6"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">组就绪</tspan></text>
+  <text x="150.00" y="147.00" font-size="4.6"><tspan>Q:aic, UB:gmm1act</tspan></text>
+  <text x="216.00" y="147.00" font-size="4.6"><tspan>Q:aic</tspan></text>
+  <text x="288.00" y="147.00" font-size="4.6"><tspan>7.576</tspan></text>
+  <text x="10.00" y="154.00" font-size="4.6"><tspan>act.m0.n0</tspan></text>
+  <text x="76.00" y="154.00" font-size="4.6"><tspan>AIV0:0</tspan></text>
+  <text x="104.00" y="154.00" font-size="4.6"><tspan>gmm1.m0.n0</tspan></text>
+  <text x="150.00" y="154.00" font-size="4.6"><tspan>Q:vec0</tspan></text>
+  <text x="216.00" y="154.00" font-size="4.6"><tspan>Q:vec0, UB:gmm1act</tspan></text>
+  <text x="288.00" y="154.00" font-size="4.6"><tspan>9.430</tspan></text>
+  <text x="326.00" y="144.00" font-size="4.6" fill="#444"><tspan>UB:gmm1act </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">跨两个</tspan></text>
+  <text x="326.00" y="150.50" font-size="4.6" fill="#444"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">事件持有</tspan><tspan> → </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">不是边</tspan></text>
+  <text x="3.00" y="166.00" font-size="7.2"><tspan font-style="italic">(b)</tspan></text>
+  <text x="16.00" y="166.00" font-size="6.3"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">一个事件算多久</tspan><tspan>: </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">按物理性质分四类</tspan></text>
+  <text x="10.00" y="177.00" font-size="5.3" fill="#333"><tspan>dispatch </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">段</tspan></text>
+  <text x="72.00" y="177.00" font-size="5.4"><tspan font-style="italic">d</tspan><tspan> = max(</tspan><tspan font-style="italic">T</tspan><tspan dy="1.62" font-size="3.89">lat</tspan><tspan dy="-1.62">, min(</tspan><tspan font-style="italic">n</tspan><tspan>,</tspan><tspan font-style="italic">D</tspan><tspan>)·</tspan><tspan font-style="italic">τ</tspan><tspan>) + max(0, </tspan><tspan font-style="italic">n</tspan><tspan>−</tspan><tspan font-style="italic">D</tspan><tspan>)·</tspan><tspan font-style="italic">τ</tspan><tspan>,   </tspan><tspan font-style="italic">τ</tspan><tspan> = </tspan><tspan font-style="italic">b</tspan><tspan dy="1.62" font-size="3.89">row</tspan><tspan dy="-1.62">/</tspan><tspan font-style="italic">BW</tspan></text>
+  <text x="10.00" y="188.00" font-size="5.3" fill="#333"><tspan>GMM tile</tspan></text>
+  <text x="72.00" y="188.00" font-size="5.4"><tspan font-style="italic">d</tspan><tspan> = max(</tspan><tspan font-style="italic">L</tspan><tspan>, </tspan><tspan font-style="italic">C</tspan><tspan>) </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">若</tspan><tspan> L1 </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">深度</tspan><tspan> ≥ 2;   </tspan><tspan font-style="italic">d</tspan><tspan> = </tspan><tspan font-style="italic">L</tspan><tspan> + </tspan><tspan font-style="italic">C</tspan><tspan> + ceil(</tspan><tspan font-style="italic">K</tspan><tspan>/</tspan><tspan font-style="italic">K</tspan><tspan dy="1.62" font-size="3.89">L1</tspan><tspan dy="-1.62">)·</tspan><tspan font-style="italic">τ</tspan><tspan dy="1.62" font-size="3.89">r</tspan><tspan dy="-1.62"> </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">若深度</tspan><tspan> = 1</tspan></text>
+  <text x="72.00" y="196.00" font-size="5.4"><tspan font-style="italic">L</tspan><tspan> = </tspan><tspan font-style="italic">A</tspan><tspan> + </tspan><tspan font-style="italic">B</tspan><tspan>;   GMM1: </tspan><tspan font-style="italic">A</tspan><tspan> = </tspan><tspan font-style="italic">mK</tspan><tspan>/</tspan><tspan font-style="italic">BW</tspan><tspan>,  </tspan><tspan font-style="italic">B</tspan><tspan> = </tspan><tspan font-style="italic">w</tspan><tspan dy="1.62" font-size="3.89">b</tspan><tspan dy="-1.62" font-style="italic">KN f</tspan><tspan>/</tspan><tspan font-style="italic">BW</tspan><tspan dy="1.62" font-size="3.89">b</tspan><tspan dy="-1.62">,  </tspan><tspan font-style="italic">C</tspan><tspan> = 2</tspan><tspan font-style="italic">mNK</tspan><tspan>/</tspan><tspan font-style="italic">R</tspan></text>
+  <text x="72.00" y="204.00" font-size="5.4"><tspan>GMM2: </tspan><tspan font-style="italic">A</tspan><tspan> = </tspan><tspan font-style="italic">mK</tspan><tspan dy="1.62" font-size="3.89">2</tspan><tspan dy="-1.62">/</tspan><tspan font-style="italic">BW</tspan><tspan> (</tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">仅物化</tspan><tspan>),  </tspan><tspan font-style="italic">B</tspan><tspan> = </tspan><tspan font-style="italic">K</tspan><tspan dy="1.62" font-size="3.89">2</tspan><tspan dy="-1.62" font-style="italic">N</tspan><tspan>/</tspan><tspan font-style="italic">BW</tspan><tspan dy="1.62" font-size="3.89">b</tspan><tspan dy="-1.62">,  </tspan><tspan font-style="italic">C</tspan><tspan> = </tspan><tspan font-style="italic">mNK</tspan><tspan dy="1.62" font-size="3.89">2</tspan><tspan dy="-1.62">/</tspan><tspan font-style="italic">R</tspan></text>
+  <text x="10.00" y="214.00" font-size="5.3" fill="#333"><tspan>ACT tile</tspan></text>
+  <text x="72.00" y="214.00" font-size="5.4"><tspan font-style="italic">d</tspan><tspan> = </tspan><tspan font-style="italic">T</tspan><tspan dy="1.62" font-size="3.89">0</tspan><tspan dy="-1.62"> + (</tspan><tspan font-style="italic">mN</tspan><tspan>/</tspan><tspan font-style="italic">V</tspan><tspan>)·</tspan><tspan font-style="italic">β</tspan><tspan>/</tspan><tspan font-style="italic">BW</tspan><tspan dy="1.62" font-size="3.89">UB</tspan></text>
+  <text x="10.00" y="224.00" font-size="5.3" fill="#333"><tspan>combine tile</tspan></text>
+  <text x="72.00" y="224.00" font-size="5.4"><tspan font-style="italic">d</tspan><tspan> = </tspan><tspan font-style="italic">m</tspan><tspan>(</tspan><tspan font-style="italic">e</tspan><tspan dy="1.62" font-size="3.89">in</tspan><tspan dy="-1.62" font-style="italic">N</tspan><tspan> + meta)/</tspan><tspan font-style="italic">BW</tspan><tspan dy="1.62" font-size="3.89">loc</tspan><tspan dy="-1.62"> + (</tspan><tspan font-style="italic">m</tspan><tspan>−</tspan><tspan font-style="italic">r</tspan><tspan>)</tspan><tspan font-style="italic">e</tspan><tspan dy="1.62" font-size="3.89">out</tspan><tspan dy="-1.62" font-style="italic">N</tspan><tspan>/</tspan><tspan font-style="italic">BW</tspan><tspan dy="1.62" font-size="3.89">loc</tspan><tspan dy="-1.62"> + </tspan><tspan font-style="italic">r e</tspan><tspan dy="1.62" font-size="3.89">out</tspan><tspan dy="-1.62" font-style="italic">N</tspan><tspan>/</tspan><tspan font-style="italic">BW</tspan><tspan dy="1.62" font-size="3.89">rmt</tspan></text>
+  <text x="10.00" y="235.00" font-size="4.8" fill="#444"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">取</tspan><tspan> max </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">只在双缓冲真能重叠处</tspan><tspan>; </tspan><tspan font-style="italic">A</tspan><tspan>/</tspan><tspan font-style="italic">B</tspan><tspan> </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">两股载入抢同一条</tspan><tspan> HBM→L1 </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">通路</tspan><tspan>, </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">故相加。</tspan><tspan font-style="italic">r</tspan><tspan> = </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">跨卡行数</tspan><tspan> (</tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">由路由精确数出</tspan><tspan>)</tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">。</tspan></text>
+  <text x="3.00" y="252.00" font-size="7.2"><tspan font-style="italic">(c)</tspan></text>
+  <text x="16.00" y="252.00" font-size="6.3"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">排时间线</tspan><tspan>: </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">先取依赖与核都就绪的时刻</tspan><tspan>, </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">再推到槽有余量的时刻</tspan></text>
+  <text x="10.00" y="262.00" font-size="5.5"><tspan font-style="italic">t</tspan><tspan dy="1.65" font-size="3.96">base</tspan><tspan dy="-1.65">(</tspan><tspan font-style="italic">e</tspan><tspan>) = max{ max</tspan><tspan dy="1.65" font-size="3.96">p→e</tspan><tspan dy="-1.65"> [ end(</tspan><tspan font-style="italic">p</tspan><tspan>) + </tspan><tspan font-style="italic">λ</tspan><tspan dy="1.65" font-size="3.96">pe</tspan><tspan dy="-1.65"> ],   max</tspan><tspan dy="1.65" font-size="3.96">res(e)</tspan><tspan dy="-1.65"> free(</tspan><tspan font-style="italic">r</tspan><tspan>) }</tspan></text>
+  <text x="10.00" y="271.00" font-size="5.5"><tspan>start(</tspan><tspan font-style="italic">e</tspan><tspan>) = min{ </tspan><tspan font-style="italic">t</tspan><tspan> ≥ </tspan><tspan font-style="italic">t</tspan><tspan dy="1.65" font-size="3.96">base</tspan><tspan dy="-1.65">(</tspan><tspan font-style="italic">e</tspan><tspan>) : </tspan><tspan font-style="italic">e</tspan><tspan> </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">要占的每个槽在</tspan><tspan> </tspan><tspan font-style="italic">t</tspan><tspan> </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">都有余量</tspan><tspan> }</tspan></text>
+  <text x="258.00" y="271.00" font-size="4.8" fill="#444"><tspan>(</tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">只在已登记的归还时刻上搜</tspan><tspan>)</tspan></text>
+  <text x="10.00" y="280.00" font-size="5.5"><tspan>end(</tspan><tspan font-style="italic">e</tspan><tspan>) = start(</tspan><tspan font-style="italic">e</tspan><tspan>) + </tspan><tspan font-style="italic">d</tspan><tspan>(</tspan><tspan font-style="italic">e</tspan><tspan>);   </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">每步取</tspan><tspan> start </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">最小的事件</tspan><tspan>;   </tspan><tspan font-style="italic">T</tspan><tspan> = </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">最后一个</tspan><tspan> combine </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">的</tspan><tspan> end (</tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">尾段照排但不计入</tspan><tspan>)</tspan></text>
+  <text x="25.02" y="297.40" font-size="4.8" fill="#444"><tspan>AIV1:0</tspan></text>
+  <path d="M44.00 301.40 L390.00 301.40" fill="none" stroke="#ddd" stroke-width="0.3"/>
+  <text x="27.42" y="317.40" font-size="4.8" fill="#444"><tspan>AIC:0</tspan></text>
+  <path d="M44.00 321.40 L390.00 321.40" fill="none" stroke="#ddd" stroke-width="0.3"/>
+  <text x="25.02" y="337.40" font-size="4.8" fill="#444"><tspan>AIV0:0</tspan></text>
+  <path d="M44.00 341.40 L390.00 341.40" fill="none" stroke="#ddd" stroke-width="0.3"/>
+  <rect x="44.00" y="290.00" width="7.01" height="11.00" fill="#d6d6d6" stroke="#000" stroke-width="0.4"/>
+  <rect x="51.01" y="290.00" width="17.42" height="11.00" fill="#d6d6d6" stroke="#000" stroke-width="0.4"/>
+  <text x="55.50" y="297.20" font-size="4.4"><tspan>disp</tspan></text>
+  <rect x="68.44" y="290.00" width="7.01" height="11.00" fill="#d6d6d6" stroke="#000" stroke-width="0.4"/>
+  <rect x="68.44" y="310.00" width="24.13" height="11.00" fill="#ffffff" stroke="#000" stroke-width="0.4"/>
+  <text x="74.91" y="317.20" font-size="4.4"><tspan>GMM1</tspan></text>
+  <rect x="75.45" y="290.00" width="17.42" height="11.00" fill="#d6d6d6" stroke="#000" stroke-width="0.4"/>
+  <text x="79.94" y="297.20" font-size="4.4"><tspan>disp</tspan></text>
+  <rect x="92.56" y="330.00" width="30.03" height="11.00" fill="#b9b9b9" stroke="#000" stroke-width="0.4"/>
+  <text x="103.09" y="337.20" font-size="4.4"><tspan>ACT</tspan></text>
+  <rect x="122.59" y="310.00" width="24.13" height="11.00" fill="#ffffff" stroke="#000" stroke-width="0.4"/>
+  <text x="129.07" y="317.20" font-size="4.4"><tspan>GMM1</tspan></text>
+  <rect x="146.72" y="330.00" width="30.03" height="11.00" fill="#b9b9b9" stroke="#000" stroke-width="0.4"/>
+  <text x="157.25" y="337.20" font-size="4.4"><tspan>ACT</tspan></text>
+  <rect x="176.75" y="310.00" width="16.09" height="11.00" fill="#8e8e8e" stroke="#000" stroke-width="0.4"/>
+  <text x="179.21" y="317.20" font-size="4.4" fill="#fff"><tspan>GMM2</tspan></text>
+  <rect x="192.84" y="310.00" width="16.09" height="11.00" fill="#8e8e8e" stroke="#000" stroke-width="0.4"/>
+  <text x="195.29" y="317.20" font-size="4.4" fill="#fff"><tspan>GMM2</tspan></text>
+  <rect x="192.84" y="290.00" width="28.34" height="11.00" fill="#ececec" stroke="#000" stroke-width="0.4"/>
+  <text x="202.78" y="297.20" font-size="4.4"><tspan>comb</tspan></text>
+  <rect x="208.92" y="310.00" width="24.13" height="11.00" fill="#ffffff" stroke="#000" stroke-width="0.4"/>
+  <text x="215.40" y="317.20" font-size="4.4"><tspan>GMM1</tspan></text>
+  <rect x="221.18" y="290.00" width="28.34" height="11.00" fill="#ececec" stroke="#000" stroke-width="0.4"/>
+  <text x="231.12" y="297.20" font-size="4.4"><tspan>comb</tspan></text>
+  <rect x="233.05" y="330.00" width="30.03" height="11.00" fill="#b9b9b9" stroke="#000" stroke-width="0.4"/>
+  <text x="243.58" y="337.20" font-size="4.4"><tspan>ACT</tspan></text>
+  <rect x="263.08" y="310.00" width="24.13" height="11.00" fill="#ffffff" stroke="#000" stroke-width="0.4"/>
+  <text x="269.56" y="317.20" font-size="4.4"><tspan>GMM1</tspan></text>
+  <rect x="287.21" y="330.00" width="30.03" height="11.00" fill="#b9b9b9" stroke="#000" stroke-width="0.4"/>
+  <text x="297.73" y="337.20" font-size="4.4"><tspan>ACT</tspan></text>
+  <rect x="317.24" y="310.00" width="16.09" height="11.00" fill="#8e8e8e" stroke="#000" stroke-width="0.4"/>
+  <text x="319.69" y="317.20" font-size="4.4" fill="#fff"><tspan>GMM2</tspan></text>
+  <rect x="333.32" y="310.00" width="16.09" height="11.00" fill="#8e8e8e" stroke="#000" stroke-width="0.4"/>
+  <text x="335.78" y="317.20" font-size="4.4" fill="#fff"><tspan>GMM2</tspan></text>
+  <rect x="333.32" y="290.00" width="28.34" height="11.00" fill="#ececec" stroke="#000" stroke-width="0.4"/>
+  <text x="343.27" y="297.20" font-size="4.4"><tspan>comb</tspan></text>
+  <rect x="361.66" y="290.00" width="28.34" height="11.00" fill="#ececec" stroke="#000" stroke-width="0.4"/>
+  <text x="371.61" y="297.20" font-size="4.4"><tspan>comb</tspan></text>
+  <rect x="44.00" y="310.00" width="24.44" height="11.00" fill="none" stroke="#333" stroke-width="0.5" stroke-dasharray="1.5 1.1"/>
+  <text x="46.52" y="317.20" font-size="4.3"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">等前驱</tspan><tspan> 7.7</tspan></text>
+  <rect x="92.56" y="310.00" width="30.03" height="11.00" fill="none" stroke="#333" stroke-width="0.5" stroke-dasharray="1.5 1.1"/>
+  <text x="100.03" y="317.20" font-size="4.3"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">等槽</tspan><tspan> 9.4</tspan></text>
+  <path d="M208.92 302.40 L208.92 304.40" fill="none" stroke="#000" stroke-width="0.45"/>
+  <path d="M221.18 302.40 L221.18 304.40" fill="none" stroke="#000" stroke-width="0.45"/>
+  <path d="M208.92 304.40 L221.18 304.40" fill="none" stroke="#000" stroke-width="0.45"/>
+  <text x="223.68" y="306.20" font-size="4.3" fill="#333"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">等核</tspan><tspan> 3.8 (</tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">核被占着</tspan><tspan>, </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">没有空档</tspan><tspan>)</tspan></text>
+  <path d="M44.00 350.00 L390.00 350.00" fill="none" stroke="#000" stroke-width="0.5"/>
+  <path d="M44.00 350.00 L44.00 352.60" fill="none" stroke="#000" stroke-width="0.45"/>
+  <text x="42.85" y="357.60" font-size="4.6"><tspan>0</tspan></text>
+  <path d="M123.61 350.00 L123.61 352.60" fill="none" stroke="#000" stroke-width="0.45"/>
+  <text x="121.31" y="357.60" font-size="4.6"><tspan>25</tspan></text>
+  <path d="M203.23 350.00 L203.23 352.60" fill="none" stroke="#000" stroke-width="0.45"/>
+  <text x="200.93" y="357.60" font-size="4.6"><tspan>50</tspan></text>
+  <path d="M282.84 350.00 L282.84 352.60" fill="none" stroke="#000" stroke-width="0.45"/>
+  <text x="280.54" y="357.60" font-size="4.6"><tspan>75</tspan></text>
+  <path d="M362.46 350.00 L362.46 352.60" fill="none" stroke="#000" stroke-width="0.45"/>
+  <text x="359.01" y="357.60" font-size="4.6"><tspan>100</tspan></text>
+  <text x="385.26" y="357.60" font-size="4.6" fill="#444"><tspan>µs</tspan></text>
+  <path d="M390.00 288.00 L390.00 350.00" fill="none" stroke="#333" stroke-width="0.5" stroke-dasharray="2 1.4"/>
+  <text x="367.20" y="287.00" font-size="5.2"><tspan font-style="italic">T</tspan><tspan> = 108.6</tspan></text>
+  <rect x="10.00" y="362.00" width="7.00" height="5.40" fill="#d6d6d6" stroke="#000" stroke-width="0.4"/>
+  <text x="19.00" y="366.50" font-size="4.6"><tspan>dispatch</tspan></text>
+  <rect x="46.00" y="362.00" width="7.00" height="5.40" fill="#ffffff" stroke="#000" stroke-width="0.4"/>
+  <text x="55.00" y="366.50" font-size="4.6"><tspan>GMM1</tspan></text>
+  <rect x="72.00" y="362.00" width="7.00" height="5.40" fill="#b9b9b9" stroke="#000" stroke-width="0.4"/>
+  <text x="81.00" y="366.50" font-size="4.6"><tspan>ACT</tspan></text>
+  <rect x="95.50" y="362.00" width="7.00" height="5.40" fill="#8e8e8e" stroke="#000" stroke-width="0.4"/>
+  <text x="104.50" y="366.50" font-size="4.6"><tspan>GMM2</tspan></text>
+  <rect x="121.50" y="362.00" width="7.00" height="5.40" fill="#ececec" stroke="#000" stroke-width="0.4"/>
+  <text x="130.50" y="366.50" font-size="4.6"><tspan>combine</tspan></text>
+  <rect x="155.00" y="362.00" width="7.00" height="5.40" fill="none" stroke="#333" stroke-width="0.5" stroke-dasharray="1.5 1.1"/>
+  <text x="164.00" y="366.50" font-size="4.6"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">等待</tspan></text>
+  <text x="10.00" y="375.50" font-size="4.7" fill="#444"><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">小实例</tspan><tspan>: 2 </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">专家</tspan><tspan> × 256 </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">行</tspan><tspan>, </tspan><tspan font-style="italic">h</tspan><tspan>=512, </tspan><tspan font-style="italic">hidden_dim</tspan><tspan>=1024, TILE=256², 1×AIC/AIV0/AIV1 → 29 </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">事件</tspan><tspan> / 50 </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">边</tspan><tspan> / </tspan><tspan font-style="italic">T</tspan><tspan> = 108.65 µs</tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">。核取</tspan><tspan> 1 </tspan><tspan font-family="'Noto Serif CJK SC', 'Source Han Serif SC', 'WenQuanYi Zen Hei', SimSun, serif">个是为了让三种等待同时出现。</tspan></text>
 </svg>
