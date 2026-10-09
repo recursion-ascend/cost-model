@@ -1,48 +1,53 @@
 # -*- coding: utf-8 -*-
 """生成 fig-megamoe-timing.svg: cost model 怎么建图, 怎么算时间.
 
-(a) 建图  (b) 一个事件算多久  (c) 排成时间线
+(a) 建图  (b) 一个事件算多久  (c) 排时间线
 
 (a) 的事件图与 (c) 的甘特图都不是手画的: 本脚本跑一个小实例, 把 build_events
 拿到的真图与 scheduler 排出的真时间线画出来, 所以图改不动模型、模型改了图跟着变。
+
+实例走 profiles.MEGAMOE_A8W8 —— 那份实现的真实编排 (静态钉核、ACT→GMM2 沿 K
+两段就绪、UB 单槽), 不是框架缺省值。缺省值下核是晚绑定的、GMM2 整块就绪,
+画出来就不是 MegaMoE 了。
 """
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from moe_cost_model import (DispatchMechanisticLatency, InstancePolicy,  # noqa: E402
-                            KernelConfig, build_analytical_costs,
-                            simulate_routing_counts)
-from moe_cost_model.model import (A8W8WaveCostModel, MegaMoeShape,  # noqa: E402
-                                  ModelOptions)
+from moe_cost_model import (DispatchMechanisticLatency,  # noqa: E402
+                            build_analytical_costs, simulate_routing_counts)
+from moe_cost_model.model import A8W8WaveCostModel, MegaMoeShape  # noqa: E402
+from moe_cost_model.profiles import MEGAMOE_A8W8 as PROFILE  # noqa: E402
 
 # ---------------------------------------------------------------- 小实例
 # 选 1 个 AIC/AIV0/AIV1: 核多了全是依赖等待, 调度器看着像没干活;
 # 核少了三种等待 (等前驱/等核/等槽) 才同时出现在一张甘特图里。
+# h 取 256 (= TILE_N): GMM2 只有一个 n-tile, 于是"沿 K 两段就绪"这件事
+# 在图上就是干净的两个方块, 不被 n 方向的 tile 数淹掉。
 WORLD, LOCAL, TOKENS, TOPK = 2, 2, 256, 2
-H, HIDDEN, AIC, TILE = 512, 1024, 1, 256
+H, HIDDEN, AIC, TILE = 256, 1024, 1, 256
 ROWS = TOKENS * TOPK // WORLD // LOCAL          # 每专家每源卡的行数
-KERNEL = KernelConfig(tile_m=TILE, tile_n=TILE)
+KERNEL = PROFILE.with_kernel(tile_m=TILE, tile_n=TILE)
 COSTS = build_analytical_costs(h=H, kernel=KERNEL,
                               dispatch_mechanistic=DispatchMechanisticLatency(),
                               cube_mac_per_us=2.7e7)
+SHAPE_KW = PROFILE.shape_kw(kernel=KERNEL)
 
 
 def instance():
     C = [[[ROWS] * WORLD for _ in range(LOCAL)] for _ in range(WORLD)]
     res = simulate_routing_counts(
         routing_counts=C, token_num_per_rank=TOKENS, h=H, hidden_dim=HIDDEN,
-        aic_num=AIC, costs=COSTS, topk=TOPK, kernel=KERNEL,
-        policy=InstancePolicy())
+        aic_num=AIC, costs=COSTS, topk=TOPK, options=PROFILE.options, **SHAPE_KW)
     r = res["rank_results"][res["slowest_rank"]]
-    m = A8W8WaveCostModel(COSTS, ModelOptions())
+    m = A8W8WaveCostModel(COSTS, PROFILE.options)
     shape = MegaMoeShape(
         expert_tokens=tuple(ROWS * WORLD for _ in range(LOCAL)),
         token_num=TOKENS, h=H, hidden_dim=HIDDEN, aic_num=AIC, rank_id=0,
         expert_source_tokens=tuple(tuple(ROWS for _ in range(WORLD))
                                    for _ in range(LOCAL)),
-        topk=TOPK, kernel=KERNEL, policy=InstancePolicy())
+        topk=TOPK, **SHAPE_KW)
     raw, _ = m.build_events(shape)
     return res["kernel_total_us"], r, raw
 
@@ -254,14 +259,19 @@ tx(FX, 71, "mgw = max(ceil(|P p|~1~/ceil(|hidden_dim|/TILE_N)),"
            " ceil(|P p|~2~/ceil(|h|/TILE_N)))", 4.5)
 
 # -- 真事件图 (build_events 的输出, 取其中一个专家) --
-COLS = [("dispatch", 10, 36), ("", 56, 14), ("GMM1", 82, 36),
-        ("ACT", 128, 36), ("GMM2", 174, 36), ("combine", 220, 36)]
-YA, YB, NH = 82, 100, 9
+# GMM2 沿 K 两段就绪 (profile: readiness="first_chunk"): 首段只等覆盖第一个
+# kL1 块的那个 ACT, 末段才等其余 —— 四条 stage 边里唯一可以只等一部分的。
+YA, YB, YM, NH = 82, 100, 91, 9
+COLS = [("dispatch", 10, 36), ("", 56, 14), ("GMM1", 82, 36), ("ACT", 128, 36)]
+G2A, G2B, GW = 174, 198, 18
+CB_X, CB_W = 228, 36
+D_FILL = {"dispatch": "#d6d6d6", "GMM1": "#fff", "ACT": "#b9b9b9",
+          "GMM2": "#8e8e8e", "combine": "#ececec"}
 for nm, x, w in COLS:
     if nm:
         tx(x + w / 2, 78, nm, 5.2, "middle")
-D_FILL = {"dispatch": "#d6d6d6", "GMM1": "#fff", "ACT": "#b9b9b9",
-          "GMM2": "#8e8e8e", "combine": "#ececec"}
+tx((G2A + G2B + GW) / 2, 78, "GMM2", 5.2, "middle")
+tx(CB_X + CB_W / 2, 78, "combine", 5.2, "middle")
 for nm, x, w in COLS:
     if not nm:
         rect(x, YA, w, YB + NH - YA, fill="#fff", sw=0.5, dash="1.6 1.2")
@@ -271,32 +281,41 @@ for nm, x, w in COLS:
     for k, yy in enumerate((YA, YB)):
         rect(x, yy, w, NH, fill=D_FILL[nm], sw=0.5)
         tag = ("s0", "s1")[k] if nm == "dispatch" else ("n0", "n1")[k]
-        tx(x + w / 2, yy + 6, tag, 4.5, "middle",
-           fill="#fff" if nm == "GMM2" else None)
+        tx(x + w / 2, yy + 6, tag, 4.5, "middle")
+for gx, lb in ((G2A, "首"), (G2B, "末")):
+    rect(gx, YM, GW, NH, fill=D_FILL["GMM2"], sw=0.5)
+    tx(gx + GW / 2, YM + 6, lb, 4.5, "middle", fill="#fff")
+rect(CB_X, YM, CB_W, NH, fill=D_FILL["combine"], sw=0.5)
+tx(CB_X + CB_W / 2, YM + 6, "n0", 4.5, "middle")
+
 CY = (YA + NH / 2, YB + NH / 2)
+CM = YM + NH / 2
 arr(46, CY[0], 56, YA + 8, 0.45)
 arr(46, CY[1], 56, YB + 1, 0.45)
 arr(70, YA + 8, 82, CY[0], 0.45)
 arr(70, YB + 1, 82, CY[1], 0.45)
 for k in (0, 1):
-    arr(118, CY[k], 128, CY[k], 0.45)          # GMM1 -> ACT  (1:1)
-    arr(210, CY[k], 220, CY[k], 0.45)          # GMM2 -> combine
-for a in (0, 1):                                # ACT -> GMM2  (沿 K 汇入)
-    for b in (0, 1):
-        arr(164, CY[a], 174, CY[b], 0.4)
-tx(169, 97.5, "沿 |K| 汇入", 4.3, "middle", fill="#333", halo=True)
-# UB 槽: GMM1 取, ACT 还 -> 深度满时下一个 GMM1 要等 ACT 归还 (不是边)
+    arr(118, CY[k], 128, CY[k], 0.45)            # GMM1 -> ACT (1:1)
+arr(164, CY[0], G2A, CM - 1.5, 0.45)             # ACT n0 -> 首段
+curve(164, CY[1] + 1.5, 186, YB + NH + 1, G2B, CM + 2.0, 0.45, m="a")  # n1 -> 末段
+arr(G2A + GW, CM, G2B, CM, 0.45)                 # 首 -> 末 (同一 tile 的两段)
+arr(G2B + GW, CM, CB_X, CM, 0.45)                # 末 -> combine
+# UB 槽: GMM1 取, ACT 还 -> 深度 1, 下一个 GMM1 要等 ACT 归还 (不是边)
 curve(146, YA + NH, 124, 96, 100, YB, 0.5, dash="1.8 1.3", stroke="#555", m="ag")
 tx(123, 94.6, "槽", 4.3, "middle", fill="#555", halo=True)
 for x, w, core in ((10, 36, "AIV1"), (82, 36, "AIC"), (128, 36, "AIV0"),
-                   (174, 36, "AIC"), (220, 36, "AIV1")):
+                   (G2A, G2B + GW - G2A, "AIC"), (CB_X, CB_W, "AIV1")):
     tx(x + w / 2, 117, core, 4.8, "middle", fill="#666")
 tx(28, 123.5, "一段 = 一个源卡的一批", 4.3, "middle", fill="#666")
-tx(262, 85, "实线 = 数据依赖", 4.7, fill="#444")
-tx(262, 92.5, "虚线 = UB 槽: GMM1 取, ACT 还", 4.7, fill="#444")
-tx(262, 100, "核在建图时就定死 (静态钉核)", 4.7, fill="#444")
-tx(262, 107.5, f"此处 ×{LOCAL} 专家 × ceil(|m|~e~/TILE_M) 组", 4.7, fill="#444")
-tx(262, 115, f"共 {N_EV} 事件 / {N_ED} 边", 4.7, fill="#444")
+RX = 272
+for i, t in enumerate((
+        "实线 = 数据依赖",
+        "虚线 = UB 槽: GMM1 取, ACT 还",
+        "GMM2 首段只等 ACT n0 (沿 |K| 两段)",
+        "核在建图时就定死 (静态钉核)",
+        f"此处 ×{LOCAL} 专家 × ceil(|m|~e~/TILE_M) 组",
+        f"共 {N_EV} 事件 / {N_ED} 边")):
+    tx(RX, 82 + i * 7.5, t, 4.7, fill="#444")
 
 
 # -- 两个真事件的记录: 取/还 不对称, 所以"槽"写不成边 --
@@ -327,20 +346,20 @@ tx(326, 150.5, "事件持有 → 不是边", 4.6, fill="#444")
 
 
 # ===================== (b) 一个事件算多久 =====================
-head(3, 166, "(b)", "一个事件算多久: 按物理性质分四类")
+head(3, 166, "(b)", "一个事件算多久: 主链按物理性质分四类")
 BX = 72
 rows = [
-    ("dispatch 段", 177, ["|d| = max(|T|~lat~, min(|n|,|D|)·|τ|) + max(0, |n|−|D|)·|τ|,"
+    ("dispatch 段", 177, ["|d| = max(|T|~lat~, min(|n|,|D|)·|τ|) + max(0, |n|−|D|)·|τ| + |T|~ovl~,"
                           "   |τ| = |b|~row~/|BW|"]),
-    ("GMM tile", 188, ["|d| = max(|L|, |C|) 若 L1 深度 ≥ 2;   |d| = |L| + |C| + ceil(|K|/|K|~L1~)·|τ|~r~"
-                       " 若深度 = 1",
+    ("GMM tile", 188, ["|d| = max(|L|, |C|) 若 L1 双缓冲;   |d| = |L| + |C| + ceil(|K|/|K|~L1~)·|τ|~r~"
+                       " 若单缓冲",
                        "|L| = |A| + |B|;   GMM1: |A| = |mK|/|BW|,  |B| = |w|~b~|KN f|/|BW|~b~,"
                        "  |C| = 2|mNK|/|R|",
                        "GMM2: |A| = |mK|~2~/|BW| (仅物化),  |B| = |K|~2~|N|/|BW|~b~,"
                        "  |C| = |mNK|~2~/|R|"]),
     ("ACT tile", 214, ["|d| = |T|~0~ + (|mN|/|V|)·|β|/|BW|~UB~"]),
     ("combine tile", 224, ["|d| = |m|(|e|~in~|N| + meta)/|BW|~loc~ "
-                           "+ (|m|−|r|)|e|~out~|N|/|BW|~loc~ + |r e|~out~|N|/|BW|~rmt~"]),
+                           "+ (|m|−|r|)|e|~out~'|N|/|BW|~loc~ + |r e|~out~'|N|/|BW|~rmt~"]),
 ]
 for lbl, y, fs in rows:
     tx(10, y, lbl, 5.3, fill="#333")
@@ -348,6 +367,7 @@ for lbl, y, fs in rows:
         tx(BX, y + i * 8, f, 5.4)
 tx(10, 235, "取 max 只在双缓冲真能重叠处; |A|/|B| 两股载入抢同一条 HBM→L1 通路, 故相加。"
             "|r| = 跨卡行数 (由路由精确数出)。", 4.8, fill="#444")
+tx(10, 242, "|e|~out~' = |e|~out~ + scale (量化模式下 1 + 1/32 B/元素); |T|~ovl~ 只加在每核每波的第一个跨卡段 (实测 0.9 µs)。", 4.8, fill="#444")
 
 
 # ===================== (c) 排时间线 =====================
@@ -393,26 +413,33 @@ for e in sorted(RANK["events"], key=lambda e: e.start_us):
 
 # 三种等待各标一处, 数都来自 ScheduledEvent 自己的归因字段
 g0, g1 = ev("W0.E0.S0.gmm1.m0.n0"), ev("W0.E0.S0.gmm1.m0.n1")
-cb = ev("W0.E0.S0.combine.m0.n1")
+gh, an = ev("W0.E0.S0.gmm2.m0.n0.h"), ev("W0.E0.S0.act.m0.n1")
 AY = RY["R0.AIC:0"]
 rect(X(0), AY, X(g0.start_us) - X(0), BH, fill="none", sw=0.5, dash="1.5 1.1",
      stroke="#333")
 tx((X(0) + X(g0.start_us)) / 2, AY + 7.2,
-   f"等前驱 {g0.dependency_wait_us:.1f}", 4.3, "middle")
+   f"等前驱 {g0.dependency_wait_us:.1f}", 4.0, "middle")
 rect(X(g0.end_us), AY, X(g1.start_us) - X(g0.end_us), BH, fill="none", sw=0.5,
      dash="1.5 1.1", stroke="#333")
 tx((X(g0.end_us) + X(g1.start_us)) / 2, AY + 7.2,
-   f"等槽 {g1.capacity_wait_us:.1f}", 4.3, "middle")
-BY = RY["R0.AIV1:0"] + BH + 3.4
-ln(X(cb.dependency_ready_us), BY - 2, X(cb.dependency_ready_us), BY, 0.45)
-ln(X(cb.start_us), BY - 2, X(cb.start_us), BY, 0.45)
-ln(X(cb.dependency_ready_us), BY, X(cb.start_us), BY, 0.45)
-tx(X(cb.start_us) + 2.5, BY + 1.8,
-   f"等核 {cb.resource_queue_us:.1f} (核被占着, 没有空档)", 4.3, fill="#333")
+   f"等槽 {g1.capacity_wait_us:.1f}", 4.0, "middle")
+# 等核: 前驱早就齐了, 但那一段核上没有空档 —— 画不出"空白", 只能标区间
+BY = AY - 5.0
+for xx in (X(gh.dependency_ready_us), X(gh.start_us)):
+    ln(xx, BY, xx, BY + 2.4, 0.45)
+ln(X(gh.dependency_ready_us), BY, X(gh.start_us), BY, 0.45)
+tx(X(gh.start_us) + 2.5, BY + 1.6,
+   f"等核 {gh.resource_queue_us:.1f} (核被占着, 没有空档)", 4.3, fill="#333")
+# 沿 K 两段就绪的收益: GMM2 首段与 ACT n1 同时开跑, 没等它
+ln(X(gh.start_us), AY + BH, X(gh.start_us), RY["R0.AIV0:0"], 0.45,
+   dash="1.4 1.1", stroke="#333")
+tx(X(gh.start_us) + 2.5, AY + BH + 6.2,
+   f"GMM2 首段不等 ACT n1: 两者同时从 {gh.start_us:.1f} 开跑", 4.3, fill="#333")
 
 # 时间轴
 ln(GX0, 350, GX1, 350, 0.5)
-for t in range(0, int(TOTAL) + 1, 25):
+STEP = 25 if TOTAL > 100 else (20 if TOTAL > 60 else 10)
+for t in range(0, int(TOTAL) + 1, STEP):
     ln(X(t), 350, X(t), 352.6, 0.45)
     tx(X(t), 357.6, str(t), 4.6, "middle")
 tx(GX1, 357.6, "µs", 4.6, "end", fill="#444")
@@ -428,9 +455,9 @@ for st, lb in (("dispatch", "dispatch"), ("gmm1", "GMM1"),
     LX += 9 + len(lb) * 2.5 + 7
 rect(LX, 362, 7, 5.4, fill="none", sw=0.5, dash="1.5 1.1", stroke="#333")
 tx(LX + 9, 366.5, "等待", 4.6)
-tx(10, 375.5, f"小实例: {LOCAL} 专家 × {ROWS * WORLD} 行, |h|={H}, "
-              f"|hidden_dim|={HIDDEN}, TILE={TILE}², 1×AIC/AIV0/AIV1 "
-              f"→ {N_EV} 事件 / {N_ED} 边 / |T| = {TOTAL:.2f} µs。"
+tx(10, 375.5, f"小实例 (profile megamoe-a8w8): {LOCAL} 专家 × {ROWS * WORLD} 行, |h|={H}, "
+              f"|hidden_dim|={HIDDEN}, TILE={TILE}², 1×AIC/AIV0/AIV1 → "
+              f"{N_EV} 事件 / {N_ED} 边 / |T| = {TOTAL:.2f} µs。"
               "核取 1 个是为了让三种等待同时出现。", 4.7, fill="#444")
 
 A("</svg>")
