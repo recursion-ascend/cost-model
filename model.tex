@@ -43,23 +43,19 @@ $C[\text{dst}][\text{expert}][\text{src}]$ 而不只是 token 总数; \emph{硬�
 这四类约束下摆放事件, makespan 即输出。因此``算力绑定还是带宽绑定''是涌现的结论而非
 假设的前提, 编排是模型的\textbf{输入}而非求解目标。
 
-\textbf{输出}是该编排下的执行时间与一份可追问的分解: 逐 stage 的忙碌、跨度与三类等待
-(依赖、资源、额度), 关键路径及其上每一跳的阻塞成因, 三条只由形状决定的物理下界与当前被
-哪一条绑定, 以及每个角色池上的空闲按``无活可做''与``有活可做却空着''的切分。模型的主
-产品是同一份声明下改动单个编排或 tiling 旋钮后的时间\emph{差值}: 两次运行共享全部未标定
-常数, 系统误差同向抵消, 并各自通过同一组护栏, 故差值可比而非模拟器的假象。
+\textbf{输出}是该编排下的执行时间, 以及把每个事件的开始时刻可加地拆成``等前驱''、
+``等核''与``等额度''三项的归因 —— 于是``这个编排慢在哪里''有唯一答案, 不必靠猜。
 
-全文按三段组织: 如何构建事件域 (第 \ref{sec:build} 节), 如何由事件域求时间
-(第 \ref{sec:time} 节), 以及各类事件域的时长如何计算 (第 \ref{sec:formula} 节)。
+全文按五部分组织: 输入是什么 (第 \ref{sec:input} 节), 如何构建事件域
+(第 \ref{sec:build} 节), 如何由事件域求时间 (第 \ref{sec:time} 节), 各类事件域的时长
+如何计算 (第 \ref{sec:formula} 节), 以及哪些部分没有建模 (第 \ref{sec:gaps} 节)。
 \end{abstract}
 
 \tableofcontents
 
 %======================================================================
-\section{事件域的构建}
-\label{sec:build}
-
-\subsection{输入}
+%======================================================================
+\section{输入}
 \label{sec:input}
 
 一次运行是一个实例
@@ -96,7 +92,8 @@ I = I(\underbrace{\text{形状}}_{\text{算什么}},\ \underbrace{\text{硬件}}
 
 \paragraph{编排是输入, 不是求解目标.} 这是全文的立足点。许多 cost model 把``最优编排''
 当作待求解的对象; 本模型不求解它 —— 给定一种编排, 模型给出它的代价, 比较两种编排就跑
-两次。直接后果是主产品为\emph{差值}而非单次的绝对时间 (第 \ref{sec:use} 节)。
+两次。直接后果是主产品为\emph{差值}而非单次的绝对时间: 两次运行共享全部未标定常数,
+系统误差同向抵消。
 
 \paragraph{输入里刻意不含什么.} 形状与拓扑\textbf{不进编译指纹}: 它们每次运行都变, 混入后
 指纹就失去``同一个二进制''的含义。输入里也没有任何拟合系数: 每个常数都是机制量 (带宽、
@@ -104,6 +101,10 @@ I = I(\underbrace{\text{形状}}_{\text{算什么}},\ \underbrace{\text{硬件}}
 得到``改它没用''的假结论。
 
 %----------------------------------------------------------------------
+%======================================================================
+\section{事件域的构建}
+\label{sec:build}
+
 \subsection{最小单元: 构图的原子}
 \label{sec:unit}
 
@@ -249,7 +250,7 @@ e_p \prec e_c \iff
 \paragraph{为什么不能只看共享轴.} 共享轴是\emph{允许只覆盖一部分}的那条轴 —— 分段就绪沿
 它发生; 其余轴只是位置, 位置不同就是另一块输出。只按共享轴判相交会把``同一列、不同行''的
 生产者也连进来, 那是一条不存在的依赖: 它既凭空收紧偏序 (抬高
-\eqref{eq:lb-dep} 的依赖下界), 又会让计数额度的准入搜索无解而死锁。
+最长路径), 又会让计数额度的准入搜索无解而死锁。
 
 \paragraph{这条规则与算子无关.} \eqref{eq:depends} 不认识任何 stage 名, 也不认识``行''
 与``列''的含义, 只做区间相交。实现要做的是给每个单元标注它在各轴上的区间, 并声明每条边
@@ -280,7 +281,7 @@ c(e_c) = e_p \quad \Longrightarrow \quad \text{core}(e_c) = \text{core}(e_p).
 \end{equation}
 这是物理约束而非编排选择, 由边上一个独立的标记声明 —— 不能从``中间结果落片上''推出来,
 因为换一个向量角色是允许的, 换到另一个核不是。共位的直接后果是: 被钉住的角色看得见就绪
-的工作也拿不了, 因此它不参与第 \ref{sec:idle} 节的守恒性检查。
+的工作也拿不了 —— 任何关于``有活可做却空着''的判读都必须先把这类角色排除在外。
 
 %======================================================================
 \section{由事件域求时间}
@@ -347,81 +348,6 @@ w_{\text{cap}}(e) &= \mathrm{start}(e) - t_{\text{base}}(e),
 ``核不够''与``缓冲太浅''这三种完全不同的瓶颈。关键路径由每个事件记录的``把我挡到最晚的那
 一项''回溯得到, 于是路径上每一跳都带着它的阻塞成因。
 
-\subsection{下界: 与构造无关的校验}
-\label{sec:bounds}
-
-下面两个量只由形状决定, 与事件域怎么划分、落哪个核、按什么顺序调度\textbf{全部无关}:
-\begin{align}
-\MAC_{\text{total}} &= \MAC_{\text{gmm1}} + \MAC_{\text{gmm2}},
-   \label{eq:mac}\\
-\mathrm{bytes}_{\mathrm{GM}\to\mathrm{L1}} &= A_1 + B_1 + A_2 + B_2 ,
-   \label{eq:bytes}
-\end{align}
-其中 $A_i, B_i$ 分别为第 $i$ 个矩阵乘的激活与权重字节, 按``每个元素至少跨 GM$\to$L1
-一次''计 —— 这是任何 tile 切法都无法规避的下限。由此得三条界
-\begin{align}
-\LB_{\text{compute}} &= \frac{\MAC_{\text{total}}}{R_{\text{cube}}\, P},
-   \label{eq:lb-compute}\\
-\LB_{\text{bw}} &= \frac{\mathrm{bytes}_{\mathrm{GM}\to\mathrm{L1}}}
-                        {\min(\BW_{\text{core}} P,\ \BW_{\text{agg}})},
-   \label{eq:lb-bw}\\
-\LB_{\text{dep}} &= \sum_{s\in\text{chain}} \min_{e \in s} d(e),
-   \label{eq:lb-dep}\\
-\LB &= \max(\LB_{\text{compute}},\ \LB_{\text{bw}},\ \LB_{\text{dep}}).
-   \label{eq:lb}
-\end{align}
-\eqref{eq:lb-compute} 与 \eqref{eq:lb-bw} 是\textbf{面积论证} (总量除以吞吐),
-\eqref{eq:lb-dep} 是\textbf{偏序论证} (一个 token 必经链上各 stage 的最小一份工作),
-三者相互独立, 故必须都留。\eqref{eq:lb-bw} 的可用速率取每核带宽乘核数与聚合带宽之较小者,
-两者都是硬件规格。
-
-\paragraph{双向可证伪.} 下界给出两条互补的否证
-\begin{align}
-\widehat{T} < \LB &\ \Longrightarrow\ \text{模型漏算了某项资源占用},
-   \label{eq:falsify-model}\\
-T_{\text{实测}} < \LB &\ \Longrightarrow\ \text{四组输入里有一组是错的}.
-   \label{eq:falsify-input}
-\end{align}
-\eqref{eq:falsify-model} 的典型成因是某一相位不占任何资源, 于是它可以无限并行。
-\eqref{eq:falsify-input} 在实践中出现过: 某个形状上实测最小值低于 \eqref{eq:lb-bw} 逾
-一成。由于 \eqref{eq:lb-bw} 不含任何编排假设, 这只能说明输入事实有误 —— 候选是权重量化
-位宽、板级规格档位, 或测量窗口与模型口径不一致。下界的作用正在于此: 把``模型不准''这种
-无从下手的判断, 变成``四组输入里哪一个错了''这种可查的问题。
-
-\subsection{空闲分解与守恒}
-\label{sec:idle}
-
-对某个角色池内的每个核,
-\begin{equation}
-\text{horizon} = \text{busy} + \text{forced} + \text{avoidable} .
-\label{eq:idle}
-\end{equation}
-\code{forced} 指该时刻没有就绪未开始的事件 —— 不可消除, 只能靠改图 (改事件域的划分或
-stage 边); \code{avoidable} 指有就绪事件却仍有核空着。在池化绑定下后者是守恒性违规
-\begin{equation}
-\text{avoidable} > 0 \ \Longrightarrow\ \texttt{WorkConservationViolation},
-\label{eq:conserve-idle}
-\end{equation}
-因为 \eqref{eq:tbase}--\eqref{eq:start} 的贪心规则不应留下这种空闲。被 \eqref{eq:coloc}
-钉住的角色不参与这项检查: 它看得见就绪的工作也拿不了, 那是物理约束而非调度缺陷 ——
-排除的依据从图中导出 (哪些角色带共位锚点), 不是手工开的例外。
-
-\paragraph{汇报口径.} 各核空闲量\textbf{求和}得到的``核$\cdot\mu s$''是工作量单位而非时间:
-核是并行的, 把它当总时长会高估。可与 \eqref{eq:makespan} 相比的量是墙钟并集
-\begin{equation}
-U = \Big|\bigcup_{k} \{\,t : \text{核 } k \text{ 在 } t \text{ 可避免空闲}\,\}\Big| ,
-\qquad \bar{n} = \frac{\text{avoidable}_{\text{总}}}{U} ,
-\label{eq:idle-union}
-\end{equation}
-即``时间轴上确实有核闲着''的长度 $U$, 以及该期间平均同时空闲的核数 $\bar{n}$。
-$\bar{n}$ 接近核数意味着整段并行度塌陷, 接近 1 意味着个别核落后 —— 两种情形的处置完全不同。
-
-\paragraph{avoidable 是上界而非账.} 有活就绪不等于搬过去就能缩短 makespan: 若某个空闲窗口
-的右端顶在关键路径的节点上, 把活填进去只是让该核提前忙起来, \eqref{eq:makespan} 不变。
-因此把绑定改为派发时刻后实际回收的时间\textbf{严格小于} $U$, 两者之比刻画了这些空闲里有
-多少真正落在关键路径上。
-
-%======================================================================
 \section{各事件域的时长计算}
 \label{sec:formula}
 
@@ -444,7 +370,8 @@ d(u) = \max\left(\frac{\MAC(u)}{R_{\text{cube}}},\ \frac{\mathrm{bytes}(u)}{\BW}
 \label{eq:roofline}
 \end{equation}
 取 $\max$ 而非求和, 是``搬运与计算完全重叠''的理想化, 方向偏乐观 —— 因此
-\eqref{eq:falsify-model} 的下界检查才有意义。注意 \eqref{eq:roofline} 是\textbf{局部}的:
+模型给出的时间偏小而非偏大: 与实测或物理上限对照时, 穿透只能说明模型漏算了某项资源
+占用。注意 \eqref{eq:roofline} 是\textbf{局部}的:
 不对整个算子套一次 roofline, 故``算力绑定还是带宽绑定''是从调度中涌现的结论。
 
 下面按单元的物理性质分四类给出 $d(u)$。四类的区别不在公式形式, 而在\emph{谁是分母上的
@@ -588,28 +515,4 @@ d(u) = \frac{\text{tokens}\,(\text{topk}\cdot h\cdot e + h\cdot e)}{\BW_{\text{a
 连范围都没有的\textbf{不许编一个范围} —— 那是把无知包装成精度。
 
 %======================================================================
-\section{适用的推断}
-\label{sec:use}
-
-\begin{center}
-\begin{tabular}{@{}lll@{}}
-\toprule
-推断 & 可靠性 & 理由 \\
-\midrule
-同一声明下改一个旋钮的 $\Delta\widehat{T}$ & 可靠
-  & 两次运行共享全部未标定常数, 系统误差同向抵消 \\
-瓶颈归因 (哪条下界绑定; 三类等待的占比) & 可靠
-  & 下界只依赖形状与硬件常数; 等待由 \eqref{eq:w-dep}--\eqref{eq:w-cap} 可加分解 \\
-绝对时间 $\widehat{T}$ & 不可靠
-  & 直接暴露于每个假设类常数 \\
-$|\Delta\widehat{T}|$ 很小时的符号 & 不可靠
-  & 第 \ref{sec:sched} 节的非单调性 \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-\noindent 因此本模型的产品是 $\Delta\widehat{T}$: 面向算子开发人员, 在同一份声明下改变
-编排或 tiling 粒度并重跑, 差值即该选择的代价。两次运行通过同一组护栏
-(\eqref{eq:falsify-model} 与 \eqref{eq:conserve-idle}), 故差值可比而非模拟器的假象。
-
 \end{document}
