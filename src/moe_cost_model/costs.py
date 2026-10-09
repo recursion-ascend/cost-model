@@ -4,8 +4,9 @@ PrimitiveCosts 容器的全部延迟字段必填; 无回归拟合, 无零值默�
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import (Callable, Dict, Mapping, Optional, Sequence,
+                    Tuple)
 
 from .config.hardware import (
     ACT_BYTES_PER_VEC, BW_L1_GM, BW_LOCAL_GM, BW_REMOTE_GM, BW_REMOTE_WRITE,
@@ -192,6 +193,19 @@ class UrmaMechanisticLatency:
 # =====================================================================
 
 
+#: MegaMoE 老字段 <-> stage 名。新实现不必出现在这里: 它把公式放进 stage_tile。
+_LEGACY_TILE: Dict[str, str] = {
+    "gmm1": "gmm1_tile", "gmm2": "gmm2_tile",
+    "activation": "activation_tile", "combine": "combine_tile",
+}
+_LEGACY_BYTES: Dict[str, str] = {
+    "activation": "activation_store_bytes", "combine": "combine_read_bytes",
+}
+_LEGACY_STARTUP: Dict[str, str] = {
+    "gmm1": "gmm1_problem_startup_us", "gmm2": "gmm2_problem_startup_us",
+}
+
+
 @dataclass(frozen=True)
 class PrimitiveCosts:
     dispatch_mechanistic: DispatchMechanisticLatency
@@ -250,6 +264,78 @@ class PrimitiveCosts:
 
     # URMA Layered 路径机制延迟 (topo_urma=True 时使用; None → constants 默认值)
     urma_mechanistic: Optional[UrmaMechanisticLatency] = None
+
+    # ---- 按 stage 名索引的公式插槽 ----
+    #
+    # 上面那些字段的名字就是 MegaMoE 的 stage 名 (gmm1_tile / activation_tile / ...),
+    # 所以另一份实现的 stage (比如 "gemm_a" / "send") **没有插槽可放**。这三张表按
+    # stage 名收公式, 于是容器不再绑定某一份实现的 stage 划分。
+    #
+    # MegaMoE 的老字段是这三张表的**兼容视图**: tile_cost("gmm1") 在 stage_tile 里没
+    # 找到时回落到 gmm1_tile。只允许一个真相 —— 同一个 stage 两边都给就报错。
+    #
+    # 公式的入参由那份实现自己约定 (生成器只负责把它的返回值当时长), 所以这里不约束
+    # 签名: 约束签名等于把 MegaMoE 的 (m, k, cols, b_load) 强加给别人。
+    stage_tile: Mapping[str, Callable[..., float]] = field(default_factory=dict)
+    #: stage -> 每核首个 tile 的启动开销
+    stage_startup_us: Mapping[str, float] = field(default_factory=dict)
+    #: stage -> 该 stage 要申报的字节 (访存量, 不进时长)
+    stage_bytes: Mapping[str, Callable[..., float]] = field(default_factory=dict)
+
+    def tile_cost(self, stage: str) -> Callable[..., float]:
+        """这个 stage 一份活的时长公式. 没有就报错, 不按零算."""
+        return self._resolve(stage, self.stage_tile, _LEGACY_TILE, "时长公式")
+
+    def bytes_of(self, stage: str) -> Optional[Callable[..., float]]:
+        """这个 stage 的字节申报公式; 没有返回 None (不是所有 stage 都要申报)."""
+        try:
+            return self._resolve(stage, self.stage_bytes, _LEGACY_BYTES, "字节公式")
+        except ValueError:
+            return None
+
+    def startup_us(self, stage: str) -> float:
+        """这个 stage 每核首个 tile 的启动开销; 没声明就是 0 (零假设)."""
+        if stage in self.stage_startup_us:
+            if stage in _LEGACY_STARTUP:
+                raise ValueError(
+                    f"stage {stage!r} 的启动开销在 stage_startup_us 与 "
+                    f"{_LEGACY_STARTUP[stage]} 两处都给了 —— 只允许一个真相")
+            return float(self.stage_startup_us[stage])
+        name = _LEGACY_STARTUP.get(stage)
+        return float(getattr(self, name, 0.0) or 0.0) if name else 0.0
+
+    def _resolve(self, stage: str, table: Mapping[str, Callable[..., float]],
+                 legacy: Mapping[str, str], what: str) -> Callable[..., float]:
+        legacy_name = legacy.get(stage)
+        legacy_fn = getattr(self, legacy_name, None) if legacy_name else None
+        if stage in table:
+            if legacy_fn is not None:
+                raise ValueError(
+                    f"stage {stage!r} 的{what}在表里与 {legacy_name} 两处都给了 "
+                    "—— 只允许一个真相")
+            return table[stage]
+        if legacy_fn is not None:
+            return legacy_fn
+        raise ValueError(
+            f"stage {stage!r} 没有{what}: 放进 PrimitiveCosts.stage_tile / "
+            f"stage_bytes, 或 (MegaMoE 的 stage) 给对应字段")
+
+    def require_stages(self, stages: Sequence[str]) -> None:
+        """这份 costs 能不能喂一份词汇表 —— 缺哪个 stage 的公式一次全报出来.
+
+        容器的契约是"全部 stage 公式必填"; 这是那句话的可执行版本, 给适配器在
+        accepts() 里调, 免得缺的那个 stage 要等建图跑到一半才炸。
+        """
+        missing = []
+        for s in stages:
+            try:
+                self.tile_cost(s)
+            except ValueError:
+                missing.append(s)
+        if missing:
+            raise ValueError(
+                f"这份 PrimitiveCosts 缺这些 stage 的时长公式: {missing}; "
+                "放进 stage_tile 即可")
 
 
 class AnalyticalGmmCosts:

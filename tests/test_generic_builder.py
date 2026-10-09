@@ -166,3 +166,87 @@ def test_missing_axis_is_refused_rather_than_guessed():
     spec = PipelineSpec(vocab=TOY, items=bad_items, cost=lambda st, it: 1.0)
     with pytest.raises(ValueError, match="共享轴"):
         lower_pipeline(spec, None, _Opts())
+
+
+# --------------------------------------------------------------------- 按 stage 索引的公式
+
+def _toy_costs():
+    """一份只给 toy 流水四个 stage 的 costs: 老字段全不填, 公式进 stage_tile.
+
+    这是第 ② 步要的那件事 —— 容器不再按 MegaMoE 的 stage 名开字段, 所以一份结构不同
+    的实现有地方放自己的公式。
+    """
+    from moe_cost_model.costs import PrimitiveCosts, DispatchMechanisticLatency
+    return PrimitiveCosts(
+        dispatch_mechanistic=DispatchMechanisticLatency(),
+        gmm1_tile=None, gmm2_tile=None, activation_tile=None,
+        activation_store_bytes=None, combine_tile=None,
+        combine_write_bytes_per_row=None, combine_read_bytes=None,
+        stage_tile={
+            "recv": lambda rows: 1.0,
+            "gemm": lambda rows, cols: 4.0,
+            "act": lambda rows, cols: 1.5,
+            "send": lambda rows, cols: 2.0,
+        },
+        stage_startup_us={"gemm": 0.5},
+        stage_bytes={"send": lambda rows, cols: float(rows * cols * 2)},
+    )
+
+
+def test_costs_take_formulas_by_stage_name():
+    c = _toy_costs()
+    assert c.tile_cost("gemm")(128, 256) == 4.0
+    assert c.startup_us("gemm") == 0.5
+    assert c.startup_us("recv") == 0.0          # 没声明 = 0, 零假设
+    assert c.bytes_of("send")(128, 256) == 128 * 256 * 2
+    assert c.bytes_of("gemm") is None           # 不是所有 stage 都申报字节
+    c.require_stages(TOY.pipeline)              # 四个都在, 不报错
+
+
+def test_costs_refuse_a_stage_they_do_not_describe():
+    c = _toy_costs()
+    with pytest.raises(ValueError, match="没有时长公式"):
+        c.tile_cost("gmm1")
+    with pytest.raises(ValueError, match="缺这些 stage"):
+        c.require_stages(("recv", "gmm1", "combine"))
+
+
+def test_megamoe_fields_stay_a_view_of_the_same_lookup():
+    """老字段仍然可用, 而且走同一个入口 —— 不是两套并行的取值路径."""
+    from moe_cost_model.scenario import load_scenario
+    c = load_scenario("examples/small_h512_i256.toml").build_costs()
+    assert c.tile_cost("gmm1") is c.gmm1_tile
+    assert c.tile_cost("combine") is c.combine_tile
+    assert c.bytes_of("activation") is c.activation_store_bytes
+
+
+def test_one_truth_per_stage():
+    """同一个 stage 的公式不许两处都给."""
+    from moe_cost_model.scenario import load_scenario
+    import dataclasses
+    c = load_scenario("examples/small_h512_i256.toml").build_costs()
+    both = dataclasses.replace(c, stage_tile={"gmm1": lambda *a: 1.0})
+    with pytest.raises(ValueError, match="只允许一个真相"):
+        both.tile_cost("gmm1")
+
+
+def test_generated_graph_runs_on_stage_indexed_costs():
+    """① 的生成器 + ② 的公式表串起来: 一份非 MegaMoE 实现从声明到时间."""
+    costs = _toy_costs()
+
+    def cost(stage, item):
+        rows = item.axes["m"][1] - item.axes["m"][0]
+        cols = item.axes["n"][1] - item.axes["n"][0]
+        fn = costs.tile_cost(stage)
+        return (fn(rows) if stage == "recv" else fn(rows, cols)) \
+            + costs.startup_us(stage)
+
+    spec = PipelineSpec(vocab=TOY, items=_items, cost=cost)
+    links = (StageLink("gemm", "act", location="onchip", depth=2,
+                       colocated_by_hardware=True),)
+    ev = lower_pipeline(spec, None, _Opts(), links=links)
+    caps = onchip_capacities(spec, _Opts(), CORES, links=links)
+    makespan, placed = MultiResourceScheduler().schedule(ev, capacities=caps)
+    assert makespan > 0 and len(placed) == len(ev)
+    gemm = [e for e in ev if e.meta["stage"] == "gemm"]
+    assert all(abs(e.duration_us - 4.5) < 1e-9 for e in gemm)   # 4.0 + 0.5 启动
