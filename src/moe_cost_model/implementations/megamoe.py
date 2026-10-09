@@ -204,6 +204,14 @@ class _BuilderShim:
     def lower(self, shape, plan, costs, options):
         return self._cls(costs, options).build(shape, list(plan.waves))
 
+    def binding(self) -> Tuple[str, ...]:
+        """自定义建图器不声明绑定纪律, 沿用 A8W8 Wave 的 (静态钉核).
+
+        壳不替它声明: 真要换绑定纪律, 用 ModelOptions.late_bind_pools 显式给 —— 那时
+        结果里会按常规记一条 binding_note。
+        """
+        return self._base.binding()
+
     def measured_end_stage(self) -> str:
         return self._base.measured_end_stage()
 

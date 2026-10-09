@@ -117,7 +117,7 @@ MEGAMOE_A8W8 = ReferenceProfile(
     name="megamoe-a8w8-wave-arch35",
     name_key="megamoe-a8w8",
     source=(
-        "上游 op_kernel/arch35 + include/CMakeLists.txt 的 MEGAMOE_*; "
+        "上游 mega_moe: op_kernel/arch35 + include/CMakeLists.txt 的 MEGAMOE_*; "
         "固定开销来自 20260930 的实测 trace"
     ),
     options=ModelOptions(
