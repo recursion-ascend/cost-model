@@ -1,0 +1,28 @@
+# 小实例: 专为 DAG 可视化/讲解准备的最小可读规模.
+#   h=512, 中间维 256 (hidden_dim = 2 x 256, SwiGLU 的 gate+up)
+#   2 卡 x 2 专家, 32 token/rank, topk=2, 4 个 AIC
+# 规模: 单 rank 29 个事件 / 42 条依赖边 —— 能一屏看完整张图.
+#
+# 运行: PYTHONPATH=src python -c "import moe_cost_model as m; \
+#       print(m.simulate(m.load_scenario('examples/small_h512_i256.toml'))['kernel_total_us'])"
+
+profile = "megamoe-a8w8"
+name = "small-h512-i256"
+h = 512                      # 模型隐藏维 (GMM1 的 K, GMM2 的 N)
+hidden_dim = 512             # = 2 x 中间维 -> 中间维 256
+aic_num = 4
+p1_override = 2
+p2_override = 1
+
+[workload]
+tokens = 32
+topk = 2
+world = 2
+local_experts = 2
+routing = "uniform"
+
+[kernel]
+topo_urma = false
+
+[calibration]
+cube_mac_per_us = 2.7e7      # 占位值, 无实测依据
