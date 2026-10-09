@@ -1,164 +1,209 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="396pt" height="404pt" viewBox="0 0 396 404" font-family="Times New Roman, Times, serif" fill="#000">
+<svg xmlns="http://www.w3.org/2000/svg" width="396pt" height="492pt" viewBox="0 0 396 492" font-family="Times New Roman, Times, serif" fill="#000">
   <defs>
-    <marker id="a" viewBox="0 0 8 6" refX="7.4" refY="3" markerWidth="5.5" markerHeight="4" orient="auto">
+    <marker id="a" viewBox="0 0 8 6" refX="7.4" refY="3" markerWidth="5.4" markerHeight="4" orient="auto">
       <path d="M0 0 L8 3 L0 6 z" fill="#000"/></marker>
     <marker id="ag" viewBox="0 0 8 6" refX="7.4" refY="3" markerWidth="5" markerHeight="3.6" orient="auto">
       <path d="M0 0 L8 3 L0 6 z" fill="#666"/></marker>
   </defs>
-  <text x="2" y="11" font-size="7.6" text-anchor="start" font-style="italic">(a)</text>
-  <text x="14" y="11" font-size="6.6" text-anchor="start">one tiling choice lowers the operator into tile events; a stage is a vocabulary entry, not a box in the code</text>
-  <rect x="4" y="18" width="86" height="62" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="2.5 1.5"/>
-  <text x="47" y="27" font-size="6.0" text-anchor="middle" font-style="italic" fill="#333">declared, never hard-coded</text>
-  <text x="8" y="36.0" font-size="5.9" text-anchor="start">shape  bs/rank, h, I, topk, routing</text>
-  <text x="8" y="43.4" font-size="5.9" text-anchor="start">hardware  28 AIC, 2 AIV/core,</text>
-  <text x="8" y="50.8" font-size="5.9" text-anchor="start">   BW_L1_GM, BW_UB, BW_REMOTE</text>
-  <text x="8" y="58.2" font-size="5.9" text-anchor="start">orchestration  tile size, wave</text>
-  <text x="8" y="65.6" font-size="5.9" text-anchor="start">   split, steal, late binding</text>
-  <text x="8" y="73.0" font-size="5.9" text-anchor="start">stage vocabulary  per implementation</text>
-  <path d="M90 49 L110 49" fill="none" stroke="#666" stroke-width="0.6" marker-end="url(#ag)"/>
-  <text x="100" y="46" font-size="5.8" text-anchor="middle" font-style="italic" fill="#333">lower</text>
-  <rect x="114" y="30" width="48" height="38" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="2 1.4"/>
-  <text x="138.0" y="26" font-size="6.4" text-anchor="middle">dispatch</text>
-  <text x="138.0" y="65" font-size="5.6" text-anchor="middle" font-style="italic" fill="#333">peerwrite</text>
-  <rect x="120" y="38" width="9" height="8" fill="#e8e8e8" stroke="#000" stroke-width="0.5"/>
-  <rect x="132" y="38" width="9" height="8" fill="#e8e8e8" stroke="#000" stroke-width="0.5"/>
-  <rect x="144" y="38" width="9" height="8" fill="#e8e8e8" stroke="#000" stroke-width="0.5"/>
-  <text x="138.0" y="57" font-size="5.6" text-anchor="middle">× n tiles · unit m-group</text>
-  <rect x="172" y="30" width="48" height="38" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="2 1.4"/>
-  <text x="196.0" y="26" font-size="6.4" text-anchor="middle">gmm1</text>
-  <text x="196.0" y="65" font-size="5.6" text-anchor="middle" font-style="italic" fill="#333">cube</text>
-  <rect x="178" y="38" width="9" height="8" fill="#e8e8e8" stroke="#000" stroke-width="0.5"/>
-  <rect x="190" y="38" width="9" height="8" fill="#e8e8e8" stroke="#000" stroke-width="0.5"/>
-  <rect x="202" y="38" width="9" height="8" fill="#e8e8e8" stroke="#000" stroke-width="0.5"/>
-  <text x="196.0" y="57" font-size="5.6" text-anchor="middle">× n tiles · unit m-tile</text>
-  <path d="M162 42 L171 42" fill="none" stroke="#000" stroke-width="0.6" marker-end="url(#a)"/>
-  <text x="166.5" y="39" font-size="5.6" text-anchor="middle" font-style="italic">m</text>
-  <rect x="230" y="30" width="48" height="38" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="2 1.4"/>
-  <text x="254.0" y="26" font-size="6.4" text-anchor="middle">activation</text>
-  <text x="254.0" y="65" font-size="5.6" text-anchor="middle" font-style="italic" fill="#333">vector</text>
-  <rect x="236" y="38" width="9" height="8" fill="#e8e8e8" stroke="#000" stroke-width="0.5"/>
-  <rect x="248" y="38" width="9" height="8" fill="#e8e8e8" stroke="#000" stroke-width="0.5"/>
-  <rect x="260" y="38" width="9" height="8" fill="#e8e8e8" stroke="#000" stroke-width="0.5"/>
-  <text x="254.0" y="57" font-size="5.6" text-anchor="middle">× n tiles · unit m-tile</text>
-  <path d="M220 42 L229 42" fill="none" stroke="#000" stroke-width="0.6" marker-end="url(#a)"/>
-  <text x="224.5" y="39" font-size="5.6" text-anchor="middle" font-style="italic">m</text>
-  <rect x="288" y="30" width="48" height="38" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="2 1.4"/>
-  <text x="312.0" y="26" font-size="6.4" text-anchor="middle">gmm2</text>
-  <text x="312.0" y="65" font-size="5.6" text-anchor="middle" font-style="italic" fill="#333">cube</text>
-  <rect x="294" y="38" width="9" height="8" fill="#e8e8e8" stroke="#000" stroke-width="0.5"/>
-  <rect x="306" y="38" width="9" height="8" fill="#e8e8e8" stroke="#000" stroke-width="0.5"/>
-  <rect x="318" y="38" width="9" height="8" fill="#e8e8e8" stroke="#000" stroke-width="0.5"/>
-  <text x="312.0" y="57" font-size="5.6" text-anchor="middle">× n tiles · unit m-tile</text>
-  <path d="M278 42 L287 42" fill="none" stroke="#000" stroke-width="0.6" marker-end="url(#a)"/>
-  <text x="282.5" y="39" font-size="5.6" text-anchor="middle" font-style="italic">m</text>
-  <rect x="346" y="30" width="48" height="38" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="2 1.4"/>
-  <text x="370.0" y="26" font-size="6.4" text-anchor="middle">combine</text>
-  <text x="370.0" y="65" font-size="5.6" text-anchor="middle" font-style="italic" fill="#333">reduce+write</text>
-  <rect x="352" y="38" width="9" height="8" fill="#e8e8e8" stroke="#000" stroke-width="0.5"/>
-  <rect x="364" y="38" width="9" height="8" fill="#e8e8e8" stroke="#000" stroke-width="0.5"/>
-  <rect x="376" y="38" width="9" height="8" fill="#e8e8e8" stroke="#000" stroke-width="0.5"/>
-  <text x="370.0" y="57" font-size="5.6" text-anchor="middle">× n tiles · unit expert</text>
-  <path d="M336 42 L345 42" fill="none" stroke="#000" stroke-width="0.6" marker-end="url(#a)"/>
-  <text x="340.5" y="39" font-size="5.6" text-anchor="middle" font-style="italic">expert</text>
-  <text x="200" y="78" font-size="6.0" text-anchor="middle">one event per tile:  d(e) = max( MAC(e)/rate_cube ,  bytes(e)/BW(link) )   — compute and movement are two costs of the same event, not two boxes</text>
-  <path d="M0 90 L396 90" fill="none" stroke="#bbb" stroke-width="0.4"/>
-  <text x="2" y="104" font-size="7.6" text-anchor="start" font-style="italic">(b)</text>
-  <text x="14" y="104" font-size="6.6" text-anchor="start">the list scheduler places each event on a resource; contention, colocation and buffer credits are what make time, not a formula</text>
-  <text x="48" y="122.2" font-size="5.9" text-anchor="end">AIC 0</text>
-  <path d="M52 125.5 L330 125.5" fill="none" stroke="#ccc" stroke-width="0.4"/>
-  <rect x="52.0" y="116" width="71.84269662921349" height="9" fill="#d9d9d9" stroke="#000" stroke-width="0.5"/>
-  <text x="87.92134831460675" y="122.2" font-size="5.4" text-anchor="middle">gmm1 t0</text>
-  <rect x="133.2134831460674" y="116" width="68.71910112359551" height="9" fill="#d9d9d9" stroke="#000" stroke-width="0.5"/>
-  <text x="167.57303370786516" y="122.2" font-size="5.4" text-anchor="middle">gmm2 t0</text>
-  <rect x="208.17977528089887" y="116" width="78.08988764044943" height="9" fill="#d9d9d9" stroke="#000" stroke-width="0.5"/>
-  <text x="247.22471910112358" y="122.2" font-size="5.4" text-anchor="middle">gmm1 t3</text>
-  <text x="48" y="135.2" font-size="5.9" text-anchor="end">AIC 1</text>
-  <path d="M52 138.5 L330 138.5" fill="none" stroke="#ccc" stroke-width="0.4"/>
-  <rect x="61.37078651685393" y="129" width="71.84269662921349" height="9" fill="#d9d9d9" stroke="#000" stroke-width="0.5"/>
-  <text x="97.29213483146069" y="135.2" font-size="5.4" text-anchor="middle">gmm1 t1</text>
-  <rect x="142.58426966292134" y="129" width="71.84269662921349" height="9" fill="#d9d9d9" stroke="#000" stroke-width="0.5"/>
-  <text x="178.5056179775281" y="135.2" font-size="5.4" text-anchor="middle">gmm2 t1</text>
-  <rect x="220.6741573033708" y="129" width="78.08988764044943" height="9" fill="#d9d9d9" stroke="#000" stroke-width="0.5"/>
-  <text x="259.7191011235955" y="135.2" font-size="5.4" text-anchor="middle">gmm1 t4</text>
-  <text x="48" y="148.2" font-size="5.9" text-anchor="end">AIC 27</text>
-  <path d="M52 151.5 L330 151.5" fill="none" stroke="#ccc" stroke-width="0.4"/>
-  <rect x="70.74157303370787" y="142" width="71.84269662921349" height="9" fill="#d9d9d9" stroke="#000" stroke-width="0.5"/>
-  <text x="106.66292134831461" y="148.2" font-size="5.4" text-anchor="middle">gmm1 t2</text>
-  <rect x="151.95505617977528" y="142" width="71.84269662921349" height="9" fill="#d9d9d9" stroke="#000" stroke-width="0.5"/>
-  <text x="187.87640449438203" y="148.2" font-size="5.4" text-anchor="middle">gmm2 t2</text>
-  <rect x="230.04494382022472" y="142" width="68.71910112359551" height="9" fill="none" stroke="#999" stroke-width="0.5" stroke-dasharray="1.5 1.5"/>
-  <text x="264.40449438202245" y="148.2" font-size="5.4" text-anchor="middle" font-style="italic" fill="#555">forced idle</text>
-  <text x="48" y="161.2" font-size="5.9" text-anchor="end">AIV</text>
-  <path d="M52 164.5 L330 164.5" fill="none" stroke="#ccc" stroke-width="0.4"/>
-  <rect x="52.0" y="155" width="46.853932584269664" height="9" fill="#efefef" stroke="#000" stroke-width="0.5"/>
-  <text x="75.42696629213484" y="161.2" font-size="5.4" text-anchor="middle">permute</text>
-  <rect x="123.84269662921349" y="155" width="24.98876404494382" height="9" fill="#efefef" stroke="#000" stroke-width="0.5"/>
-  <text x="136.3370786516854" y="161.2" font-size="5.4" text-anchor="middle">act t0</text>
-  <rect x="155.07865168539325" y="155" width="24.98876404494382" height="9" fill="#efefef" stroke="#000" stroke-width="0.5"/>
-  <text x="167.57303370786516" y="161.2" font-size="5.4" text-anchor="middle">act t1</text>
-  <rect x="186.31460674157304" y="155" width="24.98876404494382" height="9" fill="#efefef" stroke="#000" stroke-width="0.5"/>
-  <text x="198.80898876404495" y="161.2" font-size="5.4" text-anchor="middle">act t2</text>
-  <text x="48" y="174.2" font-size="5.9" text-anchor="end">link</text>
-  <path d="M52 177.5 L330 177.5" fill="none" stroke="#ccc" stroke-width="0.4"/>
-  <rect x="52.0" y="168" width="62.47191011235955" height="9" fill="#fff" stroke="#000" stroke-width="0.5"/>
-  <text x="83.23595505617978" y="174.2" font-size="5.4" text-anchor="middle">dispatch w0</text>
-  <rect x="120.71910112359551" y="168" width="62.47191011235955" height="9" fill="#fff" stroke="#000" stroke-width="0.5"/>
-  <text x="151.95505617977528" y="174.2" font-size="5.4" text-anchor="middle">dispatch w1</text>
-  <rect x="239.41573033707866" y="168" width="78.08988764044943" height="9" fill="#fff" stroke="#000" stroke-width="0.5"/>
-  <text x="278.4606741573034" y="174.2" font-size="5.4" text-anchor="middle">combine</text>
-  <path d="M183.19101123595505 177 L183.19101123595505 123" fill="none" stroke="#444" stroke-width="0.5" stroke-dasharray="1.8 1.4"/>
-  <path d="M183.19101123595505 123 L208.17977528089887 121" fill="none" stroke="#444" stroke-width="0.5" stroke-dasharray="1.8 1.4" marker-end="url(#a)"/>
-  <text x="195.68539325842698" y="118" font-size="5.5" text-anchor="middle" font-style="italic" fill="#333">L1 slot released ⇒ next wave admitted</text>
-  <path d="M52 182 L336 182" fill="none" stroke="#000" stroke-width="0.5"/>
-  <text x="52" y="189" font-size="5.6" text-anchor="middle">0</text>
-  <path d="M317.5056179775281 179 L317.5056179775281 185" fill="none" stroke="#000" stroke-width="0.5"/>
-  <text x="317.5056179775281" y="189" font-size="5.8" text-anchor="middle">makespan  T̂ = max end(e)</text>
-  <text x="338" y="180" font-size="5.8" text-anchor="start" font-style="italic">time</text>
-  <text x="14" y="199" font-size="6.0" text-anchor="start">start(e) = least t ≥ max{ max</text>
-  <text x="80" y="201" font-size="4.8" text-anchor="start">p∈P(e)</text>
-  <text x="97" y="199" font-size="6.0" text-anchor="start">[ end(p)+λ(e,p) ] ,  max</text>
-  <text x="173" y="201" font-size="4.8" text-anchor="start">r∈R(e)</text>
-  <text x="190" y="199" font-size="6.0" text-anchor="start">free(r) } admitted by the credits A(e) still holds;  concrete resources take the max, pool placeholders the min (late binding).</text>
-  <path d="M0 208 L396 208" fill="none" stroke="#bbb" stroke-width="0.4"/>
-  <text x="2" y="222" font-size="7.6" text-anchor="start" font-style="italic">(c)</text>
-  <text x="14" y="222" font-size="6.6" text-anchor="start">the schedule is only accepted if it sits above every shape-determined bound and leaves no recoverable idle</text>
-  <path d="M60 248 L318 248" fill="none" stroke="#000" stroke-width="0.5"/>
-  <text x="56" y="250.2" font-size="6.0" text-anchor="end" font-style="italic">cost</text>
-  <path d="M84.0 243 L84.0 253" fill="none" stroke="#000" stroke-width="0.5"/>
-  <text x="84.0" y="240" font-size="6.0" text-anchor="middle">LB</text>
-  <text x="89.5" y="241.5" font-size="4.8" text-anchor="middle">compute</text>
-  <text x="84.0" y="261" font-size="5.4" text-anchor="middle" font-style="italic" fill="#333">MAC / (28 · rate)</text>
-  <path d="M146.39999999999998 243 L146.39999999999998 253" fill="none" stroke="#000" stroke-width="0.5"/>
-  <text x="146.39999999999998" y="240" font-size="6.0" text-anchor="middle">LB</text>
-  <text x="151.89999999999998" y="241.5" font-size="4.8" text-anchor="middle">bandwidth</text>
-  <text x="146.39999999999998" y="261" font-size="5.4" text-anchor="middle" font-style="italic" fill="#333">bytes / BW</text>
-  <path d="M208.8 243 L208.8 253" fill="none" stroke="#000" stroke-width="0.5"/>
-  <text x="208.8" y="240" font-size="6.0" text-anchor="middle">LB</text>
-  <text x="214.3" y="241.5" font-size="4.8" text-anchor="middle">chain</text>
-  <text x="208.8" y="261" font-size="5.4" text-anchor="middle" font-style="italic" fill="#333">longest d-weighted path</text>
-  <path d="M276.0 239 L276.0 253" fill="none" stroke="#000" stroke-width="0.8"/>
-  <text x="276.0" y="236" font-size="7.0" text-anchor="middle">T̂</text>
-  <text x="276.0" y="261" font-size="5.4" text-anchor="middle" font-style="italic" fill="#333">reported makespan</text>
-  <path d="M208.8 245.5 L276.0 245.5" fill="none" stroke="#000" stroke-width="0.5"/>
-  <text x="242.4" y="243.5" font-size="5.4" text-anchor="middle" font-style="italic">orchestration cost</text>
-  <text x="322" y="250.2" font-size="5.6" text-anchor="start">the three bounds move only with the shape;</text>
-  <text x="322" y="257" font-size="5.6" text-anchor="start">T̂ below any of them ⇒ BoundViolation</text>
-  <rect x="4" y="262" width="182" height="34" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="2.5 1.5"/>
-  <text x="10" y="272" font-size="5.9" text-anchor="start">idle on a pooled role is split per core:</text>
-  <text x="10" y="280" font-size="5.9" text-anchor="start">forced  (no ready work existed)  — admissible</text>
-  <text x="10" y="288" font-size="5.9" text-anchor="start">avoidable  (ready work existed)  ⇒ WorkConservationViolation</text>
-  <rect x="196" y="262" width="196" height="34" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="2.5 1.5"/>
-  <text x="202" y="272" font-size="5.9" text-anchor="start">colocation-pinned roles are excluded by derivation,</text>
-  <text x="202" y="280" font-size="5.9" text-anchor="start">not by exception: a role carrying colocate_with or</text>
-  <text x="202" y="288" font-size="5.9" text-anchor="start">core_group cannot take the ready tile it sees.</text>
-  <rect x="96" y="308" width="204" height="18" fill="none" stroke="#000" stroke-width="0.6"/>
-  <text x="198" y="319.5" font-size="6.0" text-anchor="middle">change exactly one knob — tile size, wave split, steal driver, binding — and re-run</text>
-  <path d="M96 317 L60 317" fill="none" stroke="#444" stroke-width="0.6" stroke-dasharray="2.5 1.5" marker-end="url(#ag)"/>
-  <path d="M60 317 L40 317" fill="none" stroke="#444" stroke-width="0.6" stroke-dasharray="2.5 1.5"/>
-  <path d="M40 317 L40 56" fill="none" stroke="#444" stroke-width="0.6" stroke-dasharray="2.5 1.5"/>
-  <path d="M40 56 L46 49" fill="none" stroke="#444" stroke-width="0.6" stroke-dasharray="2.5 1.5" marker-end="url(#ag)"/>
-  <path d="M300 317 L320 317" fill="none" stroke="#444" stroke-width="0.6" stroke-dasharray="2.5 1.5"/>
-  <path d="M320 317 L320 262" fill="none" stroke="#444" stroke-width="0.6" stroke-dasharray="2.5 1.5" marker-end="url(#ag)"/>
-  <text x="198" y="334" font-size="6.0" text-anchor="middle">ΔT̂ between two runs is the cost of that one choice; the bounds and the idle test hold for both, so the difference is comparable and not an artefact of the simulator.</text>
-  <text x="198" y="344" font-size="6.0" text-anchor="middle">No run is calibrated against the other: both are scheduled from the same declarations, so a win here is a win in the orchestration, not in the fit.</text>
+  <text x="2" y="10" font-size="7.4" text-anchor="start" font-style="italic">(a)</text>
+  <text x="14" y="10" font-size="6.5" text-anchor="start">the layers an operator passes through.  A stage name is declared once and stops at the DAG; below it nothing reads one.</text>
+  <rect x="6.0" y="22" width="59" height="54" fill="none" stroke="#000" stroke-width="0.6"/>
+  <text x="35.5" y="31" font-size="6.5" text-anchor="middle">input facts</text>
+  <text x="9.0" y="39.5" font-size="5.1" text-anchor="start">shape and workload</text>
+  <text x="9.0" y="45.5" font-size="5.1" text-anchor="start">runtime: cards, topology</text>
+  <text x="9.0" y="51.5" font-size="5.1" text-anchor="start">compile: binary, tiling</text>
+  <text x="9.0" y="68.5" font-size="4.7" text-anchor="start" font-style="italic" fill="#444">shape.py · runtime.py · compile.py</text>
+  <rect x="70.2" y="22" width="59" height="54" fill="#fafafa" stroke="#000" stroke-width="0.6"/>
+  <text x="99.7" y="31" font-size="6.5" text-anchor="middle">adapter</text>
+  <text x="73.2" y="39.5" font-size="5.1" text-anchor="start">the orchestration of</text>
+  <text x="73.2" y="45.5" font-size="5.1" text-anchor="start">one implementation: wave</text>
+  <text x="73.2" y="51.5" font-size="5.1" text-anchor="start">advance, which stage lands</text>
+  <text x="73.2" y="57.5" font-size="5.1" text-anchor="start">on which core, where the</text>
+  <text x="73.2" y="63.5" font-size="5.1" text-anchor="start">intermediate lives, when</text>
+  <text x="73.2" y="69.5" font-size="5.1" text-anchor="start">to synchronise</text>
+  <text x="73.2" y="68.5" font-size="4.7" text-anchor="start" font-style="italic" fill="#444">implementations/adapter.py</text>
+  <path d="M65.0 49.0 L69.4 49.0" fill="none" stroke="#000" stroke-width="0.6" marker-end="url(#a)"/>
+  <rect x="134.4" y="22" width="59" height="54" fill="#fafafa" stroke="#000" stroke-width="0.6"/>
+  <text x="163.9" y="31" font-size="6.5" text-anchor="middle">builder</text>
+  <text x="137.4" y="39.5" font-size="5.1" text-anchor="start">expands that orchestration</text>
+  <text x="137.4" y="45.5" font-size="5.1" text-anchor="start">tile by tile into events;</text>
+  <text x="137.4" y="51.5" font-size="5.1" text-anchor="start">fills the five fields and</text>
+  <text x="137.4" y="57.5" font-size="5.1" text-anchor="start">costs each one</text>
+  <text x="137.4" y="68.5" font-size="4.7" text-anchor="start" font-style="italic" fill="#444">builders/base.py + gmm1,</text>
+  <text x="137.4" y="73.5" font-size="4.7" text-anchor="start" font-style="italic" fill="#444">activation, gmm2, comm</text>
+  <path d="M129.20000000000002 49.0 L133.6 49.0" fill="none" stroke="#000" stroke-width="0.6" marker-end="url(#a)"/>
+  <rect x="198.60000000000002" y="22" width="59" height="54" fill="none" stroke="#000" stroke-width="0.6"/>
+  <text x="228.10000000000002" y="31" font-size="6.5" text-anchor="middle">event DAG</text>
+  <text x="201.60000000000002" y="39.5" font-size="5.1" text-anchor="start">the single IR; the five</text>
+  <text x="201.60000000000002" y="45.5" font-size="5.1" text-anchor="start">fields are the whole</text>
+  <text x="201.60000000000002" y="51.5" font-size="5.1" text-anchor="start">expressiveness ceiling</text>
+  <text x="201.60000000000002" y="68.5" font-size="4.7" text-anchor="start" font-style="italic" fill="#444">scheduler/events.py</text>
+  <path d="M193.40000000000003 49.0 L197.8 49.0" fill="none" stroke="#000" stroke-width="0.6" marker-end="url(#a)"/>
+  <rect x="262.8" y="22" width="59" height="54" fill="none" stroke="#000" stroke-width="0.6"/>
+  <text x="292.3" y="31" font-size="6.5" text-anchor="middle">scheduler</text>
+  <text x="265.8" y="39.5" font-size="5.1" text-anchor="start">places events on resources</text>
+  <text x="265.8" y="45.5" font-size="5.1" text-anchor="start">and nothing else; reads</text>
+  <text x="265.8" y="51.5" font-size="5.1" text-anchor="start">no stage name</text>
+  <text x="265.8" y="68.5" font-size="4.7" text-anchor="start" font-style="italic" fill="#444">scheduler/engine.py</text>
+  <path d="M257.6 49.0 L262.0 49.0" fill="none" stroke="#000" stroke-width="0.6" marker-end="url(#a)"/>
+  <rect x="327.0" y="22" width="59" height="54" fill="none" stroke="#000" stroke-width="0.6"/>
+  <text x="356.5" y="31" font-size="6.5" text-anchor="middle">analysis</text>
+  <text x="330.0" y="39.5" font-size="5.1" text-anchor="start">makespan, the three lower</text>
+  <text x="330.0" y="45.5" font-size="5.1" text-anchor="start">bounds, the idle split</text>
+  <text x="330.0" y="68.5" font-size="4.7" text-anchor="start" font-style="italic" fill="#444">analysis/bounds.py, idle.py</text>
+  <path d="M321.8 49.0 L326.2 49.0" fill="none" stroke="#000" stroke-width="0.6" marker-end="url(#a)"/>
+  <path d="M6 77 L6 81" fill="none" stroke="#777" stroke-width="0.45"/>
+  <path d="M6 81 L192.9 81" fill="none" stroke="#777" stroke-width="0.45"/>
+  <path d="M192.9 81 L192.9 77" fill="none" stroke="#777" stroke-width="0.45"/>
+  <path d="M198.60000000000002 77 L198.60000000000002 81" fill="none" stroke="#777" stroke-width="0.45"/>
+  <path d="M198.60000000000002 81 L386.0 81" fill="none" stroke="#777" stroke-width="0.45"/>
+  <path d="M386.0 81 L386.0 77" fill="none" stroke="#777" stroke-width="0.45"/>
+  <text x="99.7" y="89" font-size="5.5" text-anchor="middle">stage names live here only: vocabulary, wave plan, colocation rules</text>
+  <text x="292.3" y="89" font-size="5.5" text-anchor="middle">stage-name blind — one exception, PriorityByStage,</text>
+  <text x="292.3" y="95.5" font-size="5.5" text-anchor="middle" font-style="italic">which is why it carries work_conserving = False</text>
+  <path d="M163.9 81 L163.9 108" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="1.8 1.4"/>
+  <path d="M163.9 108 L200 113" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="1.8 1.4" marker-end="url(#ag)"/>
+  <text x="6" y="118" font-size="6.0" text-anchor="start">what the builders emit for the MegaMoE vocabulary (five stages, one event per tile):</text>
+  <rect x="10" y="128" width="63" height="30" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="2 1.4"/>
+  <text x="41.5" y="125" font-size="6.2" text-anchor="middle">dispatch</text>
+  <rect x="21" y="133" width="11" height="8" fill="#e6e6e6" stroke="#000" stroke-width="0.5"/>
+  <rect x="35" y="133" width="11" height="8" fill="#e6e6e6" stroke="#000" stroke-width="0.5"/>
+  <rect x="49" y="133" width="11" height="8" fill="#e6e6e6" stroke="#000" stroke-width="0.5"/>
+  <text x="41.5" y="149" font-size="5.3" text-anchor="middle">× n tiles, unit m-group</text>
+  <text x="41.5" y="155" font-size="5.1" text-anchor="middle" font-style="italic" fill="#444">peerwrite</text>
+  <rect x="83" y="128" width="63" height="30" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="2 1.4"/>
+  <text x="114.5" y="125" font-size="6.2" text-anchor="middle">gmm1</text>
+  <rect x="94" y="133" width="11" height="8" fill="#e6e6e6" stroke="#000" stroke-width="0.5"/>
+  <rect x="108" y="133" width="11" height="8" fill="#e6e6e6" stroke="#000" stroke-width="0.5"/>
+  <rect x="122" y="133" width="11" height="8" fill="#e6e6e6" stroke="#000" stroke-width="0.5"/>
+  <text x="114.5" y="149" font-size="5.3" text-anchor="middle">× n tiles, unit m-tile</text>
+  <text x="114.5" y="155" font-size="5.1" text-anchor="middle" font-style="italic" fill="#444">cube</text>
+  <path d="M73 137 L82 137" fill="none" stroke="#000" stroke-width="0.6" marker-end="url(#a)"/>
+  <text x="77.5" y="134" font-size="5.2" text-anchor="middle" font-style="italic">m</text>
+  <rect x="156" y="128" width="63" height="30" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="2 1.4"/>
+  <text x="187.5" y="125" font-size="6.2" text-anchor="middle">activation</text>
+  <rect x="167" y="133" width="11" height="8" fill="#e6e6e6" stroke="#000" stroke-width="0.5"/>
+  <rect x="181" y="133" width="11" height="8" fill="#e6e6e6" stroke="#000" stroke-width="0.5"/>
+  <rect x="195" y="133" width="11" height="8" fill="#e6e6e6" stroke="#000" stroke-width="0.5"/>
+  <text x="187.5" y="149" font-size="5.3" text-anchor="middle">× n tiles, unit m-tile</text>
+  <text x="187.5" y="155" font-size="5.1" text-anchor="middle" font-style="italic" fill="#444">vector</text>
+  <path d="M146 137 L155 137" fill="none" stroke="#000" stroke-width="0.6" marker-end="url(#a)"/>
+  <text x="150.5" y="134" font-size="5.2" text-anchor="middle" font-style="italic">m</text>
+  <rect x="229" y="128" width="63" height="30" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="2 1.4"/>
+  <text x="260.5" y="125" font-size="6.2" text-anchor="middle">gmm2</text>
+  <rect x="240" y="133" width="11" height="8" fill="#e6e6e6" stroke="#000" stroke-width="0.5"/>
+  <rect x="254" y="133" width="11" height="8" fill="#e6e6e6" stroke="#000" stroke-width="0.5"/>
+  <rect x="268" y="133" width="11" height="8" fill="#e6e6e6" stroke="#000" stroke-width="0.5"/>
+  <text x="260.5" y="149" font-size="5.3" text-anchor="middle">× n tiles, unit m-tile</text>
+  <text x="260.5" y="155" font-size="5.1" text-anchor="middle" font-style="italic" fill="#444">cube</text>
+  <path d="M219 137 L228 137" fill="none" stroke="#000" stroke-width="0.6" marker-end="url(#a)"/>
+  <text x="223.5" y="134" font-size="5.2" text-anchor="middle" font-style="italic">m</text>
+  <rect x="302" y="128" width="63" height="30" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="2 1.4"/>
+  <text x="333.5" y="125" font-size="6.2" text-anchor="middle">combine</text>
+  <rect x="313" y="133" width="11" height="8" fill="#e6e6e6" stroke="#000" stroke-width="0.5"/>
+  <rect x="327" y="133" width="11" height="8" fill="#e6e6e6" stroke="#000" stroke-width="0.5"/>
+  <rect x="341" y="133" width="11" height="8" fill="#e6e6e6" stroke="#000" stroke-width="0.5"/>
+  <text x="333.5" y="149" font-size="5.3" text-anchor="middle">× n tiles, unit expert</text>
+  <text x="333.5" y="155" font-size="5.1" text-anchor="middle" font-style="italic" fill="#444">reduce + write</text>
+  <path d="M292 137 L301 137" fill="none" stroke="#000" stroke-width="0.6" marker-end="url(#a)"/>
+  <text x="296.5" y="134" font-size="5.2" text-anchor="middle" font-style="italic">exp</text>
+  <text x="198" y="172" font-size="6.0" text-anchor="middle">tile cost  d(e) = max( MAC(e) / rate_cube ,  bytes(e) / BW(link) )   — compute and movement are two costs of one event, never two boxes</text>
+  <path d="M0 182 L396 182" fill="none" stroke="#bbb" stroke-width="0.4"/>
+  <text x="2" y="196" font-size="7.4" text-anchor="start" font-style="italic">(b)</text>
+  <text x="14" y="196" font-size="6.5" text-anchor="start">the scheduler reads the five fields and nothing else.  Contention, colocation and buffer credits are what make time.</text>
+  <text x="50" y="214.3" font-size="5.8" text-anchor="end">AIC 0</text>
+  <path d="M54 217.6 L326 217.6" fill="none" stroke="#ccc" stroke-width="0.4"/>
+  <rect x="54.0" y="208" width="67.0" height="9" fill="#d7d7d7" stroke="#000" stroke-width="0.5"/>
+  <text x="87.5" y="214.3" font-size="5.2" text-anchor="middle">gmm1 t0</text>
+  <rect x="123.91304347826087" y="208" width="20.391304347826086" height="9" fill="#f0f0f0" stroke="#000" stroke-width="0.5"/>
+  <text x="134.1086956521739" y="214.3" font-size="5.2" text-anchor="middle">act t0</text>
+  <rect x="147.2173913043478" y="208" width="64.08695652173913" height="9" fill="#d7d7d7" stroke="#000" stroke-width="0.5"/>
+  <text x="179.26086956521738" y="214.3" font-size="5.2" text-anchor="middle">gmm2 t0</text>
+  <rect x="217.1304347826087" y="208" width="67.0" height="9" fill="#d7d7d7" stroke="#000" stroke-width="0.5"/>
+  <text x="250.6304347826087" y="214.3" font-size="5.2" text-anchor="middle">gmm1 t3</text>
+  <text x="50" y="227.8" font-size="5.8" text-anchor="end">AIC 1</text>
+  <path d="M54 231.1 L326 231.1" fill="none" stroke="#ccc" stroke-width="0.4"/>
+  <rect x="62.73913043478261" y="221.5" width="67.0" height="9" fill="#d7d7d7" stroke="#000" stroke-width="0.5"/>
+  <text x="96.23913043478261" y="227.8" font-size="5.2" text-anchor="middle">gmm1 t1</text>
+  <rect x="132.6521739130435" y="221.5" width="20.391304347826086" height="9" fill="#f0f0f0" stroke="#000" stroke-width="0.5"/>
+  <text x="142.84782608695653" y="227.8" font-size="5.2" text-anchor="middle">act t1</text>
+  <rect x="155.95652173913044" y="221.5" width="64.08695652173913" height="9" fill="#d7d7d7" stroke="#000" stroke-width="0.5"/>
+  <text x="188.0" y="227.8" font-size="5.2" text-anchor="middle">gmm2 t1</text>
+  <rect x="225.8695652173913" y="221.5" width="67.0" height="9" fill="#d7d7d7" stroke="#000" stroke-width="0.5"/>
+  <text x="259.3695652173913" y="227.8" font-size="5.2" text-anchor="middle">gmm1 t4</text>
+  <text x="50" y="241.3" font-size="5.8" text-anchor="end">AIC 27</text>
+  <path d="M54 244.6 L326 244.6" fill="none" stroke="#ccc" stroke-width="0.4"/>
+  <rect x="71.47826086956522" y="235.0" width="67.0" height="9" fill="#d7d7d7" stroke="#000" stroke-width="0.5"/>
+  <text x="104.97826086956522" y="241.3" font-size="5.2" text-anchor="middle">gmm1 t2</text>
+  <rect x="141.3913043478261" y="235.0" width="20.391304347826086" height="9" fill="#f0f0f0" stroke="#000" stroke-width="0.5"/>
+  <text x="151.58695652173913" y="241.3" font-size="5.2" text-anchor="middle">act t2</text>
+  <rect x="164.69565217391306" y="235.0" width="64.08695652173913" height="9" fill="#d7d7d7" stroke="#000" stroke-width="0.5"/>
+  <text x="196.73913043478262" y="241.3" font-size="5.2" text-anchor="middle">gmm2 t2</text>
+  <rect x="234.6086956521739" y="235.0" width="58.26086956521739" height="9" fill="none" stroke="#999" stroke-width="0.5" stroke-dasharray="1.5 1.5"/>
+  <text x="263.7391304347826" y="241.3" font-size="5.2" text-anchor="middle" font-style="italic" fill="#555">forced idle</text>
+  <text x="50" y="254.8" font-size="5.8" text-anchor="end">link</text>
+  <path d="M54 258.1 L326 258.1" fill="none" stroke="#ccc" stroke-width="0.4"/>
+  <rect x="54.0" y="248.5" width="58.26086956521739" height="9" fill="#ffffff" stroke="#000" stroke-width="0.5"/>
+  <text x="83.13043478260869" y="254.8" font-size="5.2" text-anchor="middle">dispatch w0</text>
+  <rect x="118.08695652173913" y="248.5" width="58.26086956521739" height="9" fill="#ffffff" stroke="#000" stroke-width="0.5"/>
+  <text x="147.2173913043478" y="254.8" font-size="5.2" text-anchor="middle">dispatch w1</text>
+  <rect x="237.52173913043478" y="248.5" width="72.82608695652173" height="9" fill="#ffffff" stroke="#000" stroke-width="0.5"/>
+  <text x="273.9347826086956" y="254.8" font-size="5.2" text-anchor="middle">combine</text>
+  <text x="50" y="266.0" font-size="5.2" text-anchor="end" font-style="italic" fill="#444">engine</text>
+  <text x="54" y="266.0" font-size="5.5" text-anchor="start">cube  =  dark,   vector  =  light,   link  =  outline.   An event may hold several resources at once; t_base then takes max over all of them.</text>
+  <path d="M54 274.0 L336 274.0" fill="none" stroke="#000" stroke-width="0.5"/>
+  <text x="54" y="281.0" font-size="5.6" text-anchor="middle">0</text>
+  <path d="M310.3478260869565 271.0 L310.3478260869565 277.0" fill="none" stroke="#000" stroke-width="0.5"/>
+  <text x="310.3478260869565" y="281.5" font-size="5.8" text-anchor="middle">makespan  T̂ = max end(e)</text>
+  <text x="338" y="276.0" font-size="5.8" text-anchor="start" font-style="italic">time</text>
+  <text x="14" y="294.0" font-size="6.2" text-anchor="start">start(e)  =  least  t ≥  max { max</text>
+  <text x="107" y="296.0" font-size="4.9" text-anchor="start">p∈P(e)</text>
+  <text x="125" y="294.0" font-size="6.2" text-anchor="start">[ end(p) + λ(e,p) ] ,   max</text>
+  <text x="205" y="296.0" font-size="4.9" text-anchor="start">r∈R(e)</text>
+  <text x="223" y="294.0" font-size="6.2" text-anchor="start">free(r) }   that the credits A(e) admit.</text>
+  <text x="14" y="303.0" font-size="6.2" text-anchor="start">A concrete resource takes the max of the set; a pool placeholder such as AIC:* takes the min, which is what late binding means.</text>
+  <text x="14" y="313.0" font-size="5.7" text-anchor="start">activation carries colocate_with, so it must take the core its gmm1 tile already holds: a free core elsewhere cannot help it, which is why</text>
+  <text x="14" y="320.0" font-size="5.7" text-anchor="start">pinned roles are excluded from the idle test.  The wave boundary is a credit, not an edge: dispatch w1 releases an L1 slot and gmm1 t3 is admitted.</text>
+  <path d="M0 348 L396 348" fill="none" stroke="#bbb" stroke-width="0.4"/>
+  <text x="2" y="362" font-size="7.4" text-anchor="start" font-style="italic">(c)</text>
+  <text x="14" y="362" font-size="6.5" text-anchor="start">a schedule is only read off once it clears two tests that do not depend on the orchestration being modelled.</text>
+  <path d="M60 392 L310 392" fill="none" stroke="#000" stroke-width="0.5"/>
+  <text x="56" y="394.2" font-size="6.0" text-anchor="end" font-style="italic">cost</text>
+  <path d="M83.92 387 L83.92 397" fill="none" stroke="#000" stroke-width="0.5"/>
+  <text x="83.92" y="384" font-size="5.7" text-anchor="middle">compute_us</text>
+  <text x="83.92" y="404" font-size="5.2" text-anchor="middle" font-style="italic" fill="#333">MAC / (cores · rate)</text>
+  <path d="M142.16000000000003 387 L142.16000000000003 397" fill="none" stroke="#000" stroke-width="0.5"/>
+  <text x="142.16000000000003" y="384" font-size="5.7" text-anchor="middle">bandwidth_us</text>
+  <text x="142.16000000000003" y="404" font-size="5.2" text-anchor="middle" font-style="italic" fill="#333">bytes / BW_L1_GM</text>
+  <path d="M200.4 387 L200.4 397" fill="none" stroke="#000" stroke-width="0.5"/>
+  <text x="200.4" y="384" font-size="5.7" text-anchor="middle">dependency_us</text>
+  <text x="200.4" y="404" font-size="5.2" text-anchor="middle" font-style="italic" fill="#333">longest d-weighted path</text>
+  <path d="M272.08000000000004 382 L272.08000000000004 397" fill="none" stroke="#000" stroke-width="0.9"/>
+  <text x="272.08000000000004" y="379" font-size="7.0" text-anchor="middle">T̂</text>
+  <text x="272.08000000000004" y="404" font-size="5.2" text-anchor="middle" font-style="italic" fill="#333">reported makespan</text>
+  <path d="M200.4 389.4 L272.08000000000004 389.4" fill="none" stroke="#000" stroke-width="0.5"/>
+  <text x="236.24" y="387.4" font-size="5.2" text-anchor="middle" font-style="italic">what the orchestration costs</text>
+  <text x="314" y="388" font-size="5.5" text-anchor="start">lower_us = max of the three.</text>
+  <text x="314" y="395" font-size="5.5" text-anchor="start">All three move with the shape</text>
+  <text x="314" y="402" font-size="5.5" text-anchor="start">alone, so T̂ under any of them</text>
+  <text x="314" y="409" font-size="5.5" text-anchor="start">raises BoundViolation.</text>
+  <rect x="6" y="414" width="186" height="40" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="2.5 1.5"/>
+  <text x="11" y="424" font-size="5.9" text-anchor="start">idle on a pooled role, per core:</text>
+  <text x="11" y="432" font-size="5.9" text-anchor="start">forced_idle_us  —  nothing was ready; admissible</text>
+  <text x="11" y="440" font-size="5.9" text-anchor="start">avoidable_idle_us  —  something was ready while a</text>
+  <text x="11" y="448" font-size="5.9" text-anchor="start">core sat free  ⇒  WorkConservationViolation</text>
+  <rect x="200" y="414" width="190" height="40" fill="none" stroke="#666" stroke-width="0.5" stroke-dasharray="2.5 1.5"/>
+  <text x="205" y="424" font-size="5.9" text-anchor="start">avoidable is an upper bound, not a ledger: under</text>
+  <text x="205" y="432" font-size="5.9" text-anchor="start">phase pipelining the phase group inflates it, and</text>
+  <text x="205" y="440" font-size="5.9" text-anchor="start">roles pinned by colocate_with or core_group are</text>
+  <text x="205" y="448" font-size="5.9" text-anchor="start">excluded by derivation from the graph, not by hand.</text>
+  <rect x="86" y="464" width="224" height="15" fill="none" stroke="#000" stroke-width="0.6"/>
+  <text x="198" y="474" font-size="5.9" text-anchor="middle">change exactly one knob — tile size, wave split, steal driver, binding — and re-run</text>
+  <path d="M86 471.5 L46 453.5" fill="none" stroke="#444" stroke-width="0.6" stroke-dasharray="2.5 1.5" marker-end="url(#ag)"/>
+  <path d="M46 471.5 L36 471.5" fill="none" stroke="#444" stroke-width="0.6" stroke-dasharray="2.5 1.5"/>
+  <path d="M36 471.5 L36 60" fill="none" stroke="#444" stroke-width="0.6" stroke-dasharray="2.5 1.5"/>
+  <path d="M36 60 L64 49" fill="none" stroke="#444" stroke-width="0.6" stroke-dasharray="2.5 1.5" marker-end="url(#ag)"/>
+  <path d="M310 471.5 L330 471.5" fill="none" stroke="#444" stroke-width="0.6" stroke-dasharray="2.5 1.5"/>
+  <path d="M330 471.5 L330 455" fill="none" stroke="#444" stroke-width="0.6" stroke-dasharray="2.5 1.5" marker-end="url(#ag)"/>
+  <text x="198" y="488" font-size="6.0" text-anchor="middle">ΔT̂ is the cost of that one choice: both runs are scheduled from the same declarations and pass the same two tests, so neither is fitted to the other.</text>
 </svg>
